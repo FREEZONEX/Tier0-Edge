@@ -9,6 +9,8 @@
   /*background: url("../img/keycloak-bg.png") no-repeat center center fixed;*/
   background-size: cover;
   height: 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
 }
 
 .pf-v5-c-login {
@@ -23,7 +25,7 @@
   padding: 40px;
   font-weight: bold;
   background-color: var(--pf-v5-global--BackgroundColor--light-300);
-  background-image: url("../img/login-background.png");
+  /* background-image: url("../img/login-background.png"); */
   background-size: 100% auto;
   background-repeat: no-repeat;
   background-position: bottom;
@@ -35,8 +37,8 @@
   font-size: 50px;
   line-height: 60px;
 }
-.pf-v5-c-login-l-t-l-text-blue {
-  color: #1d77fe;
+.supos-login-slogan {
+  width: 300px;
 }
 .pf-v5-c-login-l-t-right {
   width: 80px;

@@ -9,28 +9,20 @@ class MqttBridge {
 
     timer;
 
+    mappings;
     
-    constructor(node, interval) {
+    constructor(node, mappings, interval) {
         this.queue = q.newQueue();
-        // 往平台推送数据的topic
-        let plantTopic = `4174348a-9222-4e81-b33e-5d72d2fd7f1e`
+        this.mappings = mappings;
 
         this.timer = setInterval(() => {
-            let payloads = aggregate(this.queue);
-            if (payloads.length > 0) {
-                let newMsg = {
-                    "topic": plantTopic,
-                    "payload": payloads
-                }
+            let newMsg = this.queue.poll();
+            if (newMsg != null) {
                 node.send([newMsg, null])
             }
         }, interval); 
 
         console.log(new Date(), `: MQTT定时推送任务开启, 节点ID=${node.id}`)
-    }
-
-    refreshMappings(deviceName, newMapping) {
-        
     }
 
     /**
@@ -52,9 +44,7 @@ class MqttBridge {
      * }
      * @returns 
      */
-    receive(inputMsg) {
-        // 校验数据格式
-        let payload = inputMsg.payload;
+    receive(msg, envs) {
         // if (this.invalidMsg) {
         //     this.invalidMsg = isValid(payload);
         // }
@@ -62,61 +52,53 @@ class MqttBridge {
         //     return this.invalidMsg;
         // }
         if (this.queue) {
-            this.queue.offer(payload);
+            let topicMap = transfer(msg, this.mappings, envs);
+            for (let key in topicMap) {
+                this.queue.offer({
+                    topic: key,
+                    payload: topicMap[key]
+                });
+            }
         }
     }
 
     destroy(nodeId) {
         clearInterval(this.timer);
         this.queue = null;
+        this.mappings = null;
         console.log(new Date(), `: MQTT节点被销毁, 节点ID=${nodeId}`)
     }
 }
 
-function isValid(payload) {
-    var values = payload.values;
-    if (!values || !Array.isArray(values) || values.length == 0) {
-        return "supmodel.error_mqtt_values_empty";
-    }
-    if (values[0].name !== undefined 
-        && values[0].value.timeStamp !== undefined
-        && values[0].value.quality !== undefined
-        && values[0].value.value !== undefined
-        && values[0].value.type !== undefined) {
 
-            return "";
-    }
-    return "supmodel.error_mqtt_data_not_valid";
-}
-
-function aggregate(queue) {
-    let aggregations = []
+function transfer(msg, mappings, envs) {
     
-    for (let i = 0; i < 1000; i++) {
-        let payload = queue.poll();
-        if (payload == null) {
-            break;
+    let useAlias = envs.use_alias;
+
+    let topicResult = {};
+
+    if (!mappings) {
+        topicResult[msg.topic] = msg.payload;
+        return topicResult;
+    }
+
+    let unsArray = mappings[msg.topic];
+    if (unsArray && unsArray.length > 0) {
+        for (let i in unsArray) {
+            if (useAlias === true) {
+                topicResult[unsArray[i].alias] = msg.payload;
+            } else {
+                topicResult[unsArray[i].path] = msg.payload;
+            }
         }
-        let data = transfer(payload, model);
-        aggregations.push(...data);
+    } else {
+        topicResult[msg.topic] = msg.payload;
     }
-    return aggregations;
+    return topicResult;
 }
 
-function transfer(payload, model) {
-
-    let values = [];
-    let value = {
-        "alias": model.alias,
-        "data": payload
-    }
-    values.push(value);
-        
-    return values;
-}
-
-function newMqttBridge(node, device, interval) {
-    return new MqttBridge(node, device, interval);
+function newMqttBridge(node, mappings, interval) {
+    return new MqttBridge(node, mappings, interval);
 }
 
 module.exports = { newMqttBridge }; // 导出函数

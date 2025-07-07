@@ -365,13 +365,14 @@ services:
   tags:
   - root:frontend
   - Home:1
-  - SourceFlow:3
-  - Namespace:2
+  - SourceFlow:2
+  - Namespace:3
   - EventFlow:4
-  - menu.tag.devtools:5
+  - CollectionGatewayManagement:5
+  - menu.tag.devtools:6
   - menu.tag.uns:1
-  - menu.tag.appspace:6
-  - menu.tag.system:7
+  - menu.tag.appspace:7
+  - menu.tag.system:8
   ca_certificates: ~
   client_certificate: ~
   enabled: true
@@ -700,7 +701,7 @@ routes:
   - description:menu.desc.cicd
   - sort:1
   - parentName:menu.tag.devtools
-  - ${ENABLE_GITEA_MENU}
+  - menu
   snis: ~
 - sources: ~
   destinations: ~
@@ -956,7 +957,7 @@ routes:
   - description:menu.desc.dataModeling
   - homeParentName:menu.tag.uns
   - homeIconUrl:homeNamespace
-  - sort:1
+  - sort:2
   snis: ~
 - sources: ~
   destinations: ~
@@ -1435,7 +1436,7 @@ routes:
   tags:
   - menu
   - description:menu.desc.nodered.flow
-  - sort:2
+  - sort:1
   - homeParentName:menu.tag.uns
   - homeIconUrl:homeSourceFlow
   snis: ~
@@ -1613,7 +1614,7 @@ routes:
   - http
   - https
   tags:
-  - menu
+  - ${ENABLE_EVENTFLOW}
   - homeParentName:menu.tag.uns
   - description:menu.desc.eventflow
   - homeIconUrl:homeEventFlow
@@ -2043,7 +2044,7 @@ plugins:
   instance_name: ~
   route: ~
   id: 1845ee75-d704-40e1-a8b0-aa2baaf9d71b
-  enabled: ${KONG_AUTH_ENABLED}
+  enabled: true
   protocols:
   - grpc
   - grpcs
@@ -2057,6 +2058,7 @@ plugins:
     whitelist_paths:
     - ^/inter-api/supos/auth.*$
     - ^/inter-api/supos/systemConfig.*$
+    - ^/inter-api/supos/theme/getConfig.*$
     - ^/$
     - ^/assets.*$
     - ^/locale.*$
@@ -2068,7 +2070,8 @@ plugins:
     - ^/keycloak.*$
     - ^/nodered.*$
     - ^/files.*$
-    - ^/test/.*$
+    - ^/freeLogin.*$
+    - ^/inter-api/supos/dev/logs.*$
   name: supos-auth-checker
 - consumer: ~
   created_at: 1734330234
@@ -2078,7 +2081,7 @@ plugins:
   instance_name: ~
   route: 9df937e7-2ffb-49f4-b60b-4bb5b551419a
   id: 2285421f-56e3-4510-be12-69fa1040d810
-  enabled: false
+  enabled: true
   protocols:
   - grpc
   - grpcs

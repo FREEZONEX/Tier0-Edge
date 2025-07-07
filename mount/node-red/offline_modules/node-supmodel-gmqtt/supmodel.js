@@ -2,6 +2,7 @@
 const opcua = require('./opcua-bridge');
 const opcda = require('./opcda-bridge');
 const modbus = require('./modbus-bridge');
+const mqtt = require('./mqtt-bridge');
 const mock = require('./mock-bridge');
 const custom = require('./custom-bridge');
 const xlsx = require('node-xlsx');
@@ -13,7 +14,8 @@ module.exports = function (RED) {
 
     const httpNode = RED.httpNode;
 
-    const storagePath = '/data/cache/context/global/global.json';
+    const storage = '/data/cache/context/global/';
+    const storagePath = storage + 'global.json';
 
     const templateCN = '/data/template/template-cn.xlsx';
     const templateEN = '/data/template/template-en.xlsx';
@@ -28,6 +30,47 @@ module.exports = function (RED) {
             res.download(templateCN);
         }
     });
+
+    httpNode.get('/nodered-api/load/tags', (req, res) => {
+        const nodeId = req.query.nodeId; // 查询条件
+        // tag array
+        let tags = loadStorage(nodeId);
+        res.status(200).json({data: tags});
+
+    });
+
+    httpNode.get('/nodered-api/export/tags', (req, res) => {
+        const language = process.env.OS_LANG;
+        const nodeId = req.query.nodeId; // 查询条件
+        let data = [];
+        if (language == 'en-US') {
+            // header
+            data.push(['FilePath(Required)','FileAlias','AttributeName(Required)','AttributeType(Required)','TagConfiguration(Required)']);
+        } else {
+            // header
+            data.push(['文件路径（必填）','文件别名','属性名称（必填）','属性类型（必填）','位号名（必填）']);
+        }
+        // tag array
+        let tags = loadStorage(nodeId);
+        if (tags && tags.length > 0) {
+            data.push(...tags);
+        }
+        const options = {
+            sheetOptions: {
+                '!cols': [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 30 }] 
+            }
+        };
+        const buffer = xlsx.build([{ 
+            name: 'UNS Data',   // 工作表名称
+            data: data        // 数据源
+        }], options)
+        const exportExcelName = `/tmp/UNS-Mapper-${nodeId}.xlsx`;
+        fs.writeFileSync(exportExcelName, buffer);
+        res.download(exportExcelName, () => {
+            fs.unlinkSync(exportExcelName);
+        });
+    });
+
     // 导入excel
     httpNode.post('/nodered-api/upload/tags', (req, res) => {
         
@@ -69,9 +112,12 @@ module.exports = function (RED) {
 
     httpNode.post('/nodered-api/save/tags', (req, res) => {
         
-        saveGlobalStorage(req.body.nodeId, req.body.tags);
-
-        res.status(200).end("success");
+        let success = saveGlobalStorage(req.body.nodeId, req.body.tags);
+        if (success === true) {
+            res.status(200).end("success");
+        } else {
+            res.status(500).json({msg: "Tag save failed"});
+        }
     });
 
     httpNode.get('/nodered-api/query/tags', (req, res) => {
@@ -81,11 +127,15 @@ module.exports = function (RED) {
 
         const excelData = loadStorage(nodeId);
 
-        res.status(200).end(JSON.stringify({data: excelData}));
+        res.status(200).json({data: excelData});
     });
 
     function saveGlobalStorage(key, data) {
         try {
+            if (!fs.existsSync(storagePath)) {
+                fs.mkdirSync(storage, { recursive: true });
+                fs.writeFileSync(storagePath, JSON.stringify({key: []}));
+            }
             let buffer = fs.readFileSync(storagePath);
             if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
                 buffer = buffer.subarray(3);
@@ -95,18 +145,25 @@ module.exports = function (RED) {
                 content = "{}";
             }
             let o = JSON.parse(content);
-            o[key] = data;
+            o[key] = data || [];
             fs.writeFileSync(storagePath, JSON.stringify(o));
-            
+            return true;
         } catch (err) {
             console.log(err)
-            RED.log.error(`数据保存失败`);
+            RED.log.error(`Tag save failed`);
+            return false;
         }
         
     }
 
     function loadStorage(key) {
         try {
+            if (!fs.existsSync(storagePath)) {
+                fs.mkdirSync(storage, { recursive: true });
+                fs.writeFileSync(storagePath, JSON.stringify({key: []}));
+                return [];
+            }
+
             let buffer = fs.readFileSync(storagePath);
             if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
                 buffer = buffer.subarray(3);
@@ -116,15 +173,12 @@ module.exports = function (RED) {
                 content = "{}";
             }
             let o = JSON.parse(content);
-            return o[key] || [];
+            return o[key];
         } catch (err) {
             console.log(err);
-            return [];
+            return null;
         }
-      }
-
-    
-    
+    }
 
     function buildMappings(excelData) {
         let mappings = {};
@@ -133,11 +187,11 @@ module.exports = function (RED) {
         }
         
         excelData.map(row => {
-            // folder, name, alias, propName, propType, tag
-            const [folder, name, alias, propName, propType, tag] = row;
+            // path, alias, propName, propType, tag
+            const [path, alias, propName, propType, tag] = row;
             let props = mappings[tag] || [];
             props.push({
-                folderPath: folder,
+                path: path,
                 alias: alias,
                 propName: propName
             });
@@ -168,15 +222,16 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
+        if (!fs.existsSync(storagePath)) {
+            node.context().global.set(node.id, []);
+        }
+
         node.protocol = config.protocol;
-        node.models = config.models;
+        node.models = loadStorage(node.id);
         node.envs = {
             "field_t_var": process.env.TIMESTAMP_NAME,
             "field_q_var": process.env.QUALITY_NAME
         }
-        // if (node.models) {
-        //     node.context().global.set(node.id, node.models);
-        // }
         node.mappings = buildMappings(node.models);
 
         node.bridge = null;
@@ -187,10 +242,8 @@ module.exports = function (RED) {
             case "opcda": node.bridge = opcda.newOpcdaBridge(node, node.mappings, node.interval); break;
             case "modbus": node.bridge = modbus.newModbusBridge(node, node.mappings, node.interval); break;
             case "custom": node.bridge = custom.newCustomProtocolBridge(node, node.mappings, node.interval); break;
-            case "mock": {
-                const alias = Object.keys(node.mappings)[0];
-                node.bridge = mock.newMockDataBridge(node, alias); break;
-            }
+            case "mqtt": node.bridge = mqtt.newMqttBridge(node, node.mappings, node.interval); break;
+            case "mock": node.bridge = mock.newMockDataBridge(node, 1000); break;
             default: {
                 node.error('节点未生效：请选择协议');
                 return;

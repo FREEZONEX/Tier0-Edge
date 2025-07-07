@@ -1,0 +1,88 @@
+<script type="text/html" data-help-name="supmodel">
+
+    <p>The UNS Mapper node is the core bridge connecting your physical world to the digital twin platform. It follows the Unified Namespace (UNS) philosophy, designed to efficiently and standardly map raw data from various industrial protocols to the MQTT topics defined in your platform, and ultimately send them out.</p>
+    <h2><strong>How It Works</strong></h2>
+    <p>This node acts as a data processing hub. It receives data from upstream protocol-specific nodes (such as node-red-contrib-opcua, node-red-contrib-modbus, etc.), and then, based on your configuration within the node, transforms this data into the platform's standard JSON format, assigning a target UNS Topic to each piece of data.</p>
+    <p>Finally, the converted data flows out from this node's output port. You will need to connect it to a standard mqtt out node to complete the data publishing.</p>
+    <strong>Core Flow：</strong><p>[Protocol Input Node] → [UNS Mapper Node] → [mqtt out Node]</p><br/>
+
+    <img src="resources/node-red-node-supmodel/example.png" />
+
+    <h2><strong>Node Configuration</strong></h2>
+    <p>Double-click the node to open the configuration window, where you will see two main tabs: Basic Info and Tags Mapping.</p>
+
+    <h3><strong>Basic Info</strong></h3>
+    <p>In this tab, you need to configure the node's basic connection and operational mode.</p>
+    <dl class="message-properties">
+        <dt>Name</dt>
+        <dd>Set an easily recognizable name for this node, for example, "Line 1 Data Mapping".</dd>
+        <br/>
+        <dt>Select Protocol <span class="property-type">(Required)</span></dt>
+        <dd>  - Select the upstream data protocol you want to process from the dropdown menu. This determines how the "Tag Configuration" column in the Tags Mapping tab will be parsed.</dd>
+        <dd>  - Supported Protocols: OPC UA, OPC DA, MODBUS, MQTT.</dd>
+        <br>
+        <dt>Select Model <span class="property-type">(Optional)</span></dt>
+        <dd>You can select a pre-defined model template from the platform to quickly load a batch of mapping configurations.</dd>
+        <br>
+    </dl>
+
+    <h3><strong>Tags Mapping</strong></h3>
+    <p>This is the most critical configuration area of the node. Here, you will define how each data point is mapped from the source protocol to a target UNS Topic. Click [+ New Row] to add a new mapping rule.</p>
+    <dl class="message-properties">
+        <dt>FilePath <span class="property-type">(Required)</span></dt>
+        <dd>  - This is the final location of the data in your platform's UNS, which is also its MQTT Topic.</dd>
+        <dd>  - Naming Convention: The platform treats topics as a "folder/file" structure, where only the last level can transmit data. For example, a valid path would be Workshop1/Line2/CNC01/SpindleTemperature.</dd>
+        <br>
+        <dt>Alias <span class="property-type">(Optional)</span></dt>
+        <dd>Set an alias for this data point. If left blank, the system will automatically generate a unique identifier upon selection.</dd>
+        <br>
+        <dt>AttributeName <span class="property-type">(Required)</span></dt>
+        <dd>Defines the key in the output JSON message. For example, you can name it value.</dd>
+        <br>
+        <dt>AttributeType <span class="property-type">(Required)</span></dt>
+        <dd>Defines the data type of the value corresponding to the key in the output JSON message, such as Float, Integer, String, or Boolean. The node will attempt to perform a type conversion.</dd>
+        <br>
+        <dt>TagConfiguration <span class="property-type">(Required)</span></dt>
+        <dd>This is the configuration item used to locate the specific value from the upstream data. Its format depends on the protocol you selected in the "Basic Info" tab:</dd>
+        <dd>    
+            <ul>
+                <li>OPC UA: Enter the node's nodeId, for example, ns=2;i=1001.</li>
+                <li>MODBUS: Enter the register's address or array index, for example, 0, 1, 2.</li>
+                <li>MQTT: Enter the path to the value in the source MQTT message's JSON payload, for example, payload.temperature.</li>
+                <li>OPC DA: Enter the OPC DA tag path.</li>
+            </ul>
+        </dd>
+        <br>
+    </dl>
+    
+    <h2><strong>Input</strong></h2>
+    <p>This node expects to receive a msg object from an upstream protocol-specific input node. It will parse the required values from msg.payload based on the Tags Mapping configuration.</p>
+
+    <h2><strong>Output</strong></h2>
+    <p>This node will output one or more msg objects, where each object's msg.topic and msg.payload have been formatted:</p>
+    <ul>
+        <li>msg.topic: The UNS path you defined in FilePath.</li>
+        <li>msg.payload: A JSON object containing the "AttributeName" and "AttributeValue" you defined.</li>
+    </ul>
+    <p>Example Output:</p>
+    <ul>
+        <li>msg.topic: Workshop1/Line2/CNC01/SpindleTemperature</li>
+        <li>msg.payload: {"value": 85.3}</li>
+    </ul>
+
+    <h2><strong>Usage Example</strong></h2>
+    <p>1. Drag an OPC UA Client node from the left panel and configure its server connection and the tags to subscribe to.</p>
+    <p>2. Drag a UNS Mapper node from the left panel.</p>
+    <p>3. Connect the output port of the OPC UA Client node to the input port of the UNS Mapper node.</p>
+    <p>4. Double-click the UNS Mapper node and select OPC UA as the protocol in the "Basic Info" tab.</p>
+    <p>5. Switch to the "Tags Mapping" tab and add a new row with the following configuration:</p>
+    <ul>
+        <li>FilePath: MyFactory/TestDevice/Temperature</li>
+        <li>AttributeName: value</li>
+        <li>AttributeType: Float</li>
+        <li>TagConfiguration: ns=2;i=1001</li>
+    </ul>
+    <p>6. Drag an mqtt out node from the left panel and configure its Broker information.</p>
+    <p>7. Connect the output port of the UNS Mapper node to the input port of the mqtt out node.</p>
+    <p>8. Deploy the flow. Now, data from the OPC UA tag ns=2;i=1001 will be automatically published to the MQTT topic MyFactory/TestDevice/Temperature.</p>
+</script>

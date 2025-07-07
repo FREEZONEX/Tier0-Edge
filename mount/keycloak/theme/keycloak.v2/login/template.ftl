@@ -66,54 +66,13 @@
     <script type="module" src="${url.resourcesPath}/js/passwordVisibility.js"></script>
     <script type="module">
         import { startSessionPolling } from "${url.resourcesPath}/js/authChecker.js";
+        import { handleTheme } from "${url.resourcesPath}/js/customThemeConfig.js";
         startSessionPolling(
             "${url.ssoLoginInOtherTabsUrl?no_esc}"
         );
-
-        const DARK_MODE_CLASS = "pf-v5-theme-dark";
-        const mediaQuery =window.matchMedia("(prefers-color-scheme: dark)");
-        updateDarkMode(mediaQuery.matches);
-        mediaQuery.addEventListener("change", (event) =>
-          updateDarkMode(event.matches),
-        );
-        function updateDarkMode(isEnabled) {
-          const { classList } = document.documentElement;
-          const logoDom=document.querySelector('.supos-logo')
-          const loginArrowDom=document.querySelector('.pf-v5-c-login-l-t-right')
-          if (isEnabled) {
-            classList.add(DARK_MODE_CLASS);
-            if(logoDom&&loginArrowDom){
-              logoDom.src="/files/system/resource/supos/logo-dark.png";
-              logoDom.onerror=function() {
-                this.onerror = null;
-                this.src='${url.resourcesPath}/img/supos-logo-dark.svg';
-              };
-              loginArrowDom.style.backgroundImage='url(${url.resourcesPath}/img/login-arrow-dark.svg)';
-            }
-          } else {
-            classList.remove(DARK_MODE_CLASS);
-            if(logoDom&&loginArrowDom){
-              logoDom.src="/files/system/resource/supos/logo-light.png";
-              logoDom.onerror=function() {
-                this.onerror = null;
-                this.src = '${url.resourcesPath}/img/supos-logo.svg';
-              };
-              loginArrowDom.style.backgroundImage='url(${url.resourcesPath}/img/login-arrow.svg)';
-            }
-          }
-        }
-    </script>
-    <script>
-      const favicon = document.getElementById('dynamic-favicon');
-
-      // 检测 SVG 是否加载失败
-      const img = new Image();
-      img.src = favicon.href;
-
-      img.onerror = function() {
-        // 替换为备用图标
-        favicon.href = '/log.svg';
-      };
+        const keycloakUrl = "${url.resourcesPath}";
+        const lang = "${msg("suposLang")}";
+        handleTheme(keycloakUrl,lang)
     </script>
 </head>
 
@@ -122,16 +81,11 @@
 <div class="${properties.kcLogin!}">
  <div class="pf-v5-c-login-left">
     <div class="pf-v5-c-login-l-top">
-      <div class="pf-v5-c-login-l-t-left">
-        <div class="pf-v5-c-login-l-t-l-text">${msg("customLoginRevolutionize")}</div>
-        <div class="pf-v5-c-login-l-t-l-text">${msg("customLoginYour")}</div>
-        <div class="pf-v5-c-login-l-t-l-text-blue">${msg("customLoginDigital")}</div>
-        <div class="pf-v5-c-login-l-t-l-text-blue">${msg("customLoginTransformation")}</div>
-      </div>
+      <img class="supos-login-slogan" src=""></img>
       <div class="pf-v5-c-login-l-t-right"></div>
     </div>
     <div class="pf-v5-c-login-l-bottom">
-      <img class="supos-logo" src="/files/system/resource/supos/logo-light.png"></img>
+      <img class="supos-logo" src=""></img>
       <div>${msg("customIndustrialOperatingSystem")}</div>
     </div>
   </div>
