@@ -1,1 +1,0 @@
-CREATE DATABASE kong;  -- 创建第三个数据库
