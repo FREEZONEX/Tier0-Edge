@@ -10,13 +10,13 @@ class MqttBridge {
     timer;
 
     
-    constructor(node, interval) {
+    constructor(node, mappings, interval) {
         this.queue = q.newQueue();
         // 往平台推送数据的topic
         let plantTopic = `4174348a-9222-4e81-b33e-5d72d2fd7f1e`
 
         this.timer = setInterval(() => {
-            let payloads = aggregate(this.queue);
+            let payloads = aggregate(this.queue, mappings);
             if (payloads.length > 0) {
                 let newMsg = {
                     "topic": plantTopic,
@@ -27,10 +27,6 @@ class MqttBridge {
         }, interval); 
 
         console.log(new Date(), `: MQTT定时推送任务开启, 节点ID=${node.id}`)
-    }
-
-    refreshMappings(deviceName, newMapping) {
-        
     }
 
     /**
@@ -52,9 +48,7 @@ class MqttBridge {
      * }
      * @returns 
      */
-    receive(inputMsg) {
-        // 校验数据格式
-        let payload = inputMsg.payload;
+    receive(msg) {
         // if (this.invalidMsg) {
         //     this.invalidMsg = isValid(payload);
         // }
@@ -62,7 +56,7 @@ class MqttBridge {
         //     return this.invalidMsg;
         // }
         if (this.queue) {
-            this.queue.offer(payload);
+            this.queue.offer(msg);
         }
     }
 
@@ -89,34 +83,43 @@ function isValid(payload) {
     return "supmodel.error_mqtt_data_not_valid";
 }
 
-function aggregate(queue) {
+function aggregate(queue, mappings) {
     let aggregations = []
     
     for (let i = 0; i < 1000; i++) {
-        let payload = queue.poll();
-        if (payload == null) {
+        let msg = queue.poll();
+        if (msg == null) {
             break;
         }
-        let data = transfer(payload, model);
+        let data = transfer(msg, mappings);
         aggregations.push(...data);
     }
     return aggregations;
 }
 
-function transfer(payload, model) {
+function transfer(msg, mappings) {
 
     let values = [];
-    let value = {
-        "alias": model.alias,
-        "data": payload
+
+    if (!mappings) {
+        return values;
     }
-    values.push(value);
+    let unsArray = mappings[msg.topic];
+    if (unsArray && unsArray.length > 0) {
+        for (let i in unsArray) {
+            let value = {
+                "alias": unsArray[i].alias,
+                "data": msg.payload
+            }
+            values.push(value);
+        }
+    }
         
     return values;
 }
 
-function newMqttBridge(node, device, interval) {
-    return new MqttBridge(node, device, interval);
+function newMqttBridge(node, mappings, interval) {
+    return new MqttBridge(node, mappings, interval);
 }
 
 module.exports = { newMqttBridge }; // 导出函数

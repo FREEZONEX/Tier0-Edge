@@ -45,7 +45,7 @@ docker exec $NODERED_SERVICE sh -c "npm install --unsafe-perm /data/offline_modu
 docker exec $NODERED_SERVICE sh -c "cd /data && npm install $1 --no-audit --offline node-red-contrib-postgresql@0.14.2" \
 || error "node-red install postgresq failed!"
 
-docker exec $NODERED_SERVICE sh -c "cd /data && npm install $1 --offline --prefix /data /data/offline_modules/node-supmodel-${MQTT_PLUG}" \
+docker exec $NODERED_SERVICE sh -c "cd /data && npm install $1 --offline --prefix /data /data/offline_modules/node-supmodel-emqx" \
 || error "node-red install supmodel failed!"
 
 

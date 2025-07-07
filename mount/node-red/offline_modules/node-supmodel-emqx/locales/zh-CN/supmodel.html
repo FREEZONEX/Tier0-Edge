@@ -1,0 +1,86 @@
+<script type="text/html" data-help-name="supmodel">
+
+    <p>模型选择器 节点是您连接物理世界与数字孪生平台的核心桥梁。它遵循统一命名空间（UNS）理念，旨在将多种工业协议的原始数据，高效、规范地映射为您平台中定义的MQTT Topic，并最终发送出去。</p>
+    <h2><strong>工作原理</strong></h2>
+    <p>本节点作为一个数据处理中心，它接收来自上游协议采集节点（如 node-red-contrib-opcua、node-red-contrib-modbus 等）的数据，然后根据您在节点内部的配置，将这些数据转换为平台标准的JSON格式，并为每条数据赋予一个UNS中的目标Topic。</p>
+    <p>最终，转换后的数据将从本节点的输出端口流出，您需要将它连接到一个标准的 mqtt out 节点来完成数据的发布。</p>
+    <strong>核心流程：</strong><p>[协议采集节点] → [模型选择器 节点] → [mqtt out 节点]</p><br/>
+    <img src="resources/node-red-node-supmodel/example.png" />
+
+    <h2><strong>节点配置</strong></h2>
+    <p>双击节点以打开配置窗口，您会看到两个主要的标签页：基础配置 和 位号映射。</p>
+
+    <h3><strong>基础配置</strong></h3>
+    <p>在此标签页中，您需要配置节点的基础连接和工作模式。</p>
+    <dl class="message-properties">
+        <dt>名称</dt>
+        <dd>为此节点设置一个易于识别的名称，例如“一号产线数据映射”。</dd>
+        <br/>
+        <dt>选择协议 <span class="property-type">(必填)</span></dt>
+        <dd>  - 从下拉菜单中选择您要处理的上游数据协议。这决定了在 位号映射 中“位号名”列的解析方式。</dd>
+        <dd>  - 支持的协议: OPC UA, OPC DA, MODBUS, MQTT</dd>
+        <br>
+        <dt>选择模型 <span class="property-type">(选填)</span></dt>
+        <dd>您可以从平台预定义的模型模板中选择一个，来快速加载一批映射配置。</dd>
+        <br>
+    </dl>
+
+    <h3><strong>标签映射</strong></h3>
+    <p>这是此节点最核心的配置区域，您将在这里定义每一个数据点如何从源协议映射到目标UNS Topic。点击 [+ New Row] 来添加一条新的映射规则。</p>
+    <dl class="message-properties">
+        <dt>文件路径 <span class="property-type">(必填)</span></dt>
+        <dd>  - 这是数据在您平台UNS中的最终位置，也就是它的 MQTT Topic。</dd>
+        <dd>  - 命名规则: 平台将Topic视为“文件夹/文件”结构，只有最后一级才能传输数据。例如，有效路径为 车间一/产线二/CNC01/主轴温度。</dd>
+        <br>
+        <dt>别名 <span class="property-type">(选填)</span></dt>
+        <dd>为这个数据点设置一个别名。如果留空，系统将在单选时自动生成一个唯一标识。</dd>
+        <br>
+        <dt>属性名 <span class="property-type">(必填)</span></dt>
+        <dd>定义输出JSON消息中的 key。例如，您可以将其命名为 value。</dd>
+        <br>
+        <dt>属性类型 <span class="property-type">(必填)</span></dt>
+        <dd>  - 定义输出JSON消息中该 key 对应值的数据类型，如 Float, Integer, String, Boolean。节点会尝试进行类型转换。</dd>
+        <br>
+        <dt>位号名 <span class="property-type">(必填)</span></dt>
+        <dd>    
+            <ul>
+                <li>OPC UA: 填入节点的 nodeId，例如 ns=2;i=1001。</li>
+                <li>MODBUS: 填入寄存器的地址或数组索引，例如 0, 1, 2。</li>
+                <li>MQTT: 填入源MQTT消息中JSON载荷的路径，例如 payload.temperature。</li>
+                <li>OPC DA: 填入OPC DA的标签路径。ProgID.Device.ItemPath</li>
+            </ul>
+        </dd>
+        <br>
+    </dl>
+    
+    <h2><strong>输入</strong></h2>
+    <p>本节点期望接收来自上游协议采集节点的 msg 对象。它会根据 位号映射 配置，从 msg.payload 中解析出需要的值。</p>
+
+    <h2><strong>输出</strong></h2>
+    <p>本节点会输出一个或多个 msg 对象，每个对象的 msg.topic 和 msg.payload 都已经被格式化：</p>
+    <ul>
+        <li>msg.topic: 您在 文件路径 中定义的UNS路径。</li>
+        <li>msg.payload: 一个包含您定义的“属性名”和“属性值”的JSON对象。</li>
+    </ul>
+    <p>示例输出：</p>
+    <ul>
+        <li>msg.topic: 车间一/产线二/CNC01/主轴温度</li>
+        <li>msg.payload: {"value": 85.3}</li>
+    </ul>
+
+    <h2><strong>使用示例</strong></h2>
+    <p>1. 从左侧面板拖入一个 OPC UA Client 节点，并配置好其服务器连接和要订阅的标签。</p>
+    <p>2. 从左侧面板拖入一个 模型选择器 节点。</p>
+    <p>3. 将 OPC UA Client 节点的输出端口连接到 模型选择器 节点的输入端口。</p>
+    <p>4. 双击 模型选择器 节点，在“基础配置”中选择协议为 OPC UA。</p>
+    <p>5. 切换到“位号映射”，添加一行，配置如下：</p>
+    <ul>
+        <li>文件路径: 我的工厂/测试设备/温度</li>
+        <li>属性名: value</li>
+        <li>属性类型: float</li>
+        <li>位号名: ns=2;i=1001</li>
+    </ul>
+    <p>6. 从左侧面板拖入一个 mqtt out 节点，并配置好其Broker信息。</p>
+    <p>7. 将 模型选择器 节点的输出端口连接到 mqtt out 节点的输入端口。</p>
+    <p>8. 部署流程。现在，来自OPC UA标签 ns=2;i=1001 的数据就会被自动发布到MQTT Topic 我的工厂/测试设备/温度 上。</p>
+</script>

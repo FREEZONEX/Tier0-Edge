@@ -103,7 +103,7 @@
     <div class="form-row">
         <ul style="min-width: 600px; margin-bottom: 20px;" id="node-config-supmodel-tabs"></ul>
     </div>
-    <div id="node-config-supmodel-tabs-content" style="min-height:150px;min-width: 800px;">	
+    <div id="node-config-supmodel-tabs-content" style="min-height:150px;min-width: 1000px;">	
         <div id="supmodel-tab-basicinfo" style="display:none">
 
             <div class="form-row node-input-broker">
@@ -120,10 +120,11 @@
                     <option value="opcua">OPC UA</option>
                     <option value="opcda">OPC DA</option>
                     <option value="modbus">Modbus</option>
+                    <option value="mqtt">MQTT</option>
+                    <option value="mock">Mock</option>
                     <!-- <option value="custom" data-i18n="supmodel.custom_protocol"></option> -->
                     <!-- <option value="rest">Rest Api</option> -->
                     <!-- <option value="icmp">ICMP</option> -->
-                    <!-- <option value="mock">Mock Data</option> -->
                 </select>
             </div>
 
@@ -151,15 +152,16 @@
             <div class="form-row">
                 <input id="node-file-item" type="file" name="filename" accept=".xls,.xlsx" style="display:none"/>
                 <button class="editor-button" id="node-btn-item-import"><i class="fa fa-upload"></i> <span data-i18n="supmodel.label_import"></span></button>
-                <button class="editor-button" id="node-btn-item-dowbload"><i class="fa fa-download"></i> <span data-i18n="supmodel.label_download_template"></span></button>
+                <button class="editor-button" id="node-btn-item-export"><i class="fa fa-download"></i> <span data-i18n="supmodel.label_export"></span></button>
+                <button class="editor-button" id="node-btn-item-add"><i class="fa fa-plus"></i> <span data-i18n="supmodel.label_add_one"></span></button>
                 <button class="editor-button" id="node-btn-item-remove"><i class="fa fa-trash"></i> <span data-i18n="supmodel.label_delete_all"></span></button>
+                <button class="editor-button" id="node-btn-item-dowbload"><i class="fa fa-arrow-circle-o-down"></i> <span data-i18n="supmodel.label_download_template"></span></button>
             </div>
             <div id="node-table-models-form" style="margin-top:15px;border:1px solid #ddd;padding:10px">
                 <table class="node-table-models">
                     <thead id="preview-thead">
                         <tr>
                             <th data-i18n="supmodel.table_header_serial"></th>
-                            <th data-i18n="supmodel.table_header_display_name"></th>
                             <th data-i18n="supmodel.table_header_file_name"></th>
                             <th data-i18n="supmodel.table_header_alias"></th>
                             <th data-i18n="supmodel.table_header_prop_name"></th>
@@ -185,28 +187,13 @@
     </div>
     
     
-    
-    
 </script>
 
 
-<script type="text/html" data-help-name="supmodel">
-
-    <h2 data-i18n="supmodel.model_select_help_tip">There are two examples of supnodes: </h2>
-    <br>
-    Example of opcua with Multiple subscribe
-    <img src="resources/node-red-node-supmodel/supnodes-demo1.png" />
-
-    <br>
-    Example of opcda
-    <img src="resources/node-red-node-supmodel/supnodes-demo2.png" />
-
-</script>
-
-
-<!-- <script src="./modelCommon.js"></script> -->
 <script type="text/javascript">
 (function() {
+
+    let firstLoad = false;
 
     function createDynamicMqttBroker(RED) {
         
@@ -264,14 +251,14 @@
             },
             success: function(res) {
 
-                templateModels = res.data;
+                templateModels[node.id] = res.data;
 
                 pagenation.pageNo = 1;
-                pagenation.totalNumber = templateModels.length;
-                pagenation.pageTotal = Math.ceil(templateModels.length / pagenation.pageItem);
+                pagenation.totalNumber = templateModels[node.id].length;
+                pagenation.pageTotal = Math.ceil(templateModels[node.id].length / pagenation.pageItem);
                 // 截取前20条展示
-                const renderData = templateModels.slice(0, pagenation.pageItem);
-                renderTable(renderData);
+                const renderData = templateModels[node.id].slice(0, pagenation.pageItem);
+                renderTable(node, renderData);
             },
             error: function(err) {
                 console.log(err);
@@ -282,6 +269,9 @@
     }
 
     const saveTags = (node, data) => {
+        if (!data) {
+            return;
+        }
         $.ajax({
             url: `/nodered-api/save/tags`,
             type: 'POST',
@@ -298,19 +288,40 @@
             },
             error: function(err) {
                 console.log(err);
+                RED.notify('System Error: Save Tags Failed!', "error");
+            }
+        });
+    }
+
+    const loadTags = (nodeId) => {
+        $.ajax({
+            url: '/nodered-api/query/tags?nodeId=' + nodeId,
+            type: 'GET',
+            async: false,
+            beforeSend: function() {
+                $('#errorMsg').empty();
+            },
+            success: function(res) {
+                if (res.data) {
+                    templateModels[nodeId] = res.data;
+                }
+            },
+            error: function(err) {
+                console.log(err);
+                RED._debug('tags load failed')
             }
         });
     }
 
 
-    const renderTable = (data) => {
+    const renderTable = (node, data) => {
         $('#preview-tbody tbody').empty();
         // 渲染数据行
         $('#preview-tbody').html(
             data.map((row, index) => {
                         let start  = (pagenation.pageNo - 1) * pagenation.pageItem;
                         let id = start + index + 1;
-                        return `<tr><td>${id}</td>${row.map(cell => `<td title="${cell==null?'':cell}">${cell==null?'':cell}</td>`).join('')}<td><i class="fa fa-pencil edit" style="margin-right: 10px;"></i><i class="fa fa-remove remove"></i></dt></tr>`
+                        return `<tr><td>${id}</td>${row.map(cell => `<td title="${cell==null?'':cell}">${cell==null?'':cell}</td>`).join('')}<td><i class="fa fa-pencil edit" style="margin-right: 10px;" title='edit'></i><i class="fa fa-remove remove" title='delete'></i></dt></tr>`
                     }
             ).join('')
         );
@@ -353,7 +364,7 @@
                     }).get();
                 }).get();
 
-                templateModels[id - 1] = rowData;
+                templateModels[node.id][id - 1] = rowData;
             }
             
         });
@@ -361,40 +372,40 @@
         $('.remove').on('click', function() {
             let id = $(this).closest('tr').find("td:first").text();
             // 删除数组中元素
-            templateModels.splice(id - 1, 1);
+            templateModels[node.id].splice(id - 1, 1);
             
             // 重新渲染表格
             let start  = (pagenation.pageNo - 1) * pagenation.pageItem;
-            let renderNewData = templateModels.slice(start, (start + pagenation.pageItem));
+            let renderNewData = templateModels[node.id].slice(start, (start + pagenation.pageItem));
 
-            pagenation.pageTotal = Math.ceil(templateModels.length / pagenation.pageItem);
+            pagenation.pageTotal = Math.ceil(templateModels[node.id].length / pagenation.pageItem);
             pagenation.totalNumber -= 1;
 
             if (renderNewData.length == 0) {
                 resetPage();
                 start  = (pagenation.pageNo - 1) * pagenation.pageItem;
-                renderNewData = templateModels.slice(start, (start + pagenation.pageItem));
+                renderNewData = templateModels[node.id].slice(start, (start + pagenation.pageItem));
             }
-            renderTable(renderNewData);
+            renderTable(node, renderNewData);
         });
 
     };
 
     let timeoutId;
 
-    const delayShowFileDropList = () => {
+    const delayShowFileDropList = (node) => {
         var searchParam = $('.search-input-m').val();
             // 清除之前的定时器
         clearTimeout(timeoutId);
         // 设置新的定时器
         timeoutId = setTimeout(() => {
-            showFileDropList(searchParam);
+            showFileDropList(node, searchParam);
         }, 600); 
         
     }
 
     // 显示uns文件下拉列表
-    const showFileDropList = (inputParam) => {
+    const showFileDropList = (node, inputParam) => {
         var encodeUrl = encodeURI(`/inter-api/supos/uns/search?k=${inputParam}&pageNo=1&pageSize=100&orderBy=createTime&type=2&normal=true`);
         $.ajax({
             url: encodeUrl,
@@ -405,21 +416,21 @@
             },
             success: function(data) {
                 if (data.code == 200 || data.code == 0) {
-                    showFiles(data.data);
+                    showFiles(node, data.data);
                 } else {
-                    showFiles([]);
+                    showFiles(node, []);
                     $('#errorMsg').html('<p style="color: red;">' + data.msg || 'sever error' + '</p>');
                 }
                 
             },
             error: function(err) {
-                showFiles([]);
+                showFiles(node, []);
                 $('#errorMsg').html('<p style="color: red;">network error</p>');
             }
         });
     };
 
-    const showFiles = (files) => {
+    const showFiles = (node, files) => {
         $('#dropdownOptions').empty();
         if (files && files.length > 0) {
             files.forEach(m => {
@@ -432,8 +443,9 @@
                 let id = $(this).attr('dataId');
                 $('.search-input-m').val(path);
                 $('#dropdownOptions').css('display', 'none');
+                node.selectedModelAlias = alias;
                 // 查询文件属性，并跳转到位号映射标签页
-                queryFileDetail(id, alias, path);
+                queryFileDetail(id, alias, path, node);
             });
         } else {
             $('#dropdownOptions').append('<div id="nodataOption" style="align:center;" value="">-- No Data --</div>');
@@ -441,8 +453,7 @@
         $('#dropdownOptions').css('display', 'block');
     };
         
-    const queryFileDetail = (id, alias, path) => {
-        const node = this;
+    const queryFileDetail = (id, alias, path, node) => {
         var encodeUrl = encodeURI(`/inter-api/supos/uns/instance?id=${id}`);
         $.ajax({
             url: encodeUrl,
@@ -450,24 +461,29 @@
             dataType: 'json',
             success: function(data) {
                 if (data.code == 200 || data.code == 0) {
-                    templateModels = [];
+                    templateModels[node.id] = [];
                     let i = 0;
-                    data.data.fields.map((f, index) => {
-                        const lastSlashIndex = data.data.path.lastIndexOf('/');
-                        let folder = lastSlashIndex !== -1 ? data.data.path.substring(0, (lastSlashIndex+1)) : ''; 
-                        if (!f.systemField) { // 排除系统字段
-                            let fieldType = f.type.toLowerCase();
-                            templateModels.push([folder, data.data.name, alias, f.name, fieldType, i+'']);
-                            i += 1;
-                        }
-                    });
+                    if (node.protocol == 'mqtt') {
+                        templateModels[node.id].push([data.data.path, alias, '', '', i+'']);
+                    } else {
+                        data.data.fields.map((f, index) => {
+                            // const lastSlashIndex = data.data.path.lastIndexOf('/');
+                            // let folder = lastSlashIndex !== -1 ? data.data.path.substring(0, (lastSlashIndex+1)) : ''; 
+                            if (!f.systemField) { // 排除系统字段
+                                let fieldType = f.type.toLowerCase();
+                                templateModels[node.id].push([data.data.path, alias, f.name, fieldType, i+'']);
+                                i += 1;
+                            }
+                        });
+                    }
+                    
                     pagenation.pageNo = 1;
-                    pagenation.totalNumber = templateModels.length;
-                    pagenation.pageTotal = Math.ceil(templateModels.length / pagenation.pageItem);
+                    pagenation.totalNumber = templateModels[node.id].length;
+                    pagenation.pageTotal = Math.ceil(templateModels[node.id].length / pagenation.pageItem);
 
                     // 切换到位号映射标签，并填充表格
-                    const renderData = templateModels.slice(0, pagenation.pageItem);
-                    renderTable(renderData);
+                    const renderData = templateModels[node.id].slice(0, pagenation.pageItem);
+                    renderTable(node, renderData);
                     tabs.activateTab('supmodel-tab-mappings');
                 }
             },
@@ -484,52 +500,64 @@
         const regFieldName =  /^[A-Za-z][A-Za-z0-9_]*$/
 
         for (let i in rowsData) {
-            const [folder, name, alias, fname, ftype, tag] = rowsData[i];
-            let index = Number(i) + Number(1);
+            const [path, alias, fname, ftype, tag] = rowsData[i];
+            console.log(rowsData[i])
             // 校验必填字段
-            if (!name || !fname || !ftype || tag==null) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": "  + node._("supmodel.error_require_field")
+            if (!path) {
+                return node._("supmodel.error_path_not_null")
+            }
+            if (node.protocol !== 'mqtt') {
+                if (!fname) {
+                    return node._("supmodel.error_field_not_null")
+                }
+                if (!ftype) {
+                    return node._("supmodel.error_field_type_not_null")
+                }
+                if (!regFieldName.test(fname)) {
+                    return node._("supmodel.error_invalid_fieldname")
+                }
+                // 校验数据类型是否合法
+                const enumTypes = ["integer", "long", "float", "double", "boolean", "datetime", "string"]
+                let lowercaseTag = ftype.toLowerCase();
+                if ($.inArray(lowercaseTag, enumTypes) === -1) {
+                    return node._("supmodel.error_invalid_type");
+                }
+            }
+            
+            if (!tag || tag == null || tag == undefined) {
+                return node._("supmodel.error_tag_not_null")
+            }
+            // 校验folder path不能以/开头
+            if (path && path.startsWith("/")) {
+                return node._("supmodel.error_invalid_folder_path")
             }
             // 长度校验
-            if (name.length > 63 || (alias && alias.length > 63)) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_execeed_max_length")
-            }
-             // 校验folder path不能以/开头
-             if (folder && folder.startsWith("/")) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": "  + node._("supmodel.error_invalid_folder_path")
-            }
+            // if (name.length > 63 || (alias && alias.length > 63)) {
+            //     return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_execeed_max_length")
+            // }
             // 正则校验
-            if (!regFileName.test(name)) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_invalid_filename")
-            }
+            // if (!regFileName.test(name)) {
+            //     return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_invalid_filename")
+            // }
             if (alias && !regFileName.test(alias)) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_invalid_filename")
+                return node._("supmodel.error_invalid_filename")
             }
-            if (!regFieldName.test(fname)) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_invalid_fieldname")
-            }
-            // 校验数据类型是否合法
-            const enumTypes = ["int", "long", "float", "double", "boolean", "datetime", "string"]
-            let lowercaseTag = ftype.toLowerCase();
-            if ($.inArray(lowercaseTag, enumTypes) === -1) {
-                return node._("supmodel.label_serial") + ` ${index} ` + node._("supmodel.label_data_error") + ": " + node._("supmodel.error_invalid_type");
-            }
+            
             
         }
         return "";
         
     }
 
-    const postBuildUnsNode = (node, rowsData) => {
+    const postBuildUnsNode = (node, rowsData, callback) => {
         // 数据组装
         let unsDataArray = [];
 
         for (let i in rowsData) {
-            const [folder, name, alias, fname, ftype, tag] = rowsData[i];
+            const [path, alias, fname, ftype, tag] = rowsData[i];
             
             let unsData = {
-                "path": folder || '',
-                "name": name,
+                "path": path || '',
                 "alias": alias || '',
                 "fieldName": fname,
                 "fieldType": ftype,
@@ -545,11 +573,13 @@
             contentType: "application/json",
             success: function(res) {
                 if (res.data && res.data.length > 0) {
-                    node.models = res.data;
+                    templateModels[node.id] = res.data;
                 }
+                callback(node, templateModels[node.id]);
             },
             error: function(err) {
                 console.log(err);
+                RED.notify('uns file create failed, please contact author', "error");
             }
         });
     }
@@ -572,7 +602,7 @@
             totalNumber: 0
         };
     }
-    let templateModels = [];
+    let templateModels = {};
     let tabs;
     RED.nodes.registerType('supmodel', {
         category: 'supnodes',
@@ -587,8 +617,11 @@
             selectedModel: {
                 value: ""
             },
-            models: {
-                value: []
+            selectedModelAlias: {
+                value: ""
+            },
+            modelShowName: {
+                value: ""
             },
             tableValid: {
                 value: true,
@@ -610,18 +643,13 @@
             if (this.name) {
                 return this.name;
             }
-
-            var nodeName = this._('supmodel.node_name');
-            let labelShowName = this.selectedModel || (this.models.length > 0 ? this.models[0][0] : "");
-
-            if (labelShowName) {
-                let selectedPrefix = this._('supmodel.selected_model_name');
-                if (labelShowName.length > 30) {
-                    labelShowName = labelShowName.substring(0, 30).concat("...");
-                }
-                return selectedPrefix + labelShowName; 
+            if (this.selectedModel) {
+                return this.selectedModel;
             }
-            return nodeName;
+            if (this.modelShowName) {
+                return this.modelShowName;
+            }
+            return this._('supmodel.node_name');
         },
         paletteLabel: function () {
             return this._('supmodel.node_name');
@@ -629,7 +657,10 @@
         oneditprepare: function () {
             const node = this;
 
-            templateModels = [...node.models];
+            let thisModels = templateModels[node.id];
+            if (!thisModels || thisModels.length == 0) {
+                loadTags(node.id)
+            }
 
             tabs = RED.tabs.create({
                 id: "node-config-supmodel-tabs",
@@ -661,13 +692,11 @@
 
             // 注册模型选择事件
             $('#node-input-selectedModel').on('focus', function() {
-                showFileDropList($(this).val());
+                showFileDropList(node, $(this).val());
             })
             $('#node-input-selectedModel').on('input', function() {
-                delayShowFileDropList();
+                delayShowFileDropList(node);
             })
-            // 初始化全屏控件
-            
 
             // 点击外部区域关闭下拉框
             document.addEventListener('click', function(event) {
@@ -681,6 +710,8 @@
 
             let importBtn = $("#node-btn-item-import");
             let downloadBtn = $("#node-btn-item-dowbload");
+            let exportBtn = $("#node-btn-item-export");
+            let addBtn = $("#node-btn-item-add");
 			let removeBtn = $("#node-btn-item-remove");
 			let itemFile = $("#node-file-item");	
 			
@@ -693,11 +724,54 @@
 				// window.location.href="/nodered-api/download/template";
                 window.open("/nodered-api/download/template");
 			});
+
+            exportBtn.click(function() {
+				// window.location.href="/nodered-api/download/template";
+                window.open(`/nodered-api/export/tags?nodeId=${node.id}`);
+			});
+
+            addBtn.click(function() {
+                if ($('#preview-tbody .dirty').length > 0) {
+                    return;
+                }
+                let len = $('#preview-thead').find('th').length;
+                $('#preview-tbody').prepend("<tr class='dirty'><td>0</td></tr>")
+                // 掐头去尾
+                for (let i = 1; i < len -1; i++) {
+                    $('#preview-tbody .dirty').append('<td><input type="text" style="width: 100%"/></td>')
+                }
+                $('#preview-tbody .dirty').append('<td><i class="fa fa-check edit" style="margin-right: 10px;"></i><i class="fa fa-remove remove"></i></dt>');
+                $('#preview-tbody .dirty .edit').on('click', function() {
+                    const rowData = $(this).closest('tr').map(function() {
+                        return $(this).find("input").map(function(index) {
+                            return $(this).val();
+                        }).get();
+                    }).get();
+                    const errorMsg = checkTable(node, [rowData]);
+                    if (errorMsg) {
+                        node.tableValid = false;
+                        RED.notify(errorMsg, "error");
+                        RED._debug(errorMsg)
+                        return false; 
+                    }
+                    if (!templateModels[node.id]) {
+                        templateModels[node.id] = [];
+                    }
+                    templateModels[node.id].unshift(rowData);
+                    pagenation.totalNumber += 1;
+                    pagenation.pageTotal = Math.ceil(templateModels[node.id].length / pagenation.pageItem);
+				    renderTable(node, templateModels[node.id])
+                });
+                
+                $('#preview-tbody .dirty .remove').on('click', function() {
+                    $(this).closest('tr').remove();
+                });
+            });
 			
 			removeBtn.click(function() {
                 resetPage();
-                templateModels = [];
-				renderTable(templateModels)
+                templateModels[node.id] = [];
+				renderTable(node, templateModels[node.id])
 			});
 			
 			$('#node-file-item').on('change', function(e) {
@@ -713,8 +787,8 @@
                 pagenation.pageNo -= 1;
                 // 截取前20条展示
                 const start  = (pagenation.pageNo - 1) * pagenation.pageItem;
-                const renderData = templateModels.slice(start, (start + pagenation.pageItem));
-                renderTable(renderData);
+                const renderData = templateModels[node.id].slice(start, (start + pagenation.pageItem));
+                renderTable(node, renderData);
             });
 
             // 注册下一页点击事件
@@ -725,29 +799,38 @@
                 pagenation.pageNo += 1;
                 // 截取前20条展示
                 const start  = (pagenation.pageNo - 1) * pagenation.pageItem;
-                const renderData = templateModels.slice(start, (start + pagenation.pageItem));
-                renderTable(renderData);
+                const renderData = templateModels[node.id].slice(start, (start + pagenation.pageItem));
+                renderTable(node, renderData);
             });
-            pagenation.pageTotal = Math.ceil(templateModels.length / pagenation.pageItem);
-            pagenation.totalNumber = templateModels.length;
+
+            if (!templateModels[node.id]) {
+                templateModels[node.id] = [];
+            }
+
+            pagenation.pageTotal = Math.ceil(templateModels[node.id].length / pagenation.pageItem);
+            pagenation.totalNumber = templateModels[node.id].length;
 
             // 渲染表格
-            const renderData = templateModels.slice(0, pagenation.pageItem);
-            renderTable(renderData);
+            const renderData = templateModels[node.id].slice(0, pagenation.pageItem);
+            renderTable(node, renderData);
             
         },
         oneditsave: function () {
             const node = this;
             node.selectedModel = $('.search-input-m').val();
+            if (!node.selectedModel) {
+                node.selectedModelAlias = "";
+            }
             node.interval = $('#node-config-input-frequency').val();
             node.protocol = $('#node-select-protocol').val();
             node.name =  $('#node-config-input-name').val();
+
             pagenation.pageNo = 1;
             // saveTags(node, node.models);
            
-            node.models = templateModels;
+            let thisModels = templateModels[node.id];
             
-            let errorMsg = checkTable(node, templateModels);
+            let errorMsg = checkTable(node, thisModels);
             if (errorMsg) {
                 node.tableValid = false;
                 RED.notify(errorMsg, "error");
@@ -755,11 +838,32 @@
                 return false; // 阻止编辑框关闭
             }
             node.tableValid = true;
-            if (node.models && node.models.length > 0) {
-                // build uns nodes
-                postBuildUnsNode(node, node.models);
+
+            this.modelShowName = thisModels && thisModels.length > 0 ? thisModels[0][0] : "";
+            if (this.modelShowName) {
+                let selectedPrefix = this._('supmodel.selected_model_name');
+                if (this.modelShowName.length > 30) {
+                    this.modelShowName = this.modelShowName.substring(0, 30).concat("...");
+                }
+                this.modelShowName = selectedPrefix + this.modelShowName; 
             }
-            createDynamicMqttBroker(RED);
+
+            if (thisModels) {
+                if (thisModels.length > 0) {
+                    // build uns nodes
+                    postBuildUnsNode(node, thisModels, (node, models) => {
+                        saveTags(node, models);
+                    });
+                } else {
+                    saveTags(node, []);
+                }
+                
+            }
+
+            if (!firstLoad) {
+                createDynamicMqttBroker(RED);
+                firstLoad = true;
+            }
 
         }
         

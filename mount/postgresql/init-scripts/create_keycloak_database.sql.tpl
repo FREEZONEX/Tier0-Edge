@@ -49,7 +49,7 @@ INSERT INTO "public"."associated_policy" VALUES ('cf8691be-3650-4730-8ab7-7cae73
 INSERT INTO "public"."associated_policy" VALUES ('14f0a671-d39f-4631-be9b-c82e698cad94', '69e0cbbc-8c1b-4ca0-aa8a-1baa48c3f766');
 INSERT INTO "public"."associated_policy" VALUES ('9bf2df2c-3864-41c3-8a1e-91614452caa7', 'b816debf-bfbd-4096-82da-4df49f07047b');
 INSERT INTO "public"."associated_policy" VALUES ('872936ed-cf13-4e72-8bae-8d1625c42929', '61b4bf1a-f4bb-43a0-b91f-bbb37b1ab203');
-
+INSERT INTO "public"."associated_policy" VALUES ('0d93ce92-4576-46fa-9a42-e9ad4b6c77da', '97ad4b74-cde2-45ff-97d4-b411ac0a7153');
 -- ----------------------------
 -- Table structure for authentication_execution
 -- ----------------------------
@@ -1055,8 +1055,8 @@ CREATE TABLE "public"."credential" (
 -- ----------------------------
 -- Records of credential
 -- ----------------------------
-INSERT INTO "public"."credential" VALUES ('d3c688d7-ec6c-4ccb-be70-9e0634124421', NULL, 'password', '0d9340a7-4bf5-4bee-9cfd-c707dfe18a22', 1729679951829, NULL, '{"value":"4oQHe1aeJV973HyDBz4zWc934X8S4exCf1yqFygUXOw=","salt":"sPygyGAMbvqJzCJnMG+eHA==","additionalParameters":{}}', '{"hashIterations":5,"algorithm":"argon2","additionalParameters":{"hashLength":["32"],"memory":["7168"],"type":["id"],"version":["1.3"],"parallelism":["1"]}}', 10);
-INSERT INTO "public"."credential" VALUES ('588747a6-3f05-497a-bc78-81b7fe3d0e93', NULL, 'password', '66b5114b-0083-48aa-860a-06f1c06ce4c4', 1746512526549, 'My password', '{"value":"75zzlRwO66cfDFCPnpNS3XAZ+HF7nTR+cbj/jVSsAcA=","salt":"y5WNIOmeIfBYdGecbhKQ0Q==","additionalParameters":{}}', '{"hashIterations":5,"algorithm":"argon2","additionalParameters":{"hashLength":["32"],"memory":["7168"],"type":["id"],"version":["1.3"],"parallelism":["1"]}}', 10);
+INSERT INTO "public"."credential" VALUES ('d3c688d7-ec6c-4ccb-be70-9e0634124421', NULL, 'password', '0d9340a7-4bf5-4bee-9cfd-c707dfe18a22', 1750217451325, '我的密码', '{"value":"2VCGCuWN1PJJTrO+pMHnOvu4u4RvC0YeKmF7aiVBaWQ=","salt":"vqzP+e7kGjFljy9McZFRQA==","additionalParameters":{}}', '{"hashIterations":5,"algorithm":"argon2","additionalParameters":{"hashLength":["32"],"memory":["7168"],"type":["id"],"version":["1.3"],"parallelism":["1"]}}', 10);
+INSERT INTO "public"."credential" VALUES ('588747a6-3f05-497a-bc78-81b7fe3d0e93', NULL, 'password', '66b5114b-0083-48aa-860a-06f1c06ce4c4', 1750224323104, '我的密码', '{"value":"YUeCu4ZmvGvZGGOodcm+qB7nQTkImcpl0n/e0qN4h3k=","salt":"MfASFwkUnBPbLa2wOQ16jA==","additionalParameters":{}}', '{"hashIterations":5,"algorithm":"argon2","additionalParameters":{"hashLength":["32"],"memory":["7168"],"type":["id"],"version":["1.3"],"parallelism":["1"]}}', 10);
 
 -- ----------------------------
 -- Table structure for databasechangelog
@@ -1706,6 +1706,8 @@ INSERT INTO "public"."keycloak_role" VALUES ('71dd6dc2-6b12-4273-9ec0-b44b86e5b5
 INSERT INTO "public"."keycloak_role" VALUES ('7ca9f922-0d35-44cf-8747-8dcfd5e66f8e', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 't', '超级管理员', 'super-admin', '8920b375-d705-4d30-8a71-52d9c14ec4ba', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
 INSERT INTO "public"."keycloak_role" VALUES ('00e0b0d2-ba36-4927-ac5d-15c4548389f2', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 't', 'deny-role', 'deny-role', '8920b375-d705-4d30-8a71-52d9c14ec4ba', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
 INSERT INTO "public"."keycloak_role" VALUES ('2152d19d-e4f9-488d-8509-e49cf239596a', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 't', 'supos-default', 'supos-default', '8920b375-d705-4d30-8a71-52d9c14ec4ba', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
+INSERT INTO "public"."keycloak_role" VALUES ('c5921f89-9745-4c8a-9c69-b3015c94f2ea', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 't', 'ldap-initialized', 'ldap-initialized', '8920b375-d705-4d30-8a71-52d9c14ec4ba', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
+
 
 -- ----------------------------
 -- Table structure for migration_model
@@ -1831,6 +1833,8 @@ INSERT INTO "public"."policy_config" VALUES ('b816debf-bfbd-4096-82da-4df49f0704
 INSERT INTO "public"."policy_config" VALUES ('548f1a2e-ec47-4862-8195-49540ca2ad3b', 'roles', '[{"id":"7ca9f922-0d35-44cf-8747-8dcfd5e66f8e","required":false}]');
 INSERT INTO "public"."policy_config" VALUES ('61b4bf1a-f4bb-43a0-b91f-bbb37b1ab203', 'fetchRoles', 'false');
 INSERT INTO "public"."policy_config" VALUES ('61b4bf1a-f4bb-43a0-b91f-bbb37b1ab203', 'roles', '[{"id":"a22ce15f-7bef-4e2e-9909-78f51b91c799","required":false}]');
+INSERT INTO "public"."policy_config" VALUES ('97ad4b74-cde2-45ff-97d4-b411ac0a7153', 'fetchRoles', 'false');
+INSERT INTO "public"."policy_config" VALUES ('97ad4b74-cde2-45ff-97d4-b411ac0a7153', 'roles', '[{"id":"71dd6dc2-6b12-4273-9ec0-b44b86e5b500","required":false}]');
 
 -- ----------------------------
 -- Table structure for protocol_mapper
@@ -2420,7 +2424,7 @@ CREATE TABLE "public"."realm" (
 -- Records of realm
 -- ----------------------------
 INSERT INTO "public"."realm" VALUES ('ef0cad76-cbcc-4c42-92d7-ef8685b7e724', 1800, 300, 108000, 'keycloak.v3', 'keycloak.v2', 'keycloak', 't', 'f', 0, 'keycloak.v2', 'master', 0, NULL, 'f', 'f', 'f', 'f', 'EXTERNAL', 1800, 36000, 'f', 'f', 'b478982d-7f85-498c-8b83-2903d6c1116a', 1800, 't', 'LANGUAGE_VAR', 'f', 'f', 'f', 'f', 0, 1, 30, 6, 'HmacSHA1', 'totp', 'a6b294ac-ffaa-4f9e-accd-9f6d38c2f634', '6e0df28a-8860-4037-b9ca-0efcae55b8b4', 'd6da9d19-cb71-4841-9cfa-90a111d1b292', '4759605b-ec2d-48ad-9754-49e4be8ba93a', '7e12f5b6-3b89-41fb-b40b-2d1731f02c14', 2592000, 'f', 1800, 't', 'f', '3d8206dd-13aa-46b4-a0fc-444e5b9af4a6', 0, 'f', 0, 0, '78bdec9a-4238-4f2f-8c9b-2d9ca2c802cc');
-INSERT INTO "public"."realm" VALUES ('8920b375-d705-4d30-8a71-52d9c14ec4ba', 7200, 300, 43200, 'keycloak.v3', 'keycloak.v2', 'keycloak', 't', 'f', 60, 'wenhao', 'supos', 0, NULL, 'f', 'f', 'f', 'f', 'EXTERNAL', 43200, 43200, 'f', 'f', 'c7e2b1e8-0574-4441-b337-caa811fc3a75', 1800, 't', 'LANGUAGE_VAR', 'f', 'f', 'f', 'f', 0, 1, 30, 6, 'HmacSHA1', 'totp', 'e007fedd-2171-44f9-826f-fa91f76ffe20', '88e45fd1-dc20-4df7-a4f7-47325ceb7e02', '13eaac88-bd3c-4309-ac4c-e7aef4b566da', '7f6ac3fc-86b5-48dc-9984-16b5b26b449b', '7b041d92-f8f9-46ac-81a0-a712cb0dc122', 2592000, 'f', 7200, 'f', 'f', '67631c78-793f-4605-98e3-be7756eba483', 0, 'f', 43200, 43200, 'b51711f1-2430-4a24-8493-ab1d9b0dde6f');
+INSERT INTO "public"."realm" VALUES ('8920b375-d705-4d30-8a71-52d9c14ec4ba', 7200, 43200, 43200, 'keycloak.v3', 'keycloak.v2', 'keycloak', 't', 'f', 60, 'wenhao', 'supos', 0, NULL, 'f', 'f', 'f', 'f', 'EXTERNAL', 43200, 43200, 'f', 'f', 'c7e2b1e8-0574-4441-b337-caa811fc3a75', 86400, 't', 'LANGUAGE_VAR', 'f', 'f', 'f', 'f', 0, 1, 30, 6, 'HmacSHA1', 'totp', 'e007fedd-2171-44f9-826f-fa91f76ffe20', '88e45fd1-dc20-4df7-a4f7-47325ceb7e02', '13eaac88-bd3c-4309-ac4c-e7aef4b566da', '7f6ac3fc-86b5-48dc-9984-16b5b26b449b', '7b041d92-f8f9-46ac-81a0-a712cb0dc122', 2592000, 'f', 7200, 'f', 't', '67631c78-793f-4605-98e3-be7756eba483', 0, 'f', 43200, 43200, 'b51711f1-2430-4a24-8493-ab1d9b0dde6f');
 
 -- ----------------------------
 -- Table structure for realm_attribute
@@ -2886,6 +2890,7 @@ INSERT INTO "public"."resource_policy" VALUES ('8852fd44-b67e-4d11-9ab6-f05b9bf3
 INSERT INTO "public"."resource_policy" VALUES ('bead5528-a369-4efe-877d-7da13537a9b7', '14f0a671-d39f-4631-be9b-c82e698cad94');
 INSERT INTO "public"."resource_policy" VALUES ('216ea471-fa25-441c-bbd3-3b14ae956db1', '9bf2df2c-3864-41c3-8a1e-91614452caa7');
 INSERT INTO "public"."resource_policy" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '872936ed-cf13-4e72-8bae-8d1625c42929');
+INSERT INTO "public"."resource_policy" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '0d93ce92-4576-46fa-9a42-e9ad4b6c77da');
 
 -- ----------------------------
 -- Table structure for resource_scope
@@ -2968,6 +2973,8 @@ INSERT INTO "public"."resource_server_policy" VALUES ('cf8691be-3650-4730-8ab7-7
 INSERT INTO "public"."resource_server_policy" VALUES ('548f1a2e-ec47-4862-8195-49540ca2ad3b', 'super-admin-policy', 'super-admin-policy', 'role', 1, 0, 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
 INSERT INTO "public"."resource_server_policy" VALUES ('61b4bf1a-f4bb-43a0-b91f-bbb37b1ab203', 'admin-policy', 'admin-policy', 'role', 1, 0, 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
 INSERT INTO "public"."resource_server_policy" VALUES ('872936ed-cf13-4e72-8bae-8d1625c42929', 'admin-permission', 'admin-permission', 'resource', 1, 0, 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
+INSERT INTO "public"."resource_server_policy" VALUES ('97ad4b74-cde2-45ff-97d4-b411ac0a7153', 'normal-policy', '', 'role', 1, 0, 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
+INSERT INTO "public"."resource_server_policy" VALUES ('0d93ce92-4576-46fa-9a42-e9ad4b6c77da', 'normal-permission', '', 'resource', 1, 0, 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', NULL);
 
 -- ----------------------------
 -- Table structure for resource_server_resource
@@ -2993,6 +3000,7 @@ INSERT INTO "public"."resource_server_resource" VALUES ('bead5528-a369-4efe-877d
 INSERT INTO "public"."resource_server_resource" VALUES ('216ea471-fa25-441c-bbd3-3b14ae956db1', 'supos-default', 'URL', '', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'f', 'supos-default');
 INSERT INTO "public"."resource_server_resource" VALUES ('8852fd44-b67e-4d11-9ab6-f05b9bf32f7c', 'super-admin-resource', 'URL', '', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'f', 'super-admin-resource');
 INSERT INTO "public"."resource_server_resource" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', 'admin-resource', 'URL', '', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'f', 'admin-resource');
+INSERT INTO "public"."resource_server_resource" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', 'normal-resource', 'URL', '', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 'f', 'normal-resource');
 
 -- ----------------------------
 -- Table structure for resource_server_scope
@@ -3025,6 +3033,7 @@ CREATE TABLE "public"."resource_uris" (
 -- Records of resource_uris
 -- 超管：8852fd44-b67e-4d11-9ab6-f05b9bf32f7c
 -- 普通管理员：77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7
+-- 一般用户：e8768c3e-2de0-40e9-8edf-fe331c539fdf
 -- 默认：216ea471-fa25-441c-bbd3-3b14ae956db1
 -- ----------------------------
 INSERT INTO "public"."resource_uris" VALUES ('db264c45-2289-4a35-a8ce-6d6f6e98753c', '/*');
@@ -3180,6 +3189,22 @@ INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1
 INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/EventFlow');
 INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/EvenFlowEditor');
 INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/flow-editor');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/CICD');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/home');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/grafana-design');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/McpClient');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/collection-gateway-management');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/Alert');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', 'button:*');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/collection-flow');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/SQLEditor');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/inter-api/supos');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/uns');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/DBConnect');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/EventFlow');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/CollectionGatewayManagement');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/gitea');
+INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/grafana/home/');
 
 -- ----------------------------
 -- Table structure for revoked_token
@@ -3266,6 +3291,7 @@ INSERT INTO "public"."user_attribute" VALUES ('locale', 'en', '0d9340a7-4bf5-4be
 INSERT INTO "public"."user_attribute" VALUES ('firstTimeLogin', '0', '66b5114b-0083-48aa-860a-06f1c06ce4c4', 'ee4aeb11-50e6-4fc6-a451-a609b7a0e2b1', NULL, NULL, NULL);
 INSERT INTO "public"."user_attribute" VALUES ('tipsEnable', '0', '66b5114b-0083-48aa-860a-06f1c06ce4c4', '05a97492-1c04-49da-a3db-070981d55c97', NULL, NULL, NULL);
 
+
 -- ----------------------------
 -- Table structure for user_consent
 -- ----------------------------
@@ -3323,7 +3349,7 @@ CREATE TABLE "public"."user_entity" (
 -- ----------------------------
 -- Records of user_entity
 -- ----------------------------
-INSERT INTO "public"."user_entity" VALUES ('0d9340a7-4bf5-4bee-9cfd-c707dfe18a22', 'admin@example.com', 'admin@example.com', 'f', 't', NULL, NULL, NULL, 'ef0cad76-cbcc-4c42-92d7-ef8685b7e724', 'admin', 1729679951639, NULL, 0);
+INSERT INTO "public"."user_entity" VALUES ('0d9340a7-4bf5-4bee-9cfd-c707dfe18a22', 'yuwenhao@freezonex.io', 'yuwenhao@freezonex.io', 'f', 't', NULL, NULL, NULL, 'ef0cad76-cbcc-4c42-92d7-ef8685b7e724', 'admin', 1729679951639, NULL, 0);
 INSERT INTO "public"."user_entity" VALUES ('92209a7e-1e8d-486e-9e27-92585f68e5a8', NULL, 'e4b65485-792f-4bb1-b087-f83b00435a77', 'f', 't', NULL, NULL, NULL, '8920b375-d705-4d30-8a71-52d9c14ec4ba', 'service-account-supos', 1733364065211, 'a7b53e5e-3567-470a-9da1-94cc0c7f18e6', 0);
 INSERT INTO "public"."user_entity" VALUES ('66b5114b-0083-48aa-860a-06f1c06ce4c4', NULL, '7b2fe8c0-47f1-4bbd-bcf1-58ee824dc516', 'f', 't', NULL, NULL, NULL, '8920b375-d705-4d30-8a71-52d9c14ec4ba', 'supos', 1734059221040, NULL, 0);
 
@@ -3435,12 +3461,17 @@ CREATE TABLE "public"."user_role_mapping" (
 
 -- ----------------------------
 -- Records of user_role_mapping
+
 -- ----------------------------
 INSERT INTO "public"."user_role_mapping" VALUES ('78bdec9a-4238-4f2f-8c9b-2d9ca2c802cc', '0d9340a7-4bf5-4bee-9cfd-c707dfe18a22');
 INSERT INTO "public"."user_role_mapping" VALUES ('e9c7c988-0e1d-4ea9-8ebb-f4ddec82ca1e', '0d9340a7-4bf5-4bee-9cfd-c707dfe18a22');
 INSERT INTO "public"."user_role_mapping" VALUES ('b51711f1-2430-4a24-8493-ab1d9b0dde6f', '92209a7e-1e8d-486e-9e27-92585f68e5a8');
 INSERT INTO "public"."user_role_mapping" VALUES ('b51711f1-2430-4a24-8493-ab1d9b0dde6f', '66b5114b-0083-48aa-860a-06f1c06ce4c4');
 INSERT INTO "public"."user_role_mapping" VALUES ('7ca9f922-0d35-44cf-8747-8dcfd5e66f8e', '66b5114b-0083-48aa-860a-06f1c06ce4c4');
+INSERT INTO "public"."user_role_mapping" VALUES ('09e0c927-c268-4f7e-af09-a9c46a413910', '92209a7e-1e8d-486e-9e27-92585f68e5a8');
+INSERT INTO "public"."user_role_mapping" VALUES ('edac0850-db9a-4eac-8b34-3b046ecfea41', '92209a7e-1e8d-486e-9e27-92585f68e5a8');
+
+
 
 -- ----------------------------
 -- Table structure for username_login_failure
@@ -4828,10 +4859,3 @@ ALTER TABLE "public"."user_role_mapping" ADD CONSTRAINT "fk_c4fqv34p1mbylloxang7
 -- Foreign Keys structure for table web_origins
 -- ----------------------------
 ALTER TABLE "public"."web_origins" ADD CONSTRAINT "fk_lojpho213xcx4wnkog82ssrfy" FOREIGN KEY ("client_id") REFERENCES "public"."client" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
-
--- ----------------------------
-DROP TABLE IF EXISTS "public"."initialization_complete";
-CREATE TABLE "public"."initialization_complete" (
-  "completed_at" timestamp with time zone
-);
-INSERT INTO "public"."initialization_complete" VALUES (now());
