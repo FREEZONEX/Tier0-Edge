@@ -1614,7 +1614,7 @@ routes:
   - http
   - https
   tags:
-  - ${ENABLE_EVENTFLOW}
+  - menu
   - homeParentName:menu.tag.uns
   - description:menu.desc.eventflow
   - homeIconUrl:homeEventFlow
