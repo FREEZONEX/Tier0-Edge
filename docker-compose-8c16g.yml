@@ -248,7 +248,7 @@ services:
       - -c
       - config_file=/etc/postgresql/custom.conf
     healthcheck:
-      test: ["CMD-SHELL", "psql -U postgres -d keycloak -c '\\dt public.initialization_complete' | grep -q 'initialization_complete'"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 30s
       retries: 15
