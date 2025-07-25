@@ -33,10 +33,30 @@ mkdir -p $VOLUMES_PATH/fuxa/appdata/ && cp $SCRIPT_DIR/../mount/fuxa/appdata/set
 
 cp $SCRIPT_DIR/../mount/plugins/package/*.tar.gz $VOLUMES_PATH/plugins/package/ 2>/dev/null || true
 
-chown 999:0 -R $VOLUMES_PATH/postgresql
-chown 1000:1000 -R $VOLUMES_PATH/emqx
-chown 1000:0 -R $VOLUMES_PATH/keycloak
-chown 755:0 -R $VOLUMES_PATH/grafana
+platform=$(uname -s)
+is_root=0
+if [[ "$(id -u)" -eq 0 ]]; then
+  is_root=1
+fi
+
+if [[ "$platform" == "Darwin" ]]; then
+  if [[ $is_root -eq 1 ]]; then
+    chown 999:0 -R $VOLUMES_PATH/postgresql 2>/dev/null || true
+    chown 1000:1000 -R $VOLUMES_PATH/emqx 2>/dev/null || true
+    chown 1000:0 -R $VOLUMES_PATH/keycloak 2>/dev/null || true
+    chown 755:0 -R $VOLUMES_PATH/grafana 2>/dev/null || true
+  else
+    sudo chown 999:0 -R $VOLUMES_PATH/postgresql 2>/dev/null || true
+    sudo chown 1000:1000 -R $VOLUMES_PATH/emqx 2>/dev/null || true
+    sudo chown 1000:0 -R $VOLUMES_PATH/keycloak 2>/dev/null || true
+    sudo chown 755:0 -R $VOLUMES_PATH/grafana 2>/dev/null || true
+  fi
+else
+  chown 999:0 -R $VOLUMES_PATH/postgresql
+  chown 1000:1000 -R $VOLUMES_PATH/emqx
+  chown 1000:0 -R $VOLUMES_PATH/keycloak
+  chown 755:0 -R $VOLUMES_PATH/grafana
+fi
 
 cp $SCRIPT_DIR/../docker-compose-8c16g.yml $VOLUMES_PATH/backend/system/
 if [ -f $SCRIPT_DIR/global/active-services.txt ]; then

@@ -41,6 +41,19 @@ fi
 echo
 warn "Removing all supOS data..."
 echo
+platform=$(uname -s)
+is_root=0
+if [[ "$(id -u)" -eq 0 ]]; then
+  is_root=1
+fi
 
-rm -rf "$VOLUMES_PATH"
+if [[ "$platform" == "Darwin" ]]; then
+  if [[ $is_root -eq 1 ]]; then
+    rm -rf "$VOLUMES_PATH"
+  else
+    sudo rm -rf "$VOLUMES_PATH"
+  fi
+else
+  rm -rf "$VOLUMES_PATH"
+fi
 warn "Cleanup completed"

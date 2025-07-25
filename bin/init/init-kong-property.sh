@@ -9,7 +9,11 @@ KONG_INIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 0. Normalise .env line endings (Windows → Unix)
 # ---------------------------------------------------------------------------
 # Use the new variable name
-sed -i 's/\r$//' "$KONG_INIT_DIR/../../.env"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  sed -i '' 's/\r$//' "$KONG_INIT_DIR/../../.env"
+else
+  sed -i 's/\r$//' "$KONG_INIT_DIR/../../.env"
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Load variables from .env
@@ -32,10 +36,21 @@ export BASE_URL="$REDIRECT_BASE_URL"
 # (No change needed)
 # ---------------------------------------------------------------------------
 OS_AUTH_ENABLE=${OS_AUTH_ENABLE:-true}
-if [[ "${OS_AUTH_ENABLE,,}" == "true" ]]; then
-  export KONG_AUTH_ENABLED=true
+to_lower() {
+  echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  if [[ "$(to_lower "$OS_AUTH_ENABLE")" == "true" ]]; then
+    export KONG_AUTH_ENABLED=true
+  else
+    export KONG_AUTH_ENABLED=false
+  fi
 else
-  export KONG_AUTH_ENABLED=false
+  if [[ "${OS_AUTH_ENABLE,,}" == "true" ]]; then
+    export KONG_AUTH_ENABLED=true
+  else
+    export KONG_AUTH_ENABLED=false
+  fi
 fi
 
 # ---------------------------------------------------------------------------
