@@ -21,7 +21,7 @@
 
 - **Sink**  
   The storage layer of supOS.  
-  - Time-series Namespace values are stored in **TimescaleDB**, **TDengine**, etc.  
+  - Time-series Namespace values are stored in **TimescaleDB**.  
   - Relational Namespace values (e.g., CRM data) are stored in **PostgreSQL**.  
   This enables efficient querying and compression.
 
