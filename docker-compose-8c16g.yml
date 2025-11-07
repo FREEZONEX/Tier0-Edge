@@ -6,7 +6,7 @@ networks:
 
 services:
   frontend:
-    image: suposce/supos-ce-platform:1.0.11-T2
+    image: suposce/supos-ce-platform:1.0.12-T1
     container_name: frontend
     ports:
       - "3010:3000"
@@ -26,7 +26,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
   backend:
-    image:  suposce/supos-ce-backend:1.0.11-T3
+    image:  suposce/supos-ce-backend:1.0.12-T1
     container_name: backend
     environment:
       - TZ=UTC
@@ -70,6 +70,7 @@ services:
       - SYS_OS_LDAP_URL=${LDAP_URL}
       - SYNC_USER_ENABLE=${SYNC_USER_ENABLE}
       - SUPOS_EE_ADDRESS=${SUPOS_EE_ADDRESS}
+      - SYS_OS_ENABLE_AUTO_CATEGORIZATION=${ENABLE_AUTO_CATEGORIZATION}
     ports:
       - "19099:19099"
     deploy:
