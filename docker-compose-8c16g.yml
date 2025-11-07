@@ -139,7 +139,7 @@ services:
       - default_network
   nodered:
     image: nodered/node-red:4.0.8-22
-    container_name: noderedF
+    container_name: nodered
     user: root
     ports:
       - "1880:1880"  # Node-RED web UI端口
