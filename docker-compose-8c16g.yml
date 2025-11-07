@@ -41,6 +41,7 @@ services:
       - SYS_OS_LANG=${LANGUAGE}
       - SYS_OS_AUTH_ENABLE=${OS_AUTH_ENABLE}
       - SYS_OS_LLM_TYPE=${OS_LLM_TYPE}
+      - SYS_OS_APP_TITLE=${OS_NAME}
       - SYS_OS_MQTT_TCP_PORT=${OS_MQTT_TCP_PORT}
       - SYS_OS_MQTT_WEBSOCKET_TSL_PORT=${OS_MQTT_WEBSOCKET_TSL_PORT}
       - SYS_OS_LOGIN_PATH=${OS_LOGIN_PATH}
@@ -72,6 +73,7 @@ services:
       - SUPOS_EE_ADDRESS=${SUPOS_EE_ADDRESS}
       - SYS_OS_ENABLE_AUTO_CATEGORIZATION=${ENABLE_AUTO_CATEGORIZATION}
     ports:
+      - "8091:8080"
       - "19099:19099"
     deploy:
       resources:
@@ -165,8 +167,6 @@ services:
   eventflow:
     image: nodered/node-red:4.0.8-22
     container_name: eventflow
-    profiles:
-      - eventflow
     user: root
     ports:
       - "1889:1889"  # Node-RED web UI端口
