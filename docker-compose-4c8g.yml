@@ -51,6 +51,7 @@ services:
       - SYS_OS_QUALITY_NAME=quality
       - SYS_OS_TIMESTAMP_NAME=timeStamp
       - SYS_OS_LAZY_TREE=${LAZY_TREE}
+      - SYS_OS_ENABLE_AUTO_CATEGORIZATION=${ENABLE_AUTO_CATEGORIZATION}
       - MQTT_PLUGIN=${MQTT_PLUG:-emqx}
       - UNS_ADD_BATCH_SIZE=1000
       - ENABLE_CHAT2DB=true
@@ -70,9 +71,7 @@ services:
       - SYS_OS_LDAP_URL=${LDAP_URL}
       - SYNC_USER_ENABLE=${SYNC_USER_ENABLE}
       - SUPOS_EE_ADDRESS=${SUPOS_EE_ADDRESS}
-      - SYS_OS_ENABLE_AUTO_CATEGORIZATION=${ENABLE_AUTO_CATEGORIZATION}
     ports:
-      - "8091:8080"
       - "19099:19099"
     deploy:
       resources:
@@ -81,6 +80,7 @@ services:
         reservations:
           memory: 1g
     volumes:
+      - ${VOLUMES_PATH}/backend/entrypoint.sh:/entrypoint.sh
       - /etc/localtime:/etc/localtime:ro
       - ${VOLUMES_PATH}/backend/apps:/data/apps
       - ${VOLUMES_PATH}/backend/third-apps:/data/third-apps
@@ -281,10 +281,10 @@ services:
       - -c
       - config_file=/etc/postgresql/custom.conf
     healthcheck:
-      test: ["CMD-SHELL", "psql -U postgres -d keycloak -c '\\dt public.initialization_complete' | grep -q 'initialization_complete'"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 15s
       timeout: 15s
-      retries: 15
+      retries: 60
       start_period: 120s
       start_interval: 10s
     restart: always
