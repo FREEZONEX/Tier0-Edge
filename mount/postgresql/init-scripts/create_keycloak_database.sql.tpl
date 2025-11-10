@@ -3205,10 +3205,9 @@ INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1
 INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/EventFlow');
 INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/EvenFlowEditor');
 INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/flow-editor');
+INSERT INTO "public"."resource_uris" VALUES ('77f52ac5-58cf-4d4b-b850-aa0ac0ace1b7', '/Connection');
 INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/CICD');
 INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/home');
-INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/dashboard');
-INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/marimo');
 INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/grafana');
 INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/McpClient');
 INSERT INTO "public"."resource_uris" VALUES ('e8768c3e-2de0-40e9-8edf-fe331c539fdf', '/collection-gateway-management');
@@ -4877,11 +4876,3 @@ ALTER TABLE "public"."user_role_mapping" ADD CONSTRAINT "fk_c4fqv34p1mbylloxang7
 -- Foreign Keys structure for table web_origins
 -- ----------------------------
 ALTER TABLE "public"."web_origins" ADD CONSTRAINT "fk_lojpho213xcx4wnkog82ssrfy" FOREIGN KEY ("client_id") REFERENCES "public"."client" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
-
--- ----------------------------
-
-DROP TABLE IF EXISTS "public"."initialization_complete";
-CREATE TABLE "public"."initialization_complete" (
-  "completed_at" timestamp with time zone
-);
-INSERT INTO "public"."initialization_complete" VALUES (now());

@@ -407,7 +407,7 @@
 
     // 显示uns文件下拉列表
     const showFileDropList = (node, inputParam) => {
-        var encodeUrl = encodeURI(`/inter-api/supos/uns/search?k=${inputParam}&p=1&sz=100&orderBy=createTime&type=2&normal=true`);
+        var encodeUrl = encodeURI(`/inter-api/supos/uns/search?k=${inputParam}&pageNo=1&pageSize=100&orderBy=createTime&type=2&normal=true`);
         $.ajax({
             url: encodeUrl,
             type: 'GET',

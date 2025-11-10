@@ -1,19 +1,19 @@
 images:
-  - imagePath: suposce
-    imageName: supos-ce-backend
-    imageTag: 1.0.11-T1
+  - imagePath: eco-registry.supos.com/sup9bnlh
+    imageName: backend
+    imageTag: 1.0.12-T13
 
-  - imagePath: suposce
-    imageName: supos-ce-platform
-    imageTag: 1.0.11-T1
+  - imagePath: eco-registry.supos.com/sup9bnlh
+    imageName: supos-frontend-platform
+    imageTag: 1.0.12-T11
 
-  - imagePath: suposce
-    imageName: supos-ce-fuxa
-    imageTag: 1.0.5-T13
+  - imagePath: eco-registry.supos.com/sup9bnlh
+    imageName: fuxa
+    imageTag: 1.0.8-T1
 
-#  - imagePath: eco-registry.supos.com/sup9bnlh
-#    imageName: gmqtt
-#    imageTag: v0.9
+  - imagePath: eco-registry.supos.com/sup9bnlh
+    imageName: gmqtt
+    imageTag: v1.0.1
 
 plugins:
   - pluginName: plugin-alert

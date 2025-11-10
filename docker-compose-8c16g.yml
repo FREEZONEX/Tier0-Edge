@@ -6,7 +6,7 @@ networks:
 
 services:
   frontend:
-    image: suposce/supos-ce-platform:1.0.12-T1
+    image: eco-registry.supos.com/sup9bnlh/supos-frontend-platform:${frontend_imageTag:-1.0.12-T1}
     container_name: frontend
     ports:
       - "3010:3000"
@@ -26,7 +26,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
   backend:
-    image:  suposce/supos-ce-backend:1.0.12-T1
+    image:  eco-registry.supos.com/sup9bnlh/backend:${backend_imageTag:-1.0.12-T1}
     container_name: backend
     environment:
       - TZ=UTC
@@ -463,8 +463,8 @@ services:
       - ${VOLUMES_PATH}/kong/kong-plugin-auth-checker:/usr/local/share/lua/5.1/kong/plugins/supos-auth-checker
       - ${VOLUMES_PATH}/kong/kong-plugin-url-transformer:/usr/local/share/lua/5.1/kong/plugins/supos-url-transformer
     ports:
-      - "8088:8000"
-      - "8443:8443"
+      - "${ENTRANCE_PORT:-8088}:8000"
+      - "${ENTRANCE_SSL_PORT:-8443}:8443"
       - "8001:8001"
       - "8444:8444"
     depends_on:

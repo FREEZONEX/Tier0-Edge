@@ -23,15 +23,15 @@ source $SCRIPT_DIR/../init/init-kong-property.sh "$SCRIPT_DIR/../../" && cp $SCR
 info "IP修改成功, 正在重启服务..."
 
 docker restart keycloak >/dev/null
-docker restart kong >/dev/null
 
 docker rm -f backend
+docker rm -f kong
 
 DOCKER_COMPOSE_FILE=$SCRIPT_DIR/../../docker-compose-8c16g.yml
 if [ "$OS_RESOURCE_SPEC" == "1" ]; then
   DOCKER_COMPOSE_FILE=$SCRIPT_DIR/../../docker-compose-4c8g.yml
 fi
-docker compose --env-file $SCRIPT_DIR/../../.env --env-file $SCRIPT_DIR/../../.env.tmp -p supos -f $DOCKER_COMPOSE_FILE up -d backend
+docker compose --env-file $SCRIPT_DIR/../../.env --env-file $SCRIPT_DIR/../../.env.tmp -p supos -f $DOCKER_COMPOSE_FILE up -d backend kong
 
 sleep 15s
 

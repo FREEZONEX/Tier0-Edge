@@ -2252,7 +2252,7 @@ paths:
         - name: pageNo
           in: query
           description: Current page number
-          required: true
+          required: false
           example: 1
           schema:
             type: integer
@@ -2260,7 +2260,7 @@ paths:
         - name: pageSize
           in: query
           description: Records per page, Default is 20, Maximum Support100 0
-          required: true
+          required: false
           example: 20
           schema:
             type: integer
@@ -2324,8 +2324,7 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: >-
-                        #/components/schemas/UserDetail
+                      $ref: '#/components/schemas/UserDetail'
           headers: {}
         '400':
           description: Bad Request
@@ -2365,42 +2364,18 @@ paths:
             application/json:
               schema:
                 properties:
-                  email:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
                     type: string
-                    description: Email
-                    example: xxx@supos.com
-                  phone:
-                    type: string
-                    description: Phone number
-                  username:
-                    type: string
-                    description: Username English+numbers length 3-20 characters
-                    minLength: 3
-                    maxLength: 200
-                    pattern: ^[\u4e00-\u9fa5a-zA-Z0-9_\-.@&+]*$
-                  displayName:
-                    type: string
-                    description: Display name
-                  roleList:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        roleName:
-                          type: string
-                          description: Role name
-                        roleId:
-                          type: string
-                          description: Role ID
-                      required:
-                        - roleName
-                        - roleId
-                    description: Role list
+                  data:
+                    $ref: '#/components/schemas/UserDetail'
                 required:
                   - username
                   - roleList
                   - displayName
-                $ref: '#/components/schemas/UserDetail'
+                type: object
           headers: {}
       security:
         - apikey-header-apikey: []

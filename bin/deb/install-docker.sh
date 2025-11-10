@@ -69,11 +69,11 @@ install_docker_offline() {
     if [ "$VERSION_ID" == "24.04" ]; then
         # 安装离线包
         echo "Installing Docker using offline ubuntu24 .deb packages..."
-        sudo dpkg -i $SCRIPT_DIR/../debs/docker/*.deb
-#    elif [ "$VERSION_ID" == "20.04" ]; then
-#        # 安装离线包
-#        echo "Installing Docker using offline ubuntu20 .deb packages..."
-#        sudo dpkg -i $SCRIPT_DIR/../debs/docker/*.deb
+        sudo dpkg -i $SCRIPT_DIR/../debs/docker/ubuntu24/*.deb
+   elif [ "$VERSION_ID" == "20.04" ]; then
+       # 安装离线包
+       echo "Installing Docker using offline ubuntu20 .deb packages..."
+       sudo dpkg -i $SCRIPT_DIR/../debs/docker/ubuntu20/*.deb
     else
         error "This product only runs on Ubuntu 20.04.2 LTS or 24.04 LTS."
         exit 1

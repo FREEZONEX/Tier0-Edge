@@ -110,6 +110,42 @@ module.exports = function (RED) {
         
     });
 
+    httpNode.get('/nodered-api/tags', (req, res) => {
+        const nodeIds = req.query.nodeId; // 查询条件
+        let idsArray = [];
+        let data = [];
+        if (Array.isArray(nodeIds)) {
+            idsArray = nodeIds;
+        } else if (nodeIds) {
+            idsArray = [nodeIds];
+        } else {
+            res.status(200).json(data);
+            return;
+        }
+        for (let key in idsArray) {
+            let nodeId = idsArray[key];
+            let tags = loadStorage(nodeId);
+            if (tags && tags.length > 0) {
+                let ss = {};
+                ss[nodeId] = tags;
+                data.push(ss);
+            }
+        }
+        res.status(200).json(data);
+    });
+
+    httpNode.post('/nodered-api/batchSave/tags', (req, res) => {
+        const itemsArray = req.body;
+        itemsArray.forEach((item, index) => {
+            Object.entries(item).forEach(([nodeId, tags]) => {
+                if (tags && tags.length > 0) {
+                    saveGlobalStorage(nodeId, tags);
+                }
+            });
+        });
+        res.status(200).end("success");
+    });
+
     httpNode.post('/nodered-api/save/tags', (req, res) => {
         
         let success = saveGlobalStorage(req.body.nodeId, req.body.tags);
