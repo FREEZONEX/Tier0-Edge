@@ -6,7 +6,7 @@ networks:
 
 services:
   frontend:
-    image: eco-registry.supos.com/sup9bnlh/supos-frontend-platform:${frontend_imageTag:-1.0.12-T1}
+    image: suposce/supos-ce-platform:1.0.12-T1
     container_name: frontend
     ports:
       - "3010:3000"
@@ -26,7 +26,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
   backend:
-    image:  eco-registry.supos.com/sup9bnlh/backend:${backend_imageTag:-1.0.12-T1}
+    image:  suposce/supos-ce-backend:1.0.12-T1
     container_name: backend
     environment:
       - TZ=UTC
@@ -281,7 +281,7 @@ services:
       - -c
       - config_file=/etc/postgresql/custom.conf
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "psql -U postgres -d keycloak -c '\\dt public.initialization_complete' | grep -q 'initialization_complete'"]
       interval: 15s
       timeout: 15s
       retries: 60
