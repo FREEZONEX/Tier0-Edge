@@ -106,6 +106,17 @@ services:
       - default_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+  marimo:
+    image: suposce/marimo:latest
+    container_name: marimo
+    environment:
+      - TSDB_URL=postgresql+psycopg2://postgres:postgres@tsdb:5432/postgres
+      - PG_URL=postgresql+psycopg2://postgres:postgres@postgresql:5432/postgres
+    volumes:
+      - ${VOLUMES_PATH}/marimo/data:/app
+    restart: always
+    networks:
+      - default_network
   emqx:
     image: emqx/emqx:5.8
     container_name: emqx
