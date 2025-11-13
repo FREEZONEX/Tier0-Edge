@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/util/handle-volumes-path.sh"
 source "$SCRIPT_DIR/util/select-ip-address.sh"
 
 # --- 3. Dependency Installation ---
-source "$SCRIPT_DIR/deb/install-docker.sh"
+source "$SCRIPT_DIR/deb/install-docker.sh" && source $SCRIPT_DIR/deb/install-yq.sh
 
 # --- 4. Service Profile Selection ---
 # This script will set the 'command' variable for docker-compose

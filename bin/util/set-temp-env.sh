@@ -47,14 +47,16 @@ echo "BASE_URL=$REDIRECT_BASE_URL" >> $ROOT_DIR/.env.tmp
 echo "ENABLE_PORTAINER=menu" >> $ROOT_DIR/.env.tmp
 
 # parse builds.yaml
-# backend_imageTag=$(yq -r '.images[] | select(.imageName == "backend").imageTag' $ROOT_DIR/builds.yaml)
-# echo "backend_imageTag=${backend_imageTag}" >> $ROOT_DIR/.env.tmp
+if [ -f "$ROOT_DIR/builds.yaml" ]; then
+   backend_imageTag=$(yq -r '.images[] | select(.imageName == "backend").imageTag' $ROOT_DIR/builds.yaml)
+   echo "backend_imageTag=${backend_imageTag}" >> $ROOT_DIR/.env.tmp
 
-# frontend_imageTag=$(yq -r '.images[] | select(.imageName == "supos-frontend-platform").imageTag' $ROOT_DIR/builds.yaml)
-# echo "frontend_imageTag=${frontend_imageTag}" >> $ROOT_DIR/.env.tmp
+   frontend_imageTag=$(yq -r '.images[] | select(.imageName == "supos-frontend-platform").imageTag' $ROOT_DIR/builds.yaml)
+   echo "frontend_imageTag=${frontend_imageTag}" >> $ROOT_DIR/.env.tmp
 
-# fuxa_imageTag=$(yq -r '.images[] | select(.imageName == "fuxa").imageTag' $ROOT_DIR/builds.yaml)
-# echo "fuxa_imageTag=${fuxa_imageTag}" >> $ROOT_DIR/.env.tmp
+   fuxa_imageTag=$(yq -r '.images[] | select(.imageName == "fuxa").imageTag' $ROOT_DIR/builds.yaml)
+   echo "fuxa_imageTag=${fuxa_imageTag}" >> $ROOT_DIR/.env.tmp
 
-# gmqtt_imageTag=$(yq -r '.images[] | select(.imageName == "gmqtt").imageTag' $ROOT_DIR/builds.yaml)
-# echo "gmqtt_imageTag=${gmqtt_imageTag}" >> $ROOT_DIR/.env.tmp
+   gmqtt_imageTag=$(yq -r '.images[] | select(.imageName == "gmqtt").imageTag' $ROOT_DIR/builds.yaml)
+   echo "gmqtt_imageTag=${gmqtt_imageTag}" >> $ROOT_DIR/.env.tmp
+fi

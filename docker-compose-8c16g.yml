@@ -52,6 +52,7 @@ services:
       - SYS_OS_QUALITY_NAME=quality
       - SYS_OS_TIMESTAMP_NAME=timeStamp
       - SYS_OS_LAZY_TREE=${LAZY_TREE}
+      - SYS_OS_ENABLE_AUTO_CATEGORIZATION=${ENABLE_AUTO_CATEGORIZATION}
       - MQTT_PLUGIN=${MQTT_PLUG:-emqx}
       - UNS_ADD_BATCH_SIZE=500
       - ENABLE_CHAT2DB=true
@@ -71,9 +72,7 @@ services:
       - SYS_OS_LDAP_URL=${LDAP_URL}
       - SYNC_USER_ENABLE=${SYNC_USER_ENABLE}
       - SUPOS_EE_ADDRESS=${SUPOS_EE_ADDRESS}
-      - SYS_OS_ENABLE_AUTO_CATEGORIZATION=${ENABLE_AUTO_CATEGORIZATION}
     ports:
-      - "8091:8080"
       - "19099:19099"
     deploy:
       resources:
@@ -82,6 +81,7 @@ services:
         reservations:
           memory: 2G
     volumes:
+      - ${VOLUMES_PATH}/backend/entrypoint.sh:/entrypoint.sh
       - /etc/localtime:/etc/localtime:ro
       - ${VOLUMES_PATH}/backend/apps:/data/apps
       - ${VOLUMES_PATH}/backend/third-apps:/data/third-apps
@@ -273,9 +273,9 @@ services:
       - config_file=/etc/postgresql/custom.conf
     healthcheck:
       test: ["CMD-SHELL", "psql -U postgres -d keycloak -c '\\dt public.initialization_complete' | grep -q 'initialization_complete'"]
-      interval: 30s
-      timeout: 30s
-      retries: 15
+      interval: 15s
+      timeout: 15s
+      retries: 60
       start_period: 120s
       start_interval: 10s
     restart: always
@@ -463,8 +463,8 @@ services:
       - ${VOLUMES_PATH}/kong/kong-plugin-auth-checker:/usr/local/share/lua/5.1/kong/plugins/supos-auth-checker
       - ${VOLUMES_PATH}/kong/kong-plugin-url-transformer:/usr/local/share/lua/5.1/kong/plugins/supos-url-transformer
     ports:
-      - "8088:8000"
-      - "8443:8443"
+      - "${ENTRANCE_PORT:-8088}:8000"
+      - "${ENTRANCE_SSL_PORT:-8443}:8443"
       - "8001:8001"
       - "8444:8444"
     depends_on:

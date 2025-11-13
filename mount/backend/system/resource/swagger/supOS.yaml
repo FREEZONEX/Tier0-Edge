@@ -134,8 +134,6 @@ paths:
                         type: integer
                         description: 创建时间--单位：毫秒
                         format: int64
-                required:
-                  - data
           headers: {}
         '400':
           description: Bad Request
@@ -210,6 +208,11 @@ paths:
                         type: integer
                         description: 1--时序，2--关系，3--计算型, 6--聚合 7--引用
                         format: int32
+                      parentDataType:
+                        type: integer
+                        description: >-
+                          文件分类类型：1-状态/结果 2-操作
+                          3-指标/度量，当环境变量ENABLE_AUTO_CATEGORIZATION为true时有效;dataType与parentDataType对应关系：关系型-状态/结果，时序型-指标/度量，JSONB-操作，其他类型-状态/结果或指标/度量，默认为状态/结果
                       pathType:
                         type: integer
                         description: 文件类型 0--文件夹，2--文件
@@ -293,8 +296,18 @@ paths:
                         type: integer
                         description: 创建时间--单位：毫秒
                         format: int64
-                    required:
-                      - frequency
+                      labelList:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              description: 标签ID
+                            labelName:
+                              type: string
+                              description: 标签名称
+                        description: 标签列表
           headers: {}
         '400':
           description: Bad Request
@@ -442,7 +455,101 @@ paths:
                     type: string
                     description: 错误信息
                   data:
-                    $ref: '#/components/schemas/InstanceDetail'
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: 文件ID
+                      name:
+                        type: string
+                        description: 文件名
+                      displayName:
+                        type: string
+                        description: 显示名
+                      alias:
+                        type: string
+                        description: 别名
+                      parentAlias:
+                        type: string
+                        description: 父级别名
+                      path:
+                        type: string
+                        description: 全路径
+                      dataType:
+                        type: integer
+                        description: 1--时序，2--关系，3--计算型, 6--聚合 7--引用
+                        format: int32
+                      parentDataType:
+                        type: integer
+                        description: >-
+                          文件分类类型：1-状态/结果 2-操作
+                          3-指标/度量，当环境变量ENABLE_AUTO_CATEGORIZATION为true时有效;dataType与parentDataType对应关系：关系型-状态/结果，时序型-指标/度量，JSONB-操作，其他类型-状态/结果或指标/度量，默认为状态/结果
+                      pathType:
+                        type: integer
+                        description: 文件类型 0--文件夹，2--文件
+                        format: int32
+                      definition:
+                        type: array
+                        description: 字段定义
+                        items:
+                          $ref: '#/components/schemas/FieldDefine'
+                      description:
+                        type: string
+                        description: 描述
+                      persistence:
+                        type: boolean
+                        description: 是否持久化
+                      expression:
+                        type: string
+                        description: 表达式，引用用 id
+                      frequency:
+                        type: string
+                        description: >-
+                          聚合计算频率：当聚合类型时(dataType=6)的计算时间间隔，单位支持：秒:s 分钟:m
+                          小时：h；如三分钟：3m
+                      showExpression:
+                        type: string
+                        description: 用于展示的表达式，引用用 path
+                      refers:
+                        type: array
+                        description: 引用对象
+                        items:
+                          $ref: '#/components/schemas/refres'
+                      pathName:
+                        type: string
+                        description: 文件路径名
+                      templateAlias:
+                        type: string
+                        description: 引用的模板别名
+                      extendProperties:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          description: 扩展字段JSON
+                        description: 扩展属性
+                        properties: {}
+                      updateTime:
+                        type: integer
+                        description: 修改时间--单位：毫秒
+                        format: int64
+                      createTime:
+                        type: integer
+                        description: 创建时间--单位：毫秒
+                        format: int64
+                      labelList:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: 标签ID
+                            labelName:
+                              type: string
+                              description: 标签名称
+                        description: 标签列表
+                    required:
+                      - frequency
           headers: {}
         '400':
           description: Bad Request
@@ -609,8 +716,13 @@ paths:
                   description: 所属父文件夹别名
                   maxLength: 63
                 dataType:
-                  description: 1-时序，2-关系，3-实时计算（仅支持函数计算方式），6-聚合，7-引用。
+                  description: 1-时序，2-关系，3-实时计算（仅支持函数计算方式），6-聚合，7-引用。8-JSONB
                   type: integer
+                parentDataType:
+                  type: integer
+                  description: >-
+                    文件分类类型：1-状态/结果 2-操作
+                    3-指标/度量，当环境变量ENABLE_AUTO_CATEGORIZATION为true时有效;dataType与parentDataType对应关系：关系型-状态/结果，时序型-指标/度量，JSONB-操作，其他类型-状态/结果或指标/度量，默认为状态/结果
                 description:
                   type: string
                   description: 文件描述
@@ -1203,10 +1315,6 @@ paths:
                           timeStamp:
                             type: integer
                             description: 时间戳
-                        required:
-                          - value
-                          - status
-                          - timeStamp
                         description: 查询的文件别名A
                       别名B:
                         type: object
@@ -1217,18 +1325,7 @@ paths:
                             type: string
                           timeStamp:
                             type: integer
-                        required:
-                          - value
-                          - status
-                          - timeStamp
                         description: 查询的文件别名B
-                    required:
-                      - 别名A
-                      - 别名B
-                required:
-                  - code
-                  - message
-                  - data
               example:
                 code: 200
                 message: ok
@@ -1401,24 +1498,11 @@ paths:
                                 items:
                                   type: string
                               description: 该文件历史数据集合
-                          required:
-                            - alias
-                            - function
-                            - hasNext
-                            - fields
-                            - datas
                       "notExsistFiles\x05":
                         type: array
                         items:
                           type: string
                         description: 不存在的文件别名集合
-                    required:
-                      - results
-                      - "notExsistFiles\x05"
-                required:
-                  - code
-                  - message
-                  - data
               example:
                 fill:
                   strategy: previous
@@ -1501,10 +1585,6 @@ paths:
                           timeStamp:
                             type: integer
                             description: 时间戳
-                        required:
-                          - value
-                          - status
-                          - timeStamp
                         description: 查询的文件别名A
                       别名B:
                         type: object
@@ -1515,18 +1595,7 @@ paths:
                             type: string
                           timeStamp:
                             type: integer
-                        required:
-                          - value
-                          - status
-                          - timeStamp
                         description: 查询的文件别名B
-                    required:
-                      - 别名A
-                      - 别名B
-                required:
-                  - code
-                  - message
-                  - data
               example:
                 code: 200
                 message: ok
@@ -2048,10 +2117,6 @@ paths:
                         type: number
                         description: 创建时间--单位：毫秒
                     description: 响应数据
-                    required:
-                      - id
-                      - labelName
-                      - createTime
           headers: {}
         '400':
           description: Bad Request
@@ -2347,7 +2412,7 @@ paths:
         - name: pageNo
           in: query
           description: 当前页数
-          required: true
+          required: false
           example: 1
           schema:
             type: integer
@@ -2355,7 +2420,7 @@ paths:
         - name: pageSize
           in: query
           description: 每页记录数，默认为20，最大支持1000
-          required: true
+          required: false
           example: 20
           schema:
             type: integer
@@ -2460,42 +2525,18 @@ paths:
             application/json:
               schema:
                 properties:
-                  email:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
                     type: string
-                    description: 邮箱
-                    example: xxx@supos.com
-                  phone:
-                    type: string
-                    description: 手机号
-                  username:
-                    type: string
-                    description: 用户名 英文+数组 长度3-20位
-                    minLength: 3
-                    maxLength: 200
-                    pattern: ^[\u4e00-\u9fa5a-zA-Z0-9_\-.@&+]*$
-                  displayName:
-                    type: string
-                    description: 显示名
-                  roleList:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        roleName:
-                          type: string
-                          description: 角色名称
-                        roleId:
-                          type: string
-                          description: 角色ID
-                      required:
-                        - roleName
-                        - roleId
-                    description: 角色列表
+                  data:
+                    $ref: '#/components/schemas/UserDetail'
                 required:
                   - username
                   - roleList
                   - displayName
-                $ref: '#/components/schemas/UserDetail'
+                type: object
           headers: {}
       security:
         - apikey-header-apikey: []
@@ -2745,10 +2786,6 @@ paths:
                           stop:
                             type: integer
                             description: 已停止的容器数量
-                        required:
-                          - total
-                          - running
-                          - stop
                       container:
                         type: object
                         properties:
@@ -2762,15 +2799,6 @@ paths:
                             items:
                               type: string
                             description: 已停止的容器名称列表
-                        required:
-                          - running
-                          - stop
-                    required:
-                      - status
-                      - overview
-                      - container
-                required:
-                  - data
               example:
                 data:
                   status: running
@@ -3059,83 +3087,6 @@ components:
         data:
           $ref: '#/components/schemas/TemplateVo'
           description: 返回数据
-    InstanceDetail:
-      type: object
-      properties:
-        id:
-          type: string
-          description: 文件ID
-        name:
-          type: string
-          description: 文件名
-        displayName:
-          type: string
-          description: 显示名
-        alias:
-          type: string
-          description: 别名
-        parentAlias:
-          type: string
-          description: 父级别名
-        path:
-          type: string
-          description: 全路径
-        dataType:
-          type: integer
-          description: 1--时序，2--关系，3--计算型, 6--聚合 7--引用
-          format: int32
-        pathType:
-          type: integer
-          description: 文件类型 0--文件夹，2--文件
-          format: int32
-        definition:
-          type: array
-          description: 字段定义
-          items:
-            $ref: '#/components/schemas/FieldDefine'
-        description:
-          type: string
-          description: 描述
-        persistence:
-          type: boolean
-          description: 是否持久化
-        expression:
-          type: string
-          description: 表达式，引用用 id
-        frequency:
-          type: string
-          description: 聚合计算频率：当聚合类型时(dataType=6)的计算时间间隔，单位支持：秒:s 分钟:m 小时：h；如三分钟：3m
-        showExpression:
-          type: string
-          description: 用于展示的表达式，引用用 path
-        refers:
-          type: array
-          description: 引用对象
-          items:
-            $ref: '#/components/schemas/refres'
-        pathName:
-          type: string
-          description: 文件路径名
-        templateAlias:
-          type: string
-          description: 引用的模板别名
-        extendProperties:
-          type: object
-          additionalProperties:
-            type: object
-            description: 扩展字段JSON
-          description: 扩展属性
-          properties: {}
-        updateTime:
-          type: integer
-          description: 修改时间--单位：毫秒
-          format: int64
-        createTime:
-          type: integer
-          description: 创建时间--单位：毫秒
-          format: int64
-      required:
-        - frequency
     refres:
       type: object
       properties:
@@ -3148,62 +3099,12 @@ components:
         uts:
           type: boolean
           description: 是否引用文件的质量码和时间戳，当文件dataType=3计算型时生效，默认为false
-    fileVoDetail2:
+    UserDetail:
       type: object
       properties:
         id:
           type: string
-          description: ID
-        name:
-          type: string
-          description: 名称
-          minLength: 1
-          maxLength: 63
-        displayName:
-          type: string
-          description: 显示名
-          maxLength: 128
-        alias:
-          type: string
-          description: 别名
-        parentAlias:
-          type: string
-          description: 父级别名
-        path:
-          type: string
-          description: 全路径
-        pathName:
-          type: string
-          description: 路径名
-        description:
-          type: string
-          description: 模型描述
-        definition:
-          type: array
-          description: 字段定义
-          items:
-            $ref: '#/components/schemas/FieldDefine'
-        extendProperties:
-          type: object
-          additionalProperties:
-            type: object
-            description: 扩展字段JSON
-          description: 扩展属性
-          properties: {}
-        templateAlias:
-          type: string
-          description: 关联的模板别名
-        updateTime:
-          type: integer
-          description: 修改时间--单位：毫秒
-          format: int64
-        createTime:
-          type: integer
-          description: 创建时间--单位：毫秒
-          format: int64
-    UserDetail:
-      type: object
-      properties:
+          description: 用户ID
         username:
           type: string
           description: 用户名 英文+数组 长度3-20位
@@ -3238,11 +3139,6 @@ components:
               - roleName
               - roleId
           description: 角色列表
-      required:
-        - username
-        - roleList
-        - displayName
-        - enable
   securitySchemes:
     apikey-header-apikey:
       type: apiKey
