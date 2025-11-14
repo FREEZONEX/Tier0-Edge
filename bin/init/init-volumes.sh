@@ -17,9 +17,7 @@ chown 1000:0 -R $VOLUMES_PATH/keycloak
 chown 755:0 -R $VOLUMES_PATH/grafana
 
 cp $SCRIPT_DIR/../docker-compose-8c16g.yml $VOLUMES_PATH/backend/system/
-if [ -f "$SCRIPT_DIR/../builds.yaml" ]; then
-  cp $SCRIPT_DIR/../builds.yaml $VOLUMES_PATH/backend/system/
-fi
+cp $SCRIPT_DIR/../builds.yaml $VOLUMES_PATH/backend/system/
 if [ -f $SCRIPT_DIR/global/active-services.txt ]; then
   mv $SCRIPT_DIR/global/active-services.txt $VOLUMES_PATH/backend/system/
 fi

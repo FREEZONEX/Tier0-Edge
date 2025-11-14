@@ -8,6 +8,9 @@ const checkUrl = (dom, url, defaultUrl) => {
       this.src = defaultUrl;
     };
   }else{
+    if (defaultUrl) {
+      dom.style.display = "none";
+    }
     dom.src = defaultUrl;
   }
 };
@@ -51,18 +54,17 @@ export const handleTheme = async (keycloakUrl, lang) => {
       if (logoDom && loginArrowDom && sloganDom) {
         checkUrl(
           logoDom,
-          darkLogoIcon || "/files/system/resource/supos/logo-dark.png",
+          darkLogoIcon || `${keycloakUrl}/img/supos-logo-dark.svg`,
           `${keycloakUrl}/img/supos-logo-dark.svg`
         );
         checkUrl(
           sloganDom,
           darkSloganIcon,
-          `${keycloakUrl}/img/slogan-dark-${lang}.png`
         );
         loginArrowDom.style.backgroundImage = `url(${keycloakUrl}/img/login-arrow-dark.svg)`;
-        loginLeft.style.backgroundImage = darkBackgroundIcon
+        loginLeft.style.background = darkBackgroundIcon
           ? `url(${darkBackgroundIcon})`
-          : `url(${keycloakUrl}/img/login-background.png)`;
+          : `url(${keycloakUrl}/img/login-background.png) center center / cover no-repeat`;
       }
     } else {
       //亮色主题
@@ -70,7 +72,7 @@ export const handleTheme = async (keycloakUrl, lang) => {
       if (logoDom && loginArrowDom && sloganDom) {
         checkUrl(
           logoDom,
-          brightLogoIcon || "/files/system/resource/supos/logo-light.png",
+          brightLogoIcon || `${keycloakUrl}/img/supos-logo.svg`,
           `${keycloakUrl}/img/supos-logo.svg`
         );
         checkUrl(
@@ -80,9 +82,9 @@ export const handleTheme = async (keycloakUrl, lang) => {
         );
         loginArrowDom.style.backgroundImage = `url(${keycloakUrl}/img/login-arrow.svg)`;
 
-        loginLeft.style.backgroundImage = brightBackgroundIcon
+        loginLeft.style.background = brightBackgroundIcon
           ? `url(${brightBackgroundIcon})`
-          : `url(${keycloakUrl}/img/login-background.png)`;
+          : `url(${keycloakUrl}/img/login-background.png) center center / cover no-repeat`;
       }
     }
   }
