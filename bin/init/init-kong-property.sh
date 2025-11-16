@@ -18,10 +18,20 @@ export $(grep -v '^#' "$ROOT_DIR/.env" | xargs)
 # 2. Build BASE_URL
 # (This section doesn't use the script path, no change needed)
 # ---------------------------------------------------------------------------
-REDIRECT_BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN:$ENTRANCE_PORT"
-if [[ "$ENTRANCE_PORT" == "80" || "$ENTRANCE_PORT" == "443" ]]; then
-  REDIRECT_BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN"
+REDIRECT_BASE_URL=""
+if [ "$ENTRANCE_PROTOCOL" == "http" ]; then
+  REDIRECT_BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN:$ENTRANCE_PORT"
+  if [[ "$ENTRANCE_PORT" == "80" ]]; then
+    REDIRECT_BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN"
+  fi
 fi
+if [ "$ENTRANCE_PROTOCOL" == "https" ]; then
+  REDIRECT_BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN:$ENTRANCE_SSL_PORT"
+  if [[ "$ENTRANCE_SSL_PORT" == "443" ]]; then
+    REDIRECT_BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN"
+  fi
+fi
+
 export BASE_URL="$REDIRECT_BASE_URL"
 
 # ---------------------------------------------------------------------------

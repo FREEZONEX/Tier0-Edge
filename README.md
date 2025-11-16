@@ -104,14 +104,13 @@
 <img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/34.png" />
 
 3. Select **equipment**, and then click <img src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/7.png" /> to add a topic (e.g.`CNC`) under it.
-     > **Topic Type** is categorized into 3 types:
-     > - State: Works as an API to change system state.
-     > - Action: Works as an API to deliver data through a HMI action.
-     > - Metric: Time series data (eg. temperature).
 
 <img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/36.png" />
 
-4. Enter the information of the topic, and then click **Save**.
+4. Enter the information of the topic, and then click **Next**.
+5. Select **Enable History** to store data to database, and then click **Save**.
+
+<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/37.png" />
 
 #### 1.2 Converting Models through MQTT
 1. Use an MQTT client to connect to the internal broker of supOS-CE.

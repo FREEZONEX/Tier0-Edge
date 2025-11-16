@@ -6,7 +6,7 @@ networks:
 
 services:
   frontend:
-    image: suposce/supos-ce-platform:1.0.12-T1
+    image: suposce/supos-ce-platform:1.0.13-T1
     container_name: frontend
     ports:
       - "3010:3000"
@@ -26,7 +26,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
   backend:
-    image:  suposce/supos-ce-backend:1.0.12-T1
+    image:  suposce/supos-ce-backend:1.0.13-T1
     container_name: backend
     environment:
       - TZ=UTC
@@ -46,7 +46,7 @@ services:
       - SYS_OS_MQTT_WEBSOCKET_TSL_PORT=${OS_MQTT_WEBSOCKET_TSL_PORT}
       - SYS_OS_LOGIN_PATH=${OS_LOGIN_PATH}
       - SYS_OS_PLATFORM_TYPE=${OS_PLATFORM_TYPE}
-      - SYS_OS_ENTRANCE_URL=${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}
+      - SYS_OS_ENTRANCE_URL=${BASE_URL}
       - SYS_OS_USE_ALIAS_PATH_AS_TOPIC=${USE_ALIAS_PATH_AS_TOPIC}
       - SYS_OS_QUALITY_NAME=quality
       - SYS_OS_TIMESTAMP_NAME=timeStamp
@@ -56,8 +56,8 @@ services:
       - UNS_ADD_BATCH_SIZE=1000
       - ENABLE_CHAT2DB=true
       - HASP_SERVER=${HASP_SERVER}
-      - OAUTH_REDIRECT_URI=${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}/inter-api/supos/auth/token
-      - OAUTH_SUPOS_HOME=${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}/home
+      - OAUTH_REDIRECT_URI=${BASE_URL}/inter-api/supos/auth/token
+      - OAUTH_SUPOS_HOME=${BASE_URL}/home
       - OAUTH_REALM=${OAUTH_REALM}
       - OAUTH_CLIENT_NAME=${OAUTH_CLIENT_NAME}
       - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
@@ -106,6 +106,17 @@ services:
       - default_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+  marimo:
+    image: suposce/marimo:latest
+    container_name: marimo
+    environment:
+      - TSDB_URL=postgresql+psycopg2://postgres:postgres@tsdb:5432/postgres
+      - PG_URL=postgresql+psycopg2://postgres:postgres@postgresql:5432/postgres
+    volumes:
+      - ${VOLUMES_PATH}/marimo/data:/app
+    restart: always
+    networks:
+      - default_network
   emqx:
     image: emqx/emqx:5.8
     container_name: emqx
@@ -194,7 +205,7 @@ services:
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
       - AGENT_DEPLOYMENT_URL=${AGENT_DEPLOYMENT_URL}
       - SUPOS_API_KEY=${SUPOS_API_KEY}
-      - SUPOS_API_URL=${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}
+      - SUPOS_API_URL=${BASE_URL}
       - SUPOS_MQTT_URL=${SUPOS_MQTT_URL}
       - SUPOS_PG_URL=postgresql://postgres:postgres@postgresql:5432/postgres
     healthcheck:
@@ -311,7 +322,7 @@ services:
       KC_SSL_REQUIRED: none  # 不要求 SSL
       KC_PROXY: passthrough                       # 设置代理模式
       KC_HOSTNAME: "${ENTRANCE_DOMAIN}"              # 指定主机名
-      KC_FRONTEND_URL: "https://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}"  # 设置前端 URL
+      KC_FRONTEND_URL: "${BASE_URL}"  # 设置前端 URL
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: supos
       KC_COOKIE_SECURE: false                          # 禁用安全 cookie
@@ -335,7 +346,7 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy  # 依赖 PostgreSQL 的健康状态
-    command: start-dev --hostname ${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}/keycloak/home/auth  --proxy-headers forwarded
+    command: start-dev --hostname ${BASE_URL}/keycloak/home/auth  --proxy-headers forwarded
     healthcheck:
       test: >
         /bin/bash -c "
@@ -454,13 +465,13 @@ services:
       - service_redirect_url=/minio/home/
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=adminpassword
-      - MINIO_BROWSER_REDIRECT_URL=${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}/minio/home
+      - MINIO_BROWSER_REDIRECT_URL=${BASE_URL}/minio/home
       - MINIO_IDENTITY_OPENID_CONFIG_URL=${OAUTH_ISSUER_URI}/realms/supos/.well-known/openid-configuration
       - MINIO_IDENTITY_OPENID_CLIENT_ID=${OAUTH_CLIENT_ID}
       - MINIO_IDENTITY_OPENID_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
       - MINIO_IDENTITY_OPENID_SCOPES=openid
       - MINIO_IDENTITY_OPENID_ROLE_POLICY=public-delete-policy
-      - MINIO_IDENTITY_OPENID_REDIRECT_URI=${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}/minio/home/oauth_callback
+      - MINIO_IDENTITY_OPENID_REDIRECT_URI=${BASE_URL}/minio/home/oauth_callback
     ports:
       - "9000:9000"  # Web UI 端口
       - "9001:9001"  # Admin API 端口 (如果需要访问管理接口)

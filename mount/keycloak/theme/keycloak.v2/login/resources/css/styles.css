@@ -44,6 +44,7 @@
 }
 
 .pf-v5-c-login-l-t-right {
+  display: none;
   width: 80px;
   height: 80px;
   background-image: url("../img/login-arrow.svg");
@@ -59,7 +60,7 @@
 
 .supos-logo {
   height: 40px;
-  width: 100px;
+  width: 150px;
   margin-right: 10px;
 }
 

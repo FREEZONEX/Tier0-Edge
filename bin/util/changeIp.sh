@@ -6,7 +6,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"
 source $SCRIPT_DIR/../../.env
 source $SCRIPT_DIR/../global/log.sh
 
-BASE_URL=$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN:$ENTRANCE_PORT
+BASE_URL=""
+if [ "$ENTRANCE_PROTOCOL" == "http" ]; then
+  BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN:$ENTRANCE_PORT"
+  if [[ "$ENTRANCE_PORT" == "80" ]]; then
+    BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN"
+  fi
+fi
+if [ "$ENTRANCE_PROTOCOL" == "https" ]; then
+  BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN:$ENTRANCE_SSL_PORT"
+  if [[ "$ENTRANCE_SSL_PORT" == "443" ]]; then
+    BASE_URL="$ENTRANCE_PROTOCOL://$ENTRANCE_DOMAIN"
+  fi
+fi
 
 KONG_SQL_1="UPDATE \"public\".\"plugins\" SET \"config\" = '{\"login_url\": \"$BASE_URL/keycloak/home/auth/realms/supos/protocol/openid-connect/auth?client_id=supos&redirect_uri=$BASE_URL/inter-api/supos/auth/token&response_type=code&scope=openid\", \"forbidden_url\": \"/403\", \"whitelist_paths\": [\"^/inter-api/supos/auth.*$\", \"^/inter-api/supos/systemConfig.*$\", \"^/inter-api/supos/theme/getConfig.*$\", \"^/$\", \"^/assets.*$\", \"^/locale.*$\", \"^/logo.*$\", \"^/gitea.*git.*$\", \"^/supos-login.*$\", \"^/403$\", \"^/open-api/.*$\", \"^/keycloak.*$\", \"^/nodered.*$\", \"^/files.*$\", \"^/freeLogin.*$\", \"^/inter-api/supos/dev/logs.*$\", \"^/inter-api/supos/license.*$\", \"^/inter-api/supos/cascade.*$\"], \"enable_deny_check\": true, \"enable_resource_check\": true}', \"updated_at\" = NOW() WHERE \"name\" = 'supos-auth-checker';"
 KONG_SQL_2="UPDATE \"public\".\"plugins\" SET \"config\" = '{\"add\": {\"body\": [], \"headers\": [], \"querystring\": []}, \"append\": {\"body\": [], \"headers\": [], \"querystring\": [\"client_id:supos\", \"response_type:code\", \"scope:openid\", \"redirect_uri:$BASE_URL/inter-api/supos/auth/token\"]}, \"remove\": {\"body\": [], \"headers\": [], \"querystring\": []}, \"rename\": {\"body\": [], \"headers\": [], \"querystring\": []}, \"replace\": {\"uri\": null, \"body\": [], \"headers\": [], \"querystring\": []}, \"http_method\": null}' WHERE \"name\" = 'request-transformer';"

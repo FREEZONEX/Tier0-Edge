@@ -87,7 +87,7 @@ echo -e "👉  Open the platform in your browser:\n"
 if [[ "$ENTRANCE_PORT" == "80" || "$ENTRANCE_PORT" == "443" ]]; then
   PLATFORM_URL="${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}/home"
 else
-  PLATFORM_URL="${ENTRANCE_PROTOCOL}://${ENTRANCE_DOMAIN}:${ENTRANCE_PORT}/home"
+  PLATFORM_URL="${BASE_URL}/home"
 fi
 
 echo -e "      $PLATFORM_URL\n"
