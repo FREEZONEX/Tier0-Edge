@@ -6,7 +6,7 @@ networks:
 
 services:
   frontend:
-    image: suposce/supos-ce-platform:1.0.12-T1
+    image: suposce/supos-ce-platform:1.0.13-T1
     container_name: frontend
     ports:
       - "3010:3000"
@@ -26,7 +26,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
   backend:
-    image:  suposce/supos-ce-backend:1.0.12-T1
+    image:  suposce/supos-ce-backend:1.0.13-T1
     container_name: backend
     environment:
       - TZ=UTC
