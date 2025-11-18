@@ -90,7 +90,7 @@
     </div>
     <div class="pf-v5-c-login-l-bottom">
       <img class="supos-logo" src="" />
-      <div>${msg("customIndustrialOperatingSystem")}</div>
+      <div style="display: none;">${msg("customIndustrialOperatingSystem")}</div>
     </div>
   </div>
   <div class="${properties.kcLoginContainer!}">
