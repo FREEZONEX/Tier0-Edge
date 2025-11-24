@@ -4,7 +4,7 @@ set -e
 
 times=5
 
-#info "start to init protocol nodes...."
+info "start to init protocol nodes...."
 
 while (( times > 0 )); do
     # 检查端口是否开启
