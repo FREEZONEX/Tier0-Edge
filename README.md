@@ -107,29 +107,9 @@
 
 <img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/36.png" />
 
-4. Enter the information of the topic, and then click **Next**.
-5. Select **Enable History** to store data to database, and then click **Save**.
+4. Enter the information of the topic, and then click **Save**.
 
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/37.png" />
-
-#### 1.2 Converting Models through MQTT
-1. Use an MQTT client to connect to the internal broker of Tier0.
-  - **Host**: Your Tier0 domain.
-  - **Port**: 1883.
-
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/118.png" />
-
-2. Define a topic and message payload on the client, and then send it to Tier0.
-
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/119.png" />
-
-3. Log in to Tier0, and then select **UNS** > **Namespace**.
-4. Expand **Unmodeled Topics**, find the topic you defined.
-5. Click **Convert** icon next to the topic, and then edit the information and complete the model creation.
-
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/120.png" />
-
-#### 1.3 Importing Models
+#### 1.2 Importing Models
 1. Log in to Tier0, and then select **UNS** > **Namespace**.
 2. Click **Import** at the upper-right corner, and then click **Download Template**.
 
@@ -144,6 +124,42 @@
 - Through JSON File
 
 <img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/70-1.png" />
+
+#### 1.3 Generating Models through JSON
+1. Log in to Tier0, and then select **UNS** > **Namespace**.
+2. Click <img src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/40.png" /> on the **Topic** page.
+
+<img width={350} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/40-1.png" />
+
+3. Select the data type, and then write JSON text for the model according to the data tree structure.
+
+```json
+{
+    "Factory1": {
+        "workshop1": {
+            "equipment1": {
+                "CNC1": [
+                    {
+                        "actualRuntime1": 1380,
+                        "plannedRuntime1": 1440
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+
+<img width={450} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/41.png" />
+
+4. Click **Next**, and select the model on the left side.
+:::tip
+Click on each data level, you can change its information and add attributes on the right side.
+:::
+
+<img width={450} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/42.png" />
+
+5. Click **Save**.
 
 ### 2. Model Data Source Connection
 > Connect real data to make models alive.
