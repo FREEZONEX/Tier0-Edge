@@ -111,19 +111,27 @@
 
 #### 1.2 Importing Models
 1. Log in to Tier0, and then select **UNS** > **Namespace**.
-2. Click **Import** at the upper-right corner, and then click **Download Template**.
+2. Click **Import** at the upper-right corner.
 
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/69.png" />
+<img width={450} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/69.png" />
 
-3. Download the template and enter the model content according to template rules.
+3. Import JSON to create models.
+- Directly enter JSON.
+
+<img width={450} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/69-1.png" />
+
+- Click **Upload File** to download the template and enter the model content according to template rules.
+
+<img width={450} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/69-2.png" />
+
+
 > You can manually add a path and topic, export it and use it as an example for import.
-- Through Excel File
 
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/70.png" />
+> <img width={450} src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/69-3.png" />
 
-- Through JSON File
 
-<img width="450" src="http://communityimage2.oss-cn-hangzhou.aliyuncs.com/70-1.png" />
+4. Save the template file, and then click **Import** on the **Namespace** page.
+5. Select the template, and then click **Save**.
 
 #### 1.3 Generating Models through JSON
 1. Log in to Tier0, and then select **UNS** > **Namespace**.
