@@ -25,7 +25,7 @@ const MODBUS_KEY = "node-red-contrib-modbus";
 const OPCUA_KEY  = "node-red-contrib-opcua";   // 若你装的是 iiot 版，改成 node-red-contrib-iiot-opcua
 
 const KEEP_MODBUS = new Set(["Modbus-Read","Modbus-Client","Modbus-Server"]);
-const KEEP_OPCUA  = new Set(["OpcUa-Item","OpcUa-Client","OpcUa-Server"]);
+const KEEP_OPCUA  = new Set(["OpcUa-Item","OpcUa-Client","OpcUa-Server","OpcUa-Endpoint"]);
 
 const waitMs = 3000;
 const maxWait = 20000;
