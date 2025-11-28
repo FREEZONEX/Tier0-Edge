@@ -1,6 +1,6 @@
 #!/bin/bash
 
-activeServices="emqx,nodered,keycloak,kong,postgresql,chat2db,portainer,tsdb"
+activeServices="emqx,nodered,keycloak,kong,postgresql,chat2db,portainer,tsdb,eventflow"
 profileCommand=""
 OUTPUT_FILE=$SCRIPT_DIR/global/active-services.txt
 
