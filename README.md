@@ -1,6 +1,6 @@
 # Tier0: An Open-Source IIoT Platform
 
-[![Try supOS](https://img.shields.io/badge/Try%20supOS-Live%20Demo-blue?style=flat&logo=rocket)](https://supos.ai/trial)
+[![Static Badge](https://img.shields.io/badge/Try%20Tier0-Live%20Demo-blue?style=flat&logo=rocket&logoColor=red)](https://supos.ai/trial)
 [![Docs](https://img.shields.io/badge/docs-available-brightgreen?style=flat&logo=readthedocs)](https://suposcommunity.vercel.app)
 [![License](https://img.shields.io/badge/License-Apache_2.0-yellow?style=flat&logo=open-source-initiative)](./LICENSE)
 
