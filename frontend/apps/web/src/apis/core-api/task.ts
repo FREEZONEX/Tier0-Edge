@@ -53,6 +53,7 @@ export type VisionTask = {
   outputCategories: string[];
   regions?: Record<string, VisionCameraRegion>;
   params?: VisionTaskParams;
+  parameterOverrides?: VisionTaskParams | null;
   schedule?: VisionSchedule;
   processedFrames: number;
   detectedObjects: number;
@@ -62,6 +63,7 @@ export type VisionTask = {
   unsTopic: string;
   createdAt: number;
   updatedAt: number;
+  configRevision?: string;
 };
 
 export type VisionTaskListParams = {
@@ -97,6 +99,7 @@ export const listVisionTasks = async (params: VisionTaskListParams = {}, config?
 };
 
 export type VisionTaskCreatePayload = {
+  expectedRevision?: string;
   name: string;
   note?: string;
   cameraIds: number[];
@@ -110,8 +113,11 @@ export type VisionTaskCreatePayload = {
 export const createVisionTask = (payload: VisionTaskCreatePayload) =>
   coreApi.post('/vision/tasks', payload) as Promise<VisionTask>;
 
-export const updateVisionTask = (id: number | string, payload: VisionTaskCreatePayload) =>
-  coreApi.put(`/vision/tasks/${id}`, payload) as Promise<VisionTask>;
+export const updateVisionTask = (
+  id: number | string,
+  payload: VisionTaskCreatePayload,
+  config?: AxiosWrapperRequestConfig
+) => coreApi.put(`/vision/tasks/${id}`, payload, config) as Promise<VisionTask>;
 
 export const getVisionTask = (id: number | string) => coreApi.get(`/vision/tasks/${id}`) as Promise<VisionTask>;
 
@@ -129,12 +135,22 @@ export type VisionTaskTestFrameResult = {
   cameraId?: number | string;
   algorithmId?: number | string;
   inferenceMs?: number;
+  capturedAt?: number;
+  modelVersion?: string;
+  frame?: { width: number; height: number };
+  image?: string;
+  metrics?: Record<string, unknown>;
+  states?: Record<string, unknown>;
   objects?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 };
 
-export const testVisionTaskFrame = (id: number | string) =>
-  coreApi.post(`/vision/tasks/${id}/test-frame`, {}) as Promise<VisionTaskTestFrameResult>;
+export const testVisionTaskFrame = (id: number | string, cameraId?: number, config?: AxiosWrapperRequestConfig) =>
+  coreApi.post(
+    `/vision/tasks/${id}/test-frame`,
+    { cameraId },
+    { ...config, timeout: 65000 }
+  ) as Promise<VisionTaskTestFrameResult>;
 
 export const saveTaskRegions = (
   id: number | string,

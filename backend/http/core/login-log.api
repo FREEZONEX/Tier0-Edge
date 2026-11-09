@@ -1,0 +1,11 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core
+    group: core/loginlog
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler LoginLogPage
+    post /login-logs/page (LoginLogPageReq) returns (Envelope)
+}

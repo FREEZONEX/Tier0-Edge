@@ -1,0 +1,7 @@
+[
+  {"name":"postgres-mac17.dmg","url":"https://github.com/PostgresApp/PostgresApp/releases/download/v2.9.6/Postgres-2.9.6-17.dmg","sha256":"b38bb00b8c8702a568270aab85995c550f7f93d1503b818efdc5ff9a519b7168"},
+  {"name":"timescale-mac.tar.gz","url":"https://github.com/timescale/timescaledb/archive/refs/tags/2.20.0.tar.gz","sha256":"b6ac4c29ef29e93249fcc25bf193dab2637422797360b12e00fd73067138a953"},
+  {"name":"node-mac.tar.gz","url":"https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz","sha256":"ef28d8fab2c0e4314522d4bb1b7173270aa3937e93b92cb7de79c112ac1fa953"},
+  {"name":"nats-mac.tar.gz","url":"https://github.com/nats-io/nats-server/releases/download/v2.15.2/nats-server-v2.15.2-darwin-arm64.tar.gz","sha256":"cbd2219d01502c38733485ac684269da585ee479fa3b1377264beecdefdf9e9d"},
+  {"name":"cmake-mac.tar.gz","url":"https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-macos-universal.tar.gz","sha256":"330b9514f5112e5ed4fb08b8b05803b776fd9b539a6ae12927d14dcc0ee2ba8d"}
+]

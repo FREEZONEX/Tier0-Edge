@@ -1,0 +1,1047 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tier0:capability-discovery",
+  "title": "Tier0 capability discovery",
+  "type": "object",
+  "required": [
+    "product",
+    "contractVersion",
+    "apiContractVersions",
+    "sdkContractVersions",
+    "capabilities",
+    "deprecations"
+  ],
+  "properties": {
+    "product": {
+      "enum": [
+        "cloud",
+        "enterprise"
+      ]
+    },
+    "productVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contractVersion": {
+      "const": "1.0"
+    },
+    "apiContractVersions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "contains": {
+        "const": "openapi/v2"
+      },
+      "uniqueItems": true
+    },
+    "sdkContractVersions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "const": "namespace.v2"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "const": "source"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "const": "stream"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "const": "control.v1"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "const": "control.invoke.v1"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ]
+    },
+    "deprecations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "contract"
+        ],
+        "properties": {
+          "contract": {
+            "type": "string",
+            "minLength": 1
+          },
+          "replacement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sunsetAt": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "Unknown capability codes are ignored; only recognized codes use the frozen assessment contract.",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "namespace.v2",
+                  "source",
+                  "stream",
+                  "control.v1",
+                  "control.invoke.v1"
+                ]
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/knownCapability"
+          }
+        }
+      ]
+    },
+    "operation": {
+      "type": "object",
+      "required": [
+        "operation"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "Unknown operation names are ignored within their parent capability; known names are validated by that capability."
+    },
+    "knownCapability": {
+      "type": "object",
+      "required": [
+        "code",
+        "contractVersions",
+        "releaseEnabled",
+        "enabled",
+        "allowed",
+        "state",
+        "availability"
+      ],
+      "properties": {
+        "releaseEnabled": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "disabled",
+            "not_supported",
+            "unavailable",
+            "readiness_unknown",
+            "ready"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "unavailable",
+            "unknown",
+            "available"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Proof expiry must follow checkedAt. Cross-field chronological ordering is a semantic constraint checked by consumers in addition to this structural JSON Schema.",
+          "minLength": 1
+        },
+        "retryAfterMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contractVersions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/operation"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ready"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "enabled": {
+                "const": true
+              },
+              "releaseEnabled": {
+                "const": true
+              },
+              "allowed": {
+                "const": true
+              },
+              "availability": {
+                "const": "available"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "disabled"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "releaseEnabled": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "releaseEnabled": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "readiness_unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "unknown"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "disabled",
+                  "not_supported",
+                  "unavailable"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "unavailable"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "validUntil"
+            ],
+            "properties": {
+              "validUntil": {}
+            }
+          },
+          "then": {
+            "required": [
+              "checkedAt"
+            ],
+            "properties": {
+              "state": {
+                "const": "ready"
+              },
+              "checkedAt": {}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "source"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "operation": {
+                            "enum": [
+                              "read",
+                              "configure",
+                              "test",
+                              "discover",
+                              "enable",
+                              "disable"
+                            ]
+                          }
+                        }
+                      },
+                      "then": {
+                        "$ref": "#/$defs/knownOperation"
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "operation": {
+                            "enum": [
+                              "test",
+                              "discover",
+                              "enable"
+                            ]
+                          }
+                        }
+                      },
+                      "then": {
+                        "properties": {
+                          "requiresResourceCheck": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "allOf": [
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "read"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "configure"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "test"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "discover"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "enable"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "disable"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  }
+                ]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "releaseEnabled": {
+                      "const": false
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "operations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "if": {
+                          "properties": {
+                            "operation": {
+                              "enum": [
+                                "read",
+                                "configure",
+                                "test",
+                                "discover",
+                                "enable",
+                                "disable"
+                              ]
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "releaseEnabled": {
+                              "const": false
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "stream"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "operation": {
+                            "enum": [
+                              "read",
+                              "configure",
+                              "validate",
+                              "deploy",
+                              "execute",
+                              "disable"
+                            ]
+                          }
+                        }
+                      },
+                      "then": {
+                        "$ref": "#/$defs/knownOperation"
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "operation": {
+                            "enum": [
+                              "deploy",
+                              "execute"
+                            ]
+                          }
+                        }
+                      },
+                      "then": {
+                        "properties": {
+                          "requiresResourceCheck": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "allOf": [
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "read"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "configure"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "validate"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "deploy"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "execute"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "const": "disable"
+                        }
+                      }
+                    },
+                    "minContains": 0,
+                    "maxContains": 1
+                  }
+                ]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "releaseEnabled": {
+                      "const": false
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "operations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "if": {
+                          "properties": {
+                            "operation": {
+                              "enum": [
+                                "read",
+                                "configure",
+                                "validate",
+                                "deploy",
+                                "execute",
+                                "disable"
+                              ]
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "releaseEnabled": {
+                              "const": false
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "namespace.v2",
+                  "source",
+                  "stream"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "contractVersions": {
+                "type": "array",
+                "contains": {
+                  "const": "openapi/v2"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "control.v1",
+                  "control.invoke.v1"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "contractVersions": {
+                "type": "array",
+                "allOf": [
+                  {
+                    "contains": {
+                      "const": "openapi/v1"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "control/v1"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "knownOperation": {
+      "type": "object",
+      "required": [
+        "operation",
+        "requiresResourceCheck",
+        "releaseEnabled",
+        "enabled",
+        "allowed",
+        "state",
+        "availability"
+      ],
+      "properties": {
+        "releaseEnabled": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "disabled",
+            "not_supported",
+            "unavailable",
+            "readiness_unknown",
+            "ready"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "unavailable",
+            "unknown",
+            "available"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Proof expiry must follow checkedAt. Cross-field chronological ordering is a semantic constraint checked by consumers in addition to this structural JSON Schema.",
+          "minLength": 1
+        },
+        "retryAfterMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requiresResourceCheck": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ready"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "enabled": {
+                "const": true
+              },
+              "releaseEnabled": {
+                "const": true
+              },
+              "allowed": {
+                "const": true
+              },
+              "availability": {
+                "const": "available"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "disabled"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "releaseEnabled": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "releaseEnabled": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "readiness_unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "unknown"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "disabled",
+                  "not_supported",
+                  "unavailable"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "unavailable"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "validUntil"
+            ],
+            "properties": {
+              "validUntil": {}
+            }
+          },
+          "then": {
+            "required": [
+              "checkedAt"
+            ],
+            "properties": {
+              "state": {
+                "const": "ready"
+              },
+              "checkedAt": {}
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "contains": {
+              "type": "object",
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "enum": [
+                    "control.v1",
+                    "control.invoke.v1"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "apiContractVersions": {
+            "type": "array",
+            "contains": {
+              "const": "openapi/v1"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

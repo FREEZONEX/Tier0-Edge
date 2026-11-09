@@ -1,0 +1,10 @@
+{
+  "repository": "FREEZONEX/Tier0-sdk",
+  "commit": "047d600a49ab9203b5f0e937384d86e86626c3fc",
+  "sourceHashes": {
+    "src/capabilities.ts": "3a4e0c21953c91c7468031acefc2cb08afdd0e0ce691132576b33a943a6b1f49",
+    "contracts/capability-discovery/response.schema.json": "7cf1839b9e19fe6129c5245e4c6eb60e3a35484af8cad86aa1264ba9f98c4723",
+    "contracts/capability-discovery/vectors.json": "99436d782e5ef78bbec07636dc7dec2dab25e4c7f367988a930d2ed62dd7692d"
+  },
+  "generatedValidatorHash": "f333754b66e78549cd324c2b154b5c21d2e859baeda13f4917a19b6ae6a8d75c"
+}

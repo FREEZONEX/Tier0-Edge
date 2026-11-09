@@ -1,7 +1,6 @@
-* text=auto eol=lf
-
 # Shell scripts must always check out with LF endings, even on Windows/Git Bash
 # (core.autocrlf=true). They are bind-mounted into Linux containers by the deploy
 # stack, and CRLF breaks the shell interpreter (e.g. `set: illegal option -`).
 *.sh text eol=lf
 *.bash text eol=lf
+deploy/linux-native/tier0 text eol=lf

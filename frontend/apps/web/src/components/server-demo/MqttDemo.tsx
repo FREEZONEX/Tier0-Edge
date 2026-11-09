@@ -4,10 +4,11 @@ import ServerDemo from './index';
 import demoData from './data';
 import { getExampleForJavaType } from '@/utils/example';
 import { useBaseStore } from '@/stores/base';
+import { resolveMqttWebsocketUrl } from '@/utils/mqtt';
 
 const MqttDemo: FC<any> = ({ instanceInfo, ...other }) => {
   const systemInfo = useBaseStore((state) => state.systemInfo);
-  const wsPort = systemInfo?.mqttWebsocketTslPort ?? window.location.port;
+  const mqttWebsocketUrl = resolveMqttWebsocketUrl(systemInfo);
   const tcpPort = systemInfo?.mqttTcpPort ?? window.location.port;
   const topic = instanceInfo.topic;
   const hostName = window.location.hostname;
@@ -25,7 +26,7 @@ const MqttDemo: FC<any> = ({ instanceInfo, ...other }) => {
       ? demoData.mqtt({
           dataType: instanceInfo.dataType,
           hostName,
-          wsPort,
+          mqttWebsocketUrl,
           topic,
           jsObj,
           tcpPort,

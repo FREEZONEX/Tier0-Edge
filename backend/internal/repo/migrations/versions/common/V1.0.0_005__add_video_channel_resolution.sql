@@ -1,0 +1,2 @@
+ALTER TABLE sys_video_channel
+    ADD COLUMN IF NOT EXISTS resolution VARCHAR(32) NOT NULL DEFAULT '';

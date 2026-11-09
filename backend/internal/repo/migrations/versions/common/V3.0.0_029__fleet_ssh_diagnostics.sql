@@ -1,0 +1,1 @@
+ALTER TABLE fleet_ssh_terminal ADD COLUMN IF NOT EXISTS error_code VARCHAR(64) NOT NULL DEFAULT '';

@@ -1,0 +1,130 @@
+syntax = "v1"
+
+type DataQualityPolicyReq {
+    unsId int64 `path:"unsId"`
+    enabled bool `json:"enabled"`
+    notifyOnIssue bool `json:"notifyOnIssue,optional"`
+    expectedIntervalMs int64 `json:"expectedIntervalMs,optional"`
+    sequenceField string `json:"sequenceField,optional"`
+    missingGraceMs int64 `json:"missingGraceMs,optional"`
+    lateThresholdMs int64 `json:"lateThresholdMs,optional"`
+    clockSkewToleranceMs int64 `json:"clockSkewToleranceMs,optional"`
+    gapToleranceMs int64 `json:"gapToleranceMs,optional"`
+    outOfOrderToleranceMs int64 `json:"outOfOrderToleranceMs,optional"`
+    frequencyTolerancePercent int `json:"frequencyTolerancePercent,optional"`
+    minSamples int `json:"minSamples,optional"`
+    flatMinSamples int `json:"flatMinSamples,optional"`
+    flatMinDurationMs int64 `json:"flatMinDurationMs,optional"`
+    mandatoryFields []string `json:"mandatoryFields,optional"`
+    flatFields []string `json:"flatFields,optional"`
+    staleFields []string `json:"staleFields,optional"`
+    rules []string `json:"rules,optional"`
+    severityOverrides map[string]string `json:"severityOverrides,optional"`
+    samplingPriority int `json:"samplingPriority,optional"`
+    cooldownMs int64 `json:"cooldownMs,optional"`
+}
+
+type DataQualityNodeReq {
+    unsId int64 `path:"unsId"`
+}
+
+type DataQualityStatusReq {
+    unsId int64 `form:"unsId,optional"`
+}
+
+type DataQualityIssueListReq {
+    unsId int64 `form:"unsId,optional"`
+    state string `form:"state,optional"`
+    ruleCode string `form:"ruleCode,optional"`
+    severity string `form:"severity,optional"`
+    page int `form:"page,optional"`
+    size int `form:"size,optional"`
+}
+
+type DataQualityIssueIDReq {
+    id int64 `path:"id"`
+}
+
+@server(
+    prefix: /api/core/uns/data-quality
+    group: core/dataquality
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @doc(
+        summary: "查询 UNS 节点数据质量策略"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "view"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityPolicyGet
+    get /policies/:unsId (DataQualityNodeReq) returns (Envelope)
+
+    @doc(
+        summary: "创建或更新 UNS 节点数据质量策略"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "manage"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityPolicyPut
+    put /policies/:unsId (DataQualityPolicyReq) returns (Envelope)
+
+    @doc(
+        summary: "查询数据质量实时状态"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "view"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityStatus
+    get /status (DataQualityStatusReq) returns (Envelope)
+
+    @doc(
+        summary: "查询 UNS 树活动数据质量异常摘要"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "view"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityActiveSummary
+    get /active-summary returns (Envelope)
+
+    @doc(
+        summary: "请求 UNS 节点立即进入深度质量检测"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "manage"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityRunCreate
+    post /runs/:unsId (DataQualityNodeReq) returns (Envelope)
+
+    @doc(
+        summary: "查询数据质量 Issue"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "view"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityIssueList
+    get /issues (DataQualityIssueListReq) returns (Envelope)
+
+    @doc(
+        summary: "确认数据质量 Issue"
+        authType: "admin"
+        resource: "uns.dataQuality"
+        action: "manage"
+        group: "core/dataquality"
+        recordLogMode: "1"
+    )
+    @handler DataQualityIssueAck
+    post /issues/:id/ack (DataQualityIssueIDReq) returns (Envelope)
+}

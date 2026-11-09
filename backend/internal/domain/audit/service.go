@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,13 +9,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"backend/internal/contextx"
 	"backend/internal/repo"
-
-	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type ctxKey string
@@ -31,8 +29,13 @@ const (
 	ResTypeAuth           = "Auth"
 	ResTypeUserManagement = "UserManagement"
 	ResTypeRole           = "Role"
+	ResTypeProject        = "Project"
+	ResTypeProjectMember  = "ProjectMember"
+	ResTypeProjectApp     = "ProjectApp"
 	ResTypeUNS            = "UNS"
 	ResTypeResource       = "Resource"
+	ResTypeLicense        = "License"
+	ResTypeApp            = "App"
 	ResTypeTemplate       = "Template"
 	ResTypeLabel          = "Label"
 	ResTypeGroup          = "Group"
@@ -40,8 +43,17 @@ const (
 	ResTypeAppKey         = "AppKey"
 	ResTypeSourceFlow     = "SourceFlow"
 	ResTypeEventFlow      = "EventFlow"
+	ResTypeNotebook       = "Notebook"
+	ResTypeGateway        = "Gateway"
+	ResTypeOAuthClient    = "OAuthClient"
+	ResTypeMQTTAuth       = "MQTTAuth"
+	ResTypeCluster        = "Cluster"
 	ResTypeAsset          = "Asset"
 	ResTypePlatform       = "Platform"
+	ResTypeFleet          = "Fleet"
+	ResTypeVisionEvent    = "VisionEvent"
+	ResTypeCamera         = "Camera"
+	ResTypeAnchor         = "Anchor"
 )
 
 const (
@@ -87,7 +99,12 @@ type RecordInput struct {
 	ResName        string
 	BusinessType   string
 	IsShowInRecent int64
-	Detail         map[string]any
+	// Code 仅作用于 RecordDirect(脱离 HTTP 响应上下文)的记录;
+	// 0 视为 200。走 request state 的记录仍以响应状态码为准。
+	Code int
+	// Result can retain a non-success business outcome on a successful HTTP response.
+	Result string
+	Detail map[string]any
 }
 
 type Operator struct {
@@ -101,12 +118,15 @@ type State struct {
 	Operator       *Operator
 	RequestPayload map[string]any
 	Suppressed     bool
+	ClientIP       string
+	UserAgent      string
 }
 
 type Service struct {
-	repo  *repo.AuditRepo
-	queue chan repo.AuditLog
-	once  sync.Once
+	repo              *repo.AuditRepo
+	jobs              *repo.AsyncJobRepo
+	outbox            *repo.OutboxRepo
+	trustProxyHeaders bool
 }
 
 type PageQuery struct {
@@ -120,35 +140,45 @@ type PageQuery struct {
 	Code            *int
 	StartTime       string
 	EndTime         string
+	ScopeName       string
+	OperatorID      int64
+	ResourceKeyword string
+	ResID           string
+	RequestID       string
+	IP              string
+	Result          string
 }
 
 type ResponseMeta struct {
 	StatusCode int
 	Status     string
+	JobKey     string
+	JobStatus  string
 }
 
-func New(ctx context.Context) *Service {
+type Option func(*Service)
+
+func WithTrustProxyHeaders(trust bool) Option {
+	return func(s *Service) { s.trustProxyHeaders = trust }
+}
+
+func New(ctx context.Context, options ...Option) *Service {
 	auditRepo := repo.NewAuditRepo(ctx)
 	svc := &Service{
-		repo:  auditRepo,
-		queue: make(chan repo.AuditLog, 256),
+		repo:   auditRepo,
+		jobs:   repo.NewAsyncJobRepo(ctx),
+		outbox: repo.NewOutboxRepo(ctx),
 	}
-	svc.start()
+	for _, option := range options {
+		option(svc)
+	}
 	return svc
 }
 
 func (s *Service) Page(ctx context.Context, query PageQuery) (map[string]any, error) {
-	filter := repo.AuditLogFilter{
-		PageNo:           query.PageNo,
-		PageSize:         query.PageSize,
-		ScopeType:        query.ScopeType,
-		ScopeID:          query.ScopeID,
-		ResType:          query.ResType,
-		BusinessTypeCode: repo.AuditBusinessTypeCode(query.BusinessType),
-		OperatorKeyword:  query.OperatorKeyword,
-		Code:             query.Code,
-		StartTime:        parseTime(query.StartTime),
-		EndTime:          parseTime(query.EndTime),
+	filter, err := buildFilter(query)
+	if err != nil {
+		return nil, err
 	}
 	items, total, err := s.repo.ListAuditLogs(ctx, filter)
 	if err != nil {
@@ -161,6 +191,9 @@ func (s *Service) Page(ctx context.Context, query PageQuery) (map[string]any, er
 	pageSize := query.PageSize
 	if pageSize <= 0 {
 		pageSize = 20
+	}
+	if pageSize > 200 {
+		pageSize = 200
 	}
 	return map[string]any{
 		"pageNo":   pageNo,
@@ -175,7 +208,29 @@ func (s *Service) Detail(ctx context.Context, id int64) (repo.AuditLog, error) {
 	if errors.Is(err, repo.ErrNotFound) {
 		return repo.AuditLog{}, ErrNotFound
 	}
-	return item, err
+	if err != nil {
+		return item, err
+	}
+	// Preserve the submitted audit event, but expose the current task snapshot in its details.
+	var detail map[string]any
+	if s.jobs != nil && item.ResType == ResTypeUNS && item.BusinessType == BizImport && json.Unmarshal([]byte(item.DetailJSON), &detail) == nil {
+		if jobKey, ok := detail["jobKey"].(string); ok && jobKey != "" {
+			job, jobErr := s.jobs.GetAsyncJob(ctx, jobKey)
+			if jobErr == nil && job.JobType == "uns.import" {
+				var request struct {
+					SourceFileID int64 `json:"sourceFileId"`
+				}
+				if json.Unmarshal(job.RequestJSON, &request) == nil && request.SourceFileID > 0 {
+					detail["sourceFileId"] = request.SourceFileID
+				}
+				detail["job"] = map[string]any{"jobKey": job.JobKey, "status": job.Status, "progress": job.Progress, "resultJson": job.ResultJSON, "errorMessage": job.ErrorMessage}
+				item.DetailJSON = marshalDetail(detail)
+			} else if jobErr != nil && !errors.Is(jobErr, repo.ErrNotFound) {
+				return item, jobErr
+			}
+		}
+	}
+	return item, nil
 }
 
 func (s *Service) WithState(ctx context.Context) context.Context {
@@ -211,6 +266,50 @@ func (s *Service) Suppress(ctx context.Context) {
 	}
 }
 
+// RecordDirect records an audit entry immediately, without an HTTP request
+// context. It is used by async jobs and internal flows where the middleware
+// never created an audit state; operator may be nil to record as "system".
+func (s *Service) RecordDirect(operator *Operator, input RecordInput) {
+	if s == nil {
+		return
+	}
+	record := normalizeRecord(input)
+	if strings.TrimSpace(record.ResType) == "" || strings.TrimSpace(record.BusinessType) == "" {
+		return
+	}
+	detail := sanitizeDetail(record.Detail)
+	if len(detail) == 0 {
+		detail = map[string]any{}
+	}
+	code := record.Code
+	if code <= 0 {
+		code = http.StatusOK
+	}
+	item := &repo.AuditLog{
+		UserID:           operatorUserID(operator),
+		ScopeType:        record.ScopeType,
+		ScopeID:          record.ScopeID,
+		ScopeName:        truncateString(record.ScopeName, 200),
+		ResType:          truncateString(record.ResType, 50),
+		ResID:            truncateString(record.ResID, 50),
+		ResName:          truncateString(record.ResName, 256),
+		BusinessType:     truncateString(record.BusinessType, 64),
+		BusinessTypeCode: repo.AuditBusinessTypeCode(record.BusinessType),
+		IsShowInRecent:   showInRecentForRecord(&record),
+		Code:             int64(code),
+		DetailJSON:       marshalDetail(detail),
+		CreatedTime:      time.Now().UTC(),
+	}
+	if operator != nil {
+		item.OperatorName = truncateString(operator.Name, 200)
+		item.OperatorEmail = truncateString(operator.Email, 255)
+	}
+	if strings.TrimSpace(item.OperatorName) == "" {
+		item.OperatorName = "system"
+	}
+	s.persist(context.Background(), *item)
+}
+
 func (s *Service) BindSubject(ctx context.Context, subject contextx.Subject) {
 	state := StateFromContext(ctx)
 	if state == nil {
@@ -235,12 +334,37 @@ func (s *Service) BindRequestPayload(ctx context.Context, payload map[string]any
 	state.RequestPayload = payload
 }
 
+// BindRequestInfo stores the client IP and User-Agent of the current request in
+// the audit state so business logic (e.g. login logging) can read them from the
+// request context without touching the http.Request directly.
+func (s *Service) BindRequestInfo(r *http.Request) {
+	if r == nil {
+		return
+	}
+	state := StateFromContext(r.Context())
+	if state == nil {
+		return
+	}
+	state.ClientIP = clientIP(r, s.trustProxyHeaders)
+	state.UserAgent = truncateString(r.UserAgent(), 256)
+}
+
+// RequestInfoFrom returns the client IP and User-Agent bound to the request
+// context by the audit middleware.
+func RequestInfoFrom(ctx context.Context) (ip, userAgent string, ok bool) {
+	state := StateFromContext(ctx)
+	if state == nil {
+		return "", "", false
+	}
+	return state.ClientIP, state.UserAgent, true
+}
+
 func (s *Service) FlushRequest(r *http.Request, meta ResponseMeta) {
 	item := s.BuildAuditLog(r, meta)
 	if item == nil {
 		return
 	}
-	s.dispatch(*item)
+	s.persist(r.Context(), *item)
 }
 
 func (s *Service) BuildAuditLog(r *http.Request, meta ResponseMeta) *repo.AuditLog {
@@ -250,11 +374,13 @@ func (s *Service) BuildAuditLog(r *http.Request, meta ResponseMeta) *repo.AuditL
 	state := StateFromContext(r.Context())
 	var record *RecordInput
 	var operator *Operator
+	explicit := false
 	if state != nil {
 		if state.Suppressed {
 			return nil
 		}
 		record = state.Record
+		explicit = record != nil
 		operator = state.Operator
 	}
 	if record == nil {
@@ -264,7 +390,7 @@ func (s *Service) BuildAuditLog(r *http.Request, meta ResponseMeta) *repo.AuditL
 		normalized := normalizeRecord(*record)
 		record = &normalized
 	}
-	if !shouldRecordAudit(r.Method, record) {
+	if !shouldRecordAudit(r.Method, record, explicit) {
 		return nil
 	}
 	requestPayload := requestPayloadFromContext(r.Context())
@@ -279,6 +405,18 @@ func (s *Service) BuildAuditLog(r *http.Request, meta ResponseMeta) *repo.AuditL
 	if code <= 0 {
 		code = http.StatusOK
 	}
+	result := repo.AuditResult(int64(code))
+	if code >= 200 && code < 300 && (record.Result == "accepted" || record.Result == "failed") {
+		result = record.Result
+	}
+	if code >= 200 && code < 300 && meta.JobKey != "" {
+		switch meta.JobStatus {
+		case repo.AsyncJobStatusPending, repo.AsyncJobStatusRunning:
+			result = "accepted"
+		case repo.AsyncJobStatusFailed, repo.AsyncJobStatusCanceled:
+			result = "failed"
+		}
+	}
 	detail := sanitizeDetail(record.Detail)
 	if len(detail) == 0 {
 		detail = map[string]any{}
@@ -290,7 +428,11 @@ func (s *Service) BuildAuditLog(r *http.Request, meta ResponseMeta) *repo.AuditL
 		detail["method"] = r.Method
 	}
 	if r.URL.RawQuery != "" {
-		detail["query"] = truncateString(r.URL.RawQuery, 1024)
+		detail["query"] = sanitizeDetailValue(mapFromQuery(r.URL.Query()))
+	}
+	if meta.JobKey != "" {
+		detail["jobKey"] = meta.JobKey
+		detail["jobStatus"] = meta.JobStatus
 	}
 	if status := strings.TrimSpace(meta.Status); status != "" {
 		detail[auditResultMsgKey] = status
@@ -310,44 +452,17 @@ func (s *Service) BuildAuditLog(r *http.Request, meta ResponseMeta) *repo.AuditL
 		BusinessTypeCode: repo.AuditBusinessTypeCode(record.BusinessType),
 		IsShowInRecent:   showInRecentForRecord(record),
 		Code:             int64(code),
-		DetailJSON:       marshalDetail(detail),
-		CreatedTime:      time.Now().UTC(),
+		Result:           result,
+		RequestID:        requestID(r), IP: clientIP(r, s.trustProxyHeaders), UserAgent: truncateString(r.UserAgent(), 2048),
+		ResultMsg: truncateString(meta.Status, 2048), ResourcePath: resourcePath(detail),
+		DetailJSON:  marshalDetail(detail),
+		CreatedTime: time.Now().UTC(),
 	}
 	if operator != nil {
 		item.OperatorName = truncateString(operator.Name, 200)
 		item.OperatorEmail = truncateString(operator.Email, 255)
 	}
 	return item
-}
-
-func (s *Service) start() {
-	if s == nil {
-		return
-	}
-	s.once.Do(func() {
-		go func() {
-			for item := range s.queue {
-				if s.repo == nil {
-					continue
-				}
-				if err := s.repo.InsertAuditLog(context.Background(), item); err != nil {
-					logx.Errorf("insert audit log failed: %v", err)
-				}
-			}
-		}()
-	})
-}
-
-func (s *Service) dispatch(item repo.AuditLog) {
-	if s == nil {
-		return
-	}
-	s.start()
-	select {
-	case s.queue <- item:
-	default:
-		logx.Errorf("audit log queue full, dropping item resType=%s businessType=%s resID=%s", item.ResType, item.BusinessType, item.ResID)
-	}
 }
 
 func operatorUserID(operator *Operator) int64 {
@@ -365,6 +480,9 @@ func autoRecord(r *http.Request) *RecordInput {
 	if r == nil || !shouldAutoAudit(r) {
 		return nil
 	}
+	if isAuditExport(r) {
+		return &RecordInput{ScopeType: ScopeTypePlatform, ResType: "AuditLog", ResName: "AuditLog", BusinessType: BizExport, IsShowInRecent: ShowInRecentNo, Detail: map[string]any{"auto": true}}
+	}
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	core := stripAPIPrefix(parts)
@@ -373,13 +491,23 @@ func autoRecord(r *http.Request) *RecordInput {
 	}
 	resType := resourceTypeFromPath(core)
 	bizType := businessTypeFromPath(r.Method, core)
+	resID := resourceIDFromPath(core)
+	if strings.EqualFold(core[0], "iam") {
+		// IAM 集合路由的 users/roles 不是对象 ID；失败创建没有已存在的对象。
+		resID = ""
+		if len(core) > 2 {
+			if id, err := strconv.ParseInt(core[2], 10, 64); err == nil && id > 0 {
+				resID = core[2]
+			}
+		}
+	}
 	if resType == "" || bizType == "" {
 		return nil
 	}
 	return &RecordInput{
 		ScopeType:    ScopeTypePlatform,
 		ResType:      resType,
-		ResID:        resourceIDFromPath(core),
+		ResID:        resID,
 		ResName:      resourceNameFromPayload(requestPayloadFromContext(r.Context())),
 		BusinessType: bizType,
 		Detail:       map[string]any{"auto": true},
@@ -403,7 +531,21 @@ func shouldAutoAudit(r *http.Request) bool {
 	if path == "" {
 		return false
 	}
+	if isAuditExport(r) {
+		return true
+	}
 	skips := []string{
+		"/api/core/audit-logs",
+		"/api/core/login-logs",
+		// 登录/登出事件走登录日志（login-logs）或显式审计，登录接口本身不再自动审计。
+		"/api/core/auth/login",
+		"/api/core/auth/logout",
+		"/api/core/auth/sso/",
+		"/api/core/auth/mini-entry",
+		"/api/core/mqtt/auth",
+		"/api/core/mqtt/acl",
+		"/api/core/oauth/token",
+		"/api/core/oauth/authorize",
 		"/api/core/uns/newmsg",
 		"/api/core/system/",
 		"/api/core/assets",
@@ -429,6 +571,10 @@ func shouldAutoAudit(r *http.Request) bool {
 	return strings.HasPrefix(path, "/api/core/")
 }
 
+func isAuditExport(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/core/audit-logs/export"
+}
+
 func stripAPIPrefix(parts []string) []string {
 	if len(parts) >= 3 && parts[0] == "api" && parts[1] == "core" {
 		return parts[2:]
@@ -446,6 +592,12 @@ func resourceTypeFromPath(parts []string) string {
 		second = strings.ToLower(parts[1])
 	}
 	switch first {
+	case "iam":
+		// 成功操作由业务显式记录；失败操作按真实 IAM 路由归入相同模块。
+		if len(parts) > 1 {
+			return resourceTypeFromPath(parts[1:])
+		}
+		return "Iam"
 	case "auth":
 		return ResTypeAuth
 	case "users", "user":
@@ -454,6 +606,14 @@ func resourceTypeFromPath(parts []string) string {
 		return ResTypeRole
 	case "resources", "resource", "menus", "menu":
 		return ResTypeResource
+	case "projects", "project":
+		if len(parts) > 2 && strings.EqualFold(parts[2], "apps") {
+			return ResTypeProjectApp
+		}
+		if second == "members" {
+			return ResTypeProjectMember
+		}
+		return ResTypeProject
 	case "uns":
 		switch second {
 		case "templates":
@@ -470,8 +630,18 @@ func resourceTypeFromPath(parts []string) string {
 		return ResTypeSourceFlow
 	case "dashboards", "dashboard":
 		return ResTypeDashboard
+	case "notebooks", "notebook":
+		return ResTypeNotebook
 	case "apikeys", "api-keys", "apikey":
 		return ResTypeAppKey
+	case "gateway":
+		return ResTypeGateway
+	case "oauth":
+		return ResTypeOAuthClient
+	case "mqtt":
+		return ResTypeMQTTAuth
+	case "cluster":
+		return ResTypeCluster
 	case "assets", "asset":
 		return ResTypeAsset
 	default:
@@ -535,7 +705,9 @@ func resourceIDFromPath(parts []string) string {
 		if lower == "create" || lower == "update" || lower == "delete" || lower == "enable" || lower == "disable" ||
 			lower == "import" || lower == "export" || lower == "deploy" || lower == "save" || lower == "reset" ||
 			lower == "list" || lower == "page" || lower == "version" || lower == "data" || lower == "status" ||
-			lower == "content" || lower == "snapshots" {
+			lower == "content" || lower == "snapshots" || lower == "start" || lower == "stop" ||
+			lower == "revert" || lower == "password" || lower == "test" || lower == "template" ||
+			lower == "preview" || lower == "flowdata" || lower == "unsbindflow" || lower == "heartbeat" {
 			continue
 		}
 		return truncateString(part, 128)
@@ -612,13 +784,14 @@ func payloadStringValue(payload map[string]any, key string) string {
 	return ""
 }
 
-func shouldRecordAudit(method string, record *RecordInput) bool {
+func shouldRecordAudit(method string, record *RecordInput, explicit bool) bool {
 	if record == nil {
 		return false
 	}
 	switch method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return strings.TrimSpace(record.ResType) == ResTypeAuth && strings.TrimSpace(record.BusinessType) == BizLogin
+		// 显式埋点(如敏感下载的 View)允许记录;自动审计只对登录放行 GET。
+		return explicit || (strings.TrimSpace(record.ResType) == ResTypeAuth && strings.TrimSpace(record.BusinessType) == BizLogin)
 	}
 	return strings.TrimSpace(record.ResType) != "" && strings.TrimSpace(record.BusinessType) != ""
 }
@@ -659,7 +832,9 @@ func hiddenRecentResourceType(resType string) bool {
 		ResTypeGroup,
 		ResTypeDashboard,
 		ResTypeSourceFlow,
-		ResTypeEventFlow:
+		ResTypeEventFlow,
+		ResTypeNotebook,
+		ResTypeProject:
 		return false
 	default:
 		return true
@@ -678,19 +853,29 @@ func requestID(r *http.Request) string {
 	return ""
 }
 
-func clientIP(r *http.Request) string {
+// clientIP 解析客户端 IP。trustProxyHeaders 为 false 时忽略 X-Forwarded-For/
+// X-Real-IP 等可被调用方伪造的转发头，直接记录 socket 地址，避免未认证客户端
+// 伪造来源污染审计/登录日志；仅在 Backend 部署于可信反向代理之后时开启。
+func clientIP(r *http.Request, trustProxyHeaders bool) string {
 	if r == nil {
 		return ""
 	}
-	for _, key := range []string{"X-Forwarded-For", "X-Real-IP"} {
-		value := strings.TrimSpace(r.Header.Get(key))
-		if value == "" {
-			continue
+	if trustProxyHeaders {
+		// 外部代理必须覆盖这些头；默认直连部署仍只信任 TCP 对端。
+		// X-Real-IP 由最后一跳代理覆写、不可伪造；X-Forwarded-For 为追加语义
+		// （如 nginx $proxy_add_x_forwarded_for），取最后一段（最近的可信代理
+		// 写入的地址），避免客户端自带伪造段被采信。
+		if value := strings.TrimSpace(r.Header.Get("X-Real-IP")); value != "" {
+			if ip := net.ParseIP(value); ip != nil {
+				return ip.String()
+			}
 		}
-		if key == "X-Forwarded-For" {
-			value = strings.TrimSpace(strings.Split(value, ",")[0])
+		if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
+			parts := strings.Split(xff, ",")
+			if ip := net.ParseIP(strings.TrimSpace(parts[len(parts)-1])); ip != nil {
+				return ip.String()
+			}
 		}
-		return truncateString(value, 64)
 	}
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err == nil && host != "" {
@@ -703,7 +888,18 @@ func sanitizeDetail(detail map[string]any) map[string]any {
 	if len(detail) == 0 {
 		return map[string]any{}
 	}
-	sanitized, ok := sanitizeDetailValue(detail).(map[string]any)
+	// 快照可能含具体 struct 或 []T，先归一化后递归脱敏，防止类型绕过字段过滤。
+	raw, err := json.Marshal(detail)
+	if err != nil {
+		return map[string]any{}
+	}
+	var normalized map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if decoder.Decode(&normalized) != nil {
+		return map[string]any{}
+	}
+	sanitized, ok := sanitizeDetailValue(normalized).(map[string]any)
 	if !ok {
 		return map[string]any{}
 	}
@@ -716,7 +912,7 @@ func sanitizeDetailValue(value any) any {
 		sanitized := make(map[string]any, len(item))
 		for key, child := range item {
 			switch strings.ToLower(strings.TrimSpace(key)) {
-			case "password", "newpassword", "client_secret", "clientsecret", "authorization", "token", "cookie", "license", "licensetoken", "license_token", "email", "phone":
+			case "credentials", "passphrase", "enrollmentcode", "privatekey", "signature", "password", "passwords", "newpassword", "client_secret", "clientsecret", "authorization", "token", "ticket", "cookie", "license", "licensetoken", "license_token", "email", "phone":
 				continue
 			default:
 				sanitized[key] = sanitizeDetailValue(child)
@@ -744,10 +940,11 @@ func marshalDetail(detail map[string]any) string {
 
 func truncateString(value string, limit int) string {
 	value = strings.TrimSpace(value)
-	if limit <= 0 || len(value) <= limit {
+	runes := []rune(value)
+	if limit <= 0 || len(runes) <= limit {
 		return value
 	}
-	return value[:limit]
+	return string(runes[:limit])
 }
 
 func toPascal(value string) string {

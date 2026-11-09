@@ -33,6 +33,10 @@ type UnsNodesCreated struct {
 	Nodes []repo.UnsNode
 }
 
+type UnsNodesUpdated struct {
+	Nodes []repo.UnsNode
+}
+
 type UnsNodeUpdated struct {
 	Node repo.UnsNode
 }
@@ -47,6 +51,19 @@ type UnsNodeRestored struct {
 	RootID int64
 	UserID int64
 	Nodes  []repo.UnsNode
+}
+
+// UnsNodesSyncHidden and UnsNodesSyncRestored are visibility-only lifecycle
+// events. They intentionally do not trigger the physical cleanup/restore
+// outbox used by user recycle-bin actions.
+type UnsNodesSyncHidden struct {
+	FleetNodeID string
+	Nodes       []repo.UnsNode
+}
+
+type UnsNodesSyncRestored struct {
+	FleetNodeID string
+	Nodes       []repo.UnsNode
 }
 
 type UnsNodeForceDeleted struct {

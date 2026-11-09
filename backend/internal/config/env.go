@@ -1,13 +1,20 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
+const clusterNodeKeyFile = ".cluster-node-key"
+
 const DefaultTimeseriesRetentionYears = 10
+const DefaultSampleCompressionAfterDays = 90
 
 func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -58,6 +65,15 @@ func NormalizeTimeseriesRetentionYears(configured int) int {
 	return years
 }
 
+// Zero pauses automatic compression without decompressing retained history.
+func SampleCompressionAfterDays() int {
+	days := getenvInt("SAMPLE_COMPRESSION_AFTER_DAYS", DefaultSampleCompressionAfterDays)
+	if days < 0 {
+		return DefaultSampleCompressionAfterDays
+	}
+	return days
+}
+
 func getenvDuration(key string, fallback time.Duration) time.Duration {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
@@ -77,4 +93,61 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func defaultNodeKey(stateDir string) string {
+	if key := readPersistedNodeKey(stateDir); key != "" {
+		return key
+	}
+	if key := newRandomNodeKey(); key != "" && writePersistedNodeKey(stateDir, key) {
+		return key
+	}
+	return fallbackNodeKey()
+}
+
+func readPersistedNodeKey(stateDir string) string {
+	if strings.TrimSpace(stateDir) == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(stateDir, clusterNodeKeyFile))
+	if err != nil {
+		return ""
+	}
+	return sanitizeNodeKey(string(data))
+}
+
+func writePersistedNodeKey(stateDir, key string) bool {
+	if strings.TrimSpace(stateDir) == "" || strings.TrimSpace(key) == "" {
+		return false
+	}
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		return false
+	}
+	return os.WriteFile(filepath.Join(stateDir, clusterNodeKeyFile), []byte(key+"\n"), 0o600) == nil
+}
+
+func newRandomNodeKey() string {
+	var raw [8]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return ""
+	}
+	return "edge-" + hex.EncodeToString(raw[:])
+}
+
+func fallbackNodeKey() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return "edge-local"
+	}
+	name = sanitizeNodeKey(name)
+	if name == "" {
+		return "edge-local"
+	}
+	return name
+}
+
+func sanitizeNodeKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(value, "-")
+	return strings.Trim(value, "-")
 }

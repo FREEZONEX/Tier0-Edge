@@ -5,10 +5,10 @@ package auth
 
 import (
 	"context"
-	"strconv"
 
 	"backend/internal/contextx"
 	auditdomain "backend/internal/domain/audit"
+	loginlogdomain "backend/internal/domain/loginlog"
 	respx "backend/internal/httpx"
 	"backend/internal/svc"
 	"backend/internal/types"
@@ -31,14 +31,16 @@ func NewLogoutLogic(ctx context.Context, svcCtx *svc.ServiceContext) *LogoutLogi
 }
 
 func (l *LogoutLogic) Logout() (resp *types.Envelope, err error) {
+	// 登出事件与登录一样只进登录日志（event_type=logout），不写操作审计。
 	if subject, ok := contextx.SubjectFrom(l.ctx); ok {
-		l.svcCtx.App.Audit.Record(l.ctx, auditdomain.RecordInput{
-			ScopeType:    auditdomain.ScopeTypePlatform,
-			ResType:      auditdomain.ResTypeAuth,
-			ResID:        strconv.FormatInt(subject.UserID, 10),
-			ResName:      subject.UserName,
-			BusinessType: auditdomain.BizLogout,
-			Detail:       map[string]any{"username": subject.UserName},
+		ip, userAgent, _ := auditdomain.RequestInfoFrom(l.ctx)
+		l.svcCtx.App.LoginLog.Record(loginlogdomain.RecordInput{
+			EventType: loginlogdomain.EventLogout,
+			UserID:    subject.UserID,
+			UserName:  subject.UserName,
+			IP:        ip,
+			UserAgent: userAgent,
+			Code:      200,
 		})
 	}
 	return respx.Empty(), nil

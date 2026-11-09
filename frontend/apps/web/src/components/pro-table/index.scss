@@ -2,6 +2,22 @@
 
 .pro-table,
 .resizable-table {
+  .ui-pin-button {
+    background: transparent !important;
+    border-color: transparent !important;
+
+    svg {
+      width: 16px !important;
+      height: 16px !important;
+    }
+
+    &:hover,
+    &:focus-visible {
+      background: transparent !important;
+      border-color: transparent !important;
+    }
+  }
+
   .ant-table-content {
     overflow-x: hidden !important;
   }
@@ -15,13 +31,24 @@
   }
 
   .ant-table-row {
+    &.pro-table-clickable-row {
+      cursor: pointer;
+
+      &:hover .pro-table-row-chevron {
+        color: var(--ui-text-color);
+        opacity: 1;
+        transform: translateX(1px);
+        visibility: visible;
+      }
+    }
+
     &:hover {
       .custom-operation {
         display: block;
       }
 
       .custom-pin {
-        display: block;
+        display: inline-flex !important;
       }
     }
 
@@ -34,11 +61,13 @@
     }
 
     .custom-pin {
-      display: none;
+      display: none !important;
     }
 
     .custom-pin-fixed {
-      display: block !important;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
     }
 
     // 行内操作图标统一 16x16
@@ -86,7 +115,49 @@
     }
   }
 
+  .pro-table-row-link-cell {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    min-width: 0;
+    gap: 4px;
+    vertical-align: middle;
+  }
+
+  .pro-table-row-link-content {
+    flex: 0 1 auto;
+    max-width: calc(100% - 18px);
+    min-width: 0;
+    overflow: hidden;
+
+    .table-link-button {
+      max-width: 100%;
+      min-width: 0;
+      margin-right: 0;
+    }
+
+    .flow-list-name-cell {
+      max-width: 100%;
+      min-width: 0;
+    }
+  }
+
+  .pro-table-row-chevron {
+    flex: 0 0 auto;
+    color: var(--ui-description-card-color);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      color 0.15s ease,
+      opacity 0.15s ease,
+      transform 0.15s ease;
+  }
+
   .ant-table-thead {
+    > tr > th:first-child.ant-table-cell-fix-left-last::after {
+      display: none !important;
+    }
+
     .ant-table-cell {
       white-space: nowrap;
       overflow: hidden;
@@ -153,13 +224,18 @@
     background-color: var(--ui-header-bg-color) !important;
   }
 
-  .ant-pagination-item-active,
   .ant-pagination-options-quick-jumper input:focus-within {
     border-color: var(--ui-theme-color) !important;
   }
 
+  .ant-pagination-item-active {
+    border-color: transparent !important;
+    background: transparent !important;
+  }
+
   .ant-pagination-item-active a {
-    color: var(--ui-theme-color) !important;
+    color: var(--ui-text-color) !important;
+    font-weight: 400;
   }
 
   .ant-pagination-options .ant-select-dropdown {
@@ -190,8 +266,32 @@
 }
 
 .pro-table-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   position: relative;
   overflow: hidden;
+
+  > .ant-table-wrapper {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+
+    > .ant-spin-nested-loading,
+    > .ant-spin-nested-loading > .ant-spin-container {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .ant-table {
+      flex: 1;
+      min-height: 0;
+    }
+  }
 
   .pro-table-expand-button {
     display: flex;

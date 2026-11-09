@@ -1,10 +1,12 @@
+import { isRemovedFeatureEntry } from '@/utils/removed-feature-pages';
+import { capabilityAllowsPath } from '@/utils/product-capabilities';
+import { isEdgeEdition, productName } from '@/utils/product-edition';
 import { createWithEqualityFn, type UseBoundStoreWithEqualityFn } from 'zustand/traditional';
 import type { StoreApi } from 'zustand';
 import { shallow } from 'zustand/vanilla/shallow';
 import type { DataItem, ResourceProps, UserInfoProps } from '@/stores/types.ts';
 import { storageOpt } from '@/utils/storage';
 import {
-  APP_TITLE,
   MENU_TARGET_PATH,
   STORAGE_PATH,
   APP_LANG,
@@ -18,6 +20,7 @@ import { coreResourcesForResourceKeys, toLegacyResources } from '@/apis/core-api
 
 import type { TBaseStore } from '@/stores/base/type.ts';
 import { defaultLanguage, initI18n, useI18nStore } from '../i18n-store.ts';
+import { getRoutesResourceApi } from '@/apis/core-api/resource.ts';
 import {
   buildResourceTrees,
   type Criteria,
@@ -71,7 +74,9 @@ export const getLangList = async () => {
 
 const normalizeSystemInfo = (systemInfo: any = {}) => ({
   ...(systemInfo ?? {}),
-  appTitle: systemInfo?.appTitle || APP_TITLE,
+  productEdition: isEdgeEdition(systemInfo) ? 'edge' : 'enterprise',
+  isEdge: isEdgeEdition(systemInfo),
+  appTitle: systemInfo?.appTitle || productName(systemInfo),
   qualityName: systemInfo?.qualityName || '_quality',
   timestampName: systemInfo?.timestampName || '_timestamp',
   enableAutoCategorization: true,
@@ -160,10 +165,27 @@ const requestStatus = (result: PromiseSettledResult<any>) => {
 
 const resourcesFromUserKeys = (resourceKeys: string[] = []) =>
   toLegacyResources(coreResourcesForResourceKeys(resourceKeys));
+
+const filterFeatureResources = (resources: ResourceProps[], systemInfo: any) =>
+  resources.filter(
+    (resource) =>
+      !isRemovedFeatureEntry(resource) &&
+      capabilityAllowsPath(systemInfo, resource.url) &&
+      (systemInfo?.dataQualityEnabled === true ||
+        !['uns.dataQuality.page', 'uns.dataQuality.read', 'uns.dataQuality.manage'].includes(
+          resource.resourceKey || ''
+        ))
+  );
+
 const loadRoutesResource = async (info: any, systemInfo: any) => {
-  void systemInfo;
-  return resourcesFromUserKeys(info?.resourceKeys || []);
-}
+  let resources: ResourceProps[];
+  if (systemInfo?.authEnable === false || info?.superAdmin === true) {
+    resources = await getRoutesResourceApi();
+  } else {
+    resources = resourcesFromUserKeys(info?.resourceKeys || []);
+  }
+  return filterFeatureResources(resources, systemInfo);
+};
 
 // edge版本 用户默认支持所有的权限和菜单
 // 更新路由基础方法 (私有)
@@ -171,7 +193,10 @@ const updateBaseStore = async (isFirst: boolean = false) => {
   if (isFirst) {
     try {
       // 首次需要先拿到用户信息，再按用户角色决定是否需要完整资源树。
-      const [infoResult, systemInfoResult] = await Promise.allSettled([getUserInfo(), getSystemConfig()]);
+      const [infoResult, systemInfoResult] = await Promise.allSettled([
+        getUserInfo(),
+        getSystemConfig(),
+      ]);
       const info: any = infoResult.status === 'fulfilled' ? infoResult.value : undefined;
       const systemInfo: any = systemInfoResult.status === 'fulfilled' ? systemInfoResult.value : {};
       const resource: any = await loadRoutesResource(info, systemInfo);

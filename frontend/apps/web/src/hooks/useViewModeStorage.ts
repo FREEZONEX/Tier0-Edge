@@ -1,4 +1,5 @@
 import { useLocalStorageState } from 'ahooks';
+import { useCallback, useEffect } from 'react';
 
 export const VIEW_MODE_LIST = 'list';
 export const VIEW_MODE_CARD = 'card';
@@ -13,8 +14,32 @@ export const VIEW_MODE_STORAGE_KEYS = {
   visionAlgorithm: 'APP_VISION_ALGO_VIEW_V2',
 } as const;
 
+const VIEW_MODE_CHANGE_EVENT = 'tier0:view-mode-change';
+
 export function useViewModeStorage(key: string) {
-  return useLocalStorageState<string>(key, {
+  const [viewMode, setStoredViewMode] = useLocalStorageState<string>(key, {
     defaultValue: VIEW_MODE_LIST,
   });
+
+  useEffect(() => {
+    const handleViewModeChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ key: string; value: string }>).detail;
+      if (detail?.key === key && detail.value !== viewMode) {
+        setStoredViewMode(detail.value);
+      }
+    };
+
+    window.addEventListener(VIEW_MODE_CHANGE_EVENT, handleViewModeChange);
+    return () => window.removeEventListener(VIEW_MODE_CHANGE_EVENT, handleViewModeChange);
+  }, [key, setStoredViewMode, viewMode]);
+
+  const setViewMode = useCallback(
+    (value: string) => {
+      setStoredViewMode(value);
+      window.dispatchEvent(new CustomEvent(VIEW_MODE_CHANGE_EVENT, { detail: { key, value } }));
+    },
+    [key, setStoredViewMode]
+  );
+
+  return [viewMode, setViewMode] as const;
 }

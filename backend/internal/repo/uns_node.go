@@ -9,30 +9,32 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UnsNode struct {
-	ID               int64           `gorm:"column:id;primaryKey;autoIncrement:false" json:"id"`
-	IDPath           string          `gorm:"column:id_path;type:varchar(1024);not null;default:'';index" json:"idPath"`
-	ParentID         int64           `gorm:"column:parent_id" json:"parentId"`
-	Name             string          `gorm:"column:name" json:"name"`
-	DisplayName      string          `gorm:"column:display_name" json:"displayName"`
-	Description      string          `gorm:"column:description" json:"description"`
-	Namespace        string          `gorm:"column:namespace" json:"namespace"`
-	Alias            string          `gorm:"column:alias" json:"alias"`
-	Type             int16           `gorm:"column:type" json:"type"`
-	TopicType        int16           `gorm:"column:topic_type" json:"topicType"`
-	SortKey          int64           `gorm:"column:sort_key;default:0;index" json:"sortKey"`
-	Schema           json.RawMessage `gorm:"column:schema;type:jsonb" json:"schema"`
-	ExtendProperties json.RawMessage `gorm:"column:extendproperties;type:jsonb" json:"extendProperties"`
-	EnableHistory    int16           `gorm:"column:enable_history;default:2" json:"enableHistory"`
-	MockData         int16           `gorm:"column:mock_data;default:2" json:"mockData"`
-	TemplateID       *int64          `gorm:"column:template_id;default:null" json:"templateId,omitempty"`
-	IsFavorite       int16           `gorm:"column:is_favorite;default:2" json:"isFavorite"`
-	Status           string          `gorm:"column:status" json:"status"`
-	RecycleIsDel     int16           `gorm:"column:recycle_is_del" json:"recycleIsDel"`
-	HasChildren      bool            `gorm:"-" json:"hasChildren"`
-	CountChildren    int64           `gorm:"-" json:"countChildren"`
+	ID                int64              `gorm:"column:id;primaryKey;autoIncrement:false" json:"id"`
+	IDPath            string             `gorm:"column:id_path;type:varchar(1024);not null;default:'';index" json:"idPath"`
+	ParentID          int64              `gorm:"column:parent_id" json:"parentId"`
+	Name              string             `gorm:"column:name" json:"name"`
+	DisplayName       string             `gorm:"column:display_name" json:"displayName"`
+	Description       string             `gorm:"column:description" json:"description"`
+	Namespace         string             `gorm:"column:namespace" json:"namespace"`
+	Alias             string             `gorm:"column:alias" json:"alias"`
+	Type              int16              `gorm:"column:type" json:"type"`
+	TopicType         int16              `gorm:"column:topic_type" json:"topicType"`
+	SortKey           int64              `gorm:"column:sort_key;default:0;index" json:"sortKey"`
+	Schema            json.RawMessage    `gorm:"column:schema;type:jsonb" json:"schema"`
+	ExtendProperties  json.RawMessage    `gorm:"column:extendproperties;type:jsonb" json:"extendProperties"`
+	DataQualityPolicy *DataQualityPolicy `gorm:"column:data_quality_policy;type:jsonb;serializer:json" json:"dataQualityPolicy,omitempty"`
+	EnableHistory     int16              `gorm:"column:enable_history;default:2" json:"enableHistory"`
+	MockData          int16              `gorm:"column:mock_data;default:2" json:"mockData"`
+	TemplateID        *int64             `gorm:"column:template_id;default:null" json:"templateId,omitempty"`
+	IsFavorite        int16              `gorm:"column:is_favorite;default:2" json:"isFavorite"`
+	Status            string             `gorm:"column:status" json:"status"`
+	RecycleIsDel      int16              `gorm:"column:recycle_is_del" json:"recycleIsDel"`
+	HasChildren       bool               `gorm:"-" json:"hasChildren"`
+	CountChildren     int64              `gorm:"-" json:"countChildren"`
 	SoftTime
 }
 
@@ -530,6 +532,12 @@ func (r *UnsRepo) GetUnsNode(ctx context.Context, id int64, includeDeleted bool)
 	return loadUnsNode(r.db.WithContext(ctx), id, includeDeleted)
 }
 
+// GetUnsNodeForUpdate serializes background flow creation for the same UNS.
+// The caller must supply a transaction when constructing the repo.
+func (r *UnsRepo) GetUnsNodeForUpdate(ctx context.Context, id int64) (UnsNode, error) {
+	return loadUnsNode(r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}), id, false)
+}
+
 func (r *UnsRepo) GetUnsNodeByNamespace(ctx context.Context, namespace string) (UnsNode, error) {
 	var node UnsNode
 	err := r.db.WithContext(ctx).Where("namespace = ? AND deleted_time = 0", strings.Trim(namespace, "/")).Take(&node).Error
@@ -574,6 +582,33 @@ func (r *UnsRepo) GetUnsNodesByIDs(ctx context.Context, ids []int64) ([]UnsNode,
 		return nil, err
 	}
 	return out, nil
+}
+
+// GetActiveUnsNodesByRefs resolves OpenAPI topic references in one query.
+// Callers preserve the public lookup priority (id, namespace, then alias).
+func (r *UnsRepo) GetActiveUnsNodesByRefs(ctx context.Context, ids []int64, namespaces, aliases []string) ([]UnsNode, error) {
+	clauses := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+	if len(ids) > 0 {
+		clauses = append(clauses, "id IN ?")
+		args = append(args, ids)
+	}
+	if len(namespaces) > 0 {
+		clauses = append(clauses, "namespace IN ?")
+		args = append(args, namespaces)
+	}
+	if len(aliases) > 0 {
+		clauses = append(clauses, "alias IN ?")
+		args = append(args, aliases)
+	}
+	if len(clauses) == 0 {
+		return []UnsNode{}, nil
+	}
+	var out []UnsNode
+	err := r.db.WithContext(ctx).
+		Where("deleted_time = 0 AND ("+strings.Join(clauses, " OR ")+")", args...).
+		Find(&out).Error
+	return out, err
 }
 
 func (r *UnsRepo) ListUnsSubtree(ctx context.Context, rootID int64) ([]UnsNode, error) {
@@ -627,6 +662,10 @@ func (r *UnsRepo) MarkUnsNodesDeletedOutsideRecycle(ctx context.Context, ids []i
 			"recycle_is_del": UnsNodeRecycleHidden,
 			"status":         UnsNodeStatusFinal,
 		}, userID, now)).Error
+}
+
+func cleanUnsNamespace(value string) string {
+	return strings.Trim(strings.TrimSpace(value), "/")
 }
 
 func (r *UnsRepo) RestoreUnsNode(ctx context.Context, id, userID int64, confirm bool) ([]UnsNode, error) {
@@ -824,4 +863,48 @@ func unsTopicTypeName(value int16) string {
 	default:
 		return ""
 	}
+}
+
+// ListUnsNodesForImport locks the full metadata snapshot until the import commits.
+// Updates must preserve node identity and metadata not represented in import files.
+func (r *UnsRepo) ListUnsNodesForImport(ctx context.Context) ([]UnsNode, error) {
+	var nodes []UnsNode
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("deleted_time = 0").Order("id").Find(&nodes).Error
+	return nodes, err
+}
+
+// ImportedUnsNodeUpdate contains only changed, import-owned configuration fields.
+type ImportedUnsNodeUpdate struct {
+	Node    UnsNode
+	Columns []string
+}
+
+// UpdateImportedUnsNodes groups equal column sets for bounded batch updates.
+// The caller holds row locks from ListUnsNodesForImport and owns the transaction.
+func (r *UnsRepo) UpdateImportedUnsNodes(ctx context.Context, updates []ImportedUnsNodeUpdate) error {
+	groups := map[string][]UnsNode{}
+	allowed := map[string]bool{"description": true, "schema": true, "extendproperties": true, "enable_history": true}
+	for _, update := range updates {
+		if len(update.Columns) == 0 {
+			continue
+		}
+		columns := append([]string{}, update.Columns...)
+		sort.Strings(columns)
+		for _, column := range columns {
+			if !allowed[column] {
+				return ErrInvalidArgument
+			}
+		}
+		key := strings.Join(columns, ",")
+		groups[key] = append(groups[key], update.Node)
+	}
+	for key, nodes := range groups {
+		columns := append(strings.Split(key, ","), "updated_by", "updated_time")
+		if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(columns),
+		}).CreateInBatches(&nodes, 500).Error; err != nil {
+			return normalizeDBError(err)
+		}
+	}
+	return nil
 }

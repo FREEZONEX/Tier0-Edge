@@ -31,6 +31,9 @@ func NewUnsNodeCreateLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Uns
 }
 
 func (l *UnsNodeCreateLogic) UnsNodeCreate(req *types.UnsNodeSaveReq) (resp *types.Envelope, err error) {
+	if err := authorizeDataQualityPolicy(l.ctx, req); err != nil {
+		return nil, err
+	}
 	data, err := l.svcCtx.App.UNS.Create(l.ctx, BuildUnsNodeSaveCommand(l.ctx, req))
 	if err != nil {
 		return nil, logicx.Error(err)

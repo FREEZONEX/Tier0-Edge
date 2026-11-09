@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "base": {
+    "capabilities": [
+      "uns",
+      "source",
+      "stream",
+      "openapi",
+      "mcp",
+      "app",
+      "fleetEdge",
+      "runtime",
+      "containerConsole",
+      "audit",
+      "launchpad"
+    ],
+    "components": [
+      "backend",
+      "web",
+      "fleet",
+      "executor",
+      "modbus",
+      "opcua",
+      "mqtt"
+    ],
+    "adapters": {
+      "cache": "memory",
+      "storage": "local"
+    }
+  },
+  "editions": {
+    "edge": {
+      "name": "Tier0 Edge",
+      "activationRequired": false,
+      "capabilities": []
+    }
+  },
+  "capabilities": {
+    "uns": {
+      "resources": [
+        "uns."
+      ],
+      "pages": [
+        "uns",
+        "collections",
+        "data-topology"
+      ]
+    },
+    "source": {
+      "resources": [
+        "uns.source"
+      ],
+      "pages": []
+    },
+    "stream": {
+      "resources": [
+        "uns.stream"
+      ],
+      "pages": []
+    },
+    "openapi": {
+      "resources": [],
+      "pages": [
+        "open-data"
+      ]
+    },
+    "mcp": {
+      "resources": [],
+      "pages": []
+    },
+    "app": {
+      "resources": [
+        "app.install"
+      ],
+      "pages": [
+        "app"
+      ]
+    },
+    "fleetEdge": {
+      "resources": [],
+      "pages": [
+        "connect"
+      ]
+    },
+    "fleetCenter": {
+      "licenseFeature": "cluster",
+      "resources": [
+        "cluster."
+      ],
+      "pages": [
+        "cluster"
+      ]
+    },
+    "runtime": {
+      "resources": [
+        "fleet.container"
+      ],
+      "pages": []
+    },
+    "containerConsole": {
+      "resources": [],
+      "pages": [
+        "runtime"
+      ]
+    },
+    "audit": {
+      "licenseFeature": "audit",
+      "resources": [
+        "audit."
+      ],
+      "pages": []
+    },
+    "launchpad": {
+      "licenseFeature": "launchpad",
+      "resources": [
+        "launchpad."
+      ],
+      "pages": [
+        "launchpad"
+      ]
+    },
+    "anchor": {
+      "resources": [
+        "anchor."
+      ],
+      "pages": [
+        "anchor"
+      ]
+    },
+    "vision": {
+      "resources": [
+        "vision."
+      ],
+      "pages": [
+        "vision"
+      ]
+    },
+    "aiAgent": {
+      "resources": [
+        "unsagent.",
+        "uns.agent."
+      ],
+      "pages": [
+        "agent-svc"
+      ]
+    },
+    "notebook": {
+      "resources": [
+        "notebook."
+      ],
+      "pages": [
+        "notebook",
+        "marimo"
+      ]
+    },
+    "legacyProject": {
+      "resources": [
+        "project."
+      ],
+      "pages": [
+        "project"
+      ]
+    },
+    "legacyFlow": {
+      "resources": [
+        "flow."
+      ],
+      "pages": [
+        "flow",
+        "flows",
+        "collection-flow",
+        "source-flow",
+        "event-flow",
+        "eventflow",
+        "nodered",
+        "node-red",
+        "mqtt-auth"
+      ]
+    }
+  },
+  "components": {
+    "postgres": {
+      "dependencies": []
+    },
+    "nats": {
+      "dependencies": []
+    },
+    "node": {
+      "dependencies": []
+    },
+    "timescale": {
+      "dependencies": [
+        "postgres"
+      ]
+    },
+    "backend": {
+      "dependencies": [
+        "timescale",
+        "nats",
+        "node"
+      ],
+      "protection": "restartOnly"
+    },
+    "web": {
+      "dependencies": [
+        "backend"
+      ]
+    },
+    "fleet": {
+      "dependencies": [],
+      "protection": "managementConnection"
+    },
+    "executor": {
+      "dependencies": [
+        "postgres",
+        "nats"
+      ]
+    },
+    "modbus": {
+      "dependencies": [
+        "backend"
+      ]
+    },
+    "opcua": {
+      "dependencies": [
+        "node",
+        "backend"
+      ]
+    },
+    "mqtt": {
+      "dependencies": [
+        "node",
+        "backend"
+      ]
+    }
+  },
+  "targets": {
+    "linux/amd64/native": {
+      "editions": [
+        "edge"
+      ],
+      "packageBackend": "linux-native",
+      "unavailable": {
+        "containerConsole": "CONTAINER_CONSOLE_NOT_APPLICABLE",
+        "fleetCenter": "CENTER_RUNTIME_NOT_IMPLEMENTED"
+      }
+    },
+    "windows/amd64/native": {
+      "editions": [
+        "edge"
+      ],
+      "packageBackend": "windows-native",
+      "unavailable": {
+        "containerConsole": "CONTAINER_CONSOLE_NOT_APPLICABLE",
+        "fleetCenter": "CENTER_RUNTIME_NOT_IMPLEMENTED"
+      }
+    },
+    "darwin/arm64/native": {
+      "editions": [
+        "edge"
+      ],
+      "packageBackend": "macos-native",
+      "unavailable": {
+        "containerConsole": "CONTAINER_CONSOLE_NOT_APPLICABLE",
+        "fleetCenter": "CENTER_RUNTIME_NOT_IMPLEMENTED"
+      }
+    }
+  }
+}

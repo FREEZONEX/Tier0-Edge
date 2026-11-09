@@ -1,17 +1,19 @@
-import type { Project } from '@/pages/launchpad/type';
+import type { App, Project } from '@/pages/launchpad/type';
 import { useTranslate } from '@/hooks';
-import { Folder, Box, Star } from '@/components/lucide-icon/carbon';
+import { Folder, Box, Pin } from '@/components/lucide-icon/carbon';
 import { Card } from 'antd';
 import classNames from 'classnames';
 import { type FC } from 'react';
+import AppIcon from './AppIcon';
 import HighlightMatch from './HighlightMatch';
 import styles from './ProjectGrid.module.scss';
 
 interface ProjectGridProps {
   projects: Project[];
   onProjectClick: (project: Project) => void;
-  isProjectFavorite: (id: string | number) => boolean;
-  onToggleFavorite: (project: Project) => void;
+  onAppClick: (app: App) => void;
+  isProjectPinned: (id: string | number) => boolean;
+  onTogglePin: (project: Project) => void;
   /** 搜索关键词，用于项目名命中高亮 */
   keyword?: string;
 }
@@ -19,8 +21,9 @@ interface ProjectGridProps {
 const ProjectGrid: FC<ProjectGridProps> = ({
   projects,
   onProjectClick,
-  isProjectFavorite,
-  onToggleFavorite,
+  onAppClick,
+  isProjectPinned,
+  onTogglePin,
   keyword,
 }) => {
   const formatMessage = useTranslate('Launchpad');
@@ -29,7 +32,7 @@ const ProjectGrid: FC<ProjectGridProps> = ({
     <div className={styles.projectGrid}>
       {projects.map((project) => {
         const displayName = project.displayName || project.projectName;
-        const favorite = isProjectFavorite(project.projectId);
+        const pinned = isProjectPinned(project.projectId);
 
         return (
           <Card key={project.projectId} className={styles.projectCard} onClick={() => onProjectClick(project)}>
@@ -49,61 +52,76 @@ const ProjectGrid: FC<ProjectGridProps> = ({
               </div>
               <button
                 type="button"
-                className={classNames(styles.starButton, favorite && styles.starActive)}
-                aria-label={formatMessage(
-                  favorite ? 'rmFav' : 'addFav',
-                  undefined,
-                  favorite ? 'Remove favorite' : 'Add favorite'
+                className={classNames(
+                  styles.pinButton,
+                  'ui-pin-button',
+                  pinned && styles.pinActive,
+                  pinned && 'ui-pin-button-active'
                 )}
+                aria-label={formatMessage(pinned ? 'unpin' : 'pin', undefined, pinned ? 'Unpin' : 'Pin')}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onToggleFavorite(project);
+                  onTogglePin(project);
                 }}
               >
-                <Star size={12} />
+                <Pin size={12} />
               </button>
             </div>
             <div className={styles.appIcons}>
               {Array.from({ length: 4 }, (_, index) => {
                 const app = project.apps?.[index];
                 const isEmpty = !app?.appId;
-                return (
-                  <div
-                    key={app?.appId ?? `placeholder-${project.projectId}-${index}`}
-                    className={classNames(styles.appIcon, isEmpty && styles.appIconEmpty)}
-                    title={isEmpty ? undefined : app.displayName || app.appName}
-                  >
-                    {isEmpty ? (
+                if (isEmpty) {
+                  return (
+                    <div
+                      key={`placeholder-${project.projectId}-${index}`}
+                      className={classNames(styles.appIcon, styles.appIconEmpty)}
+                    >
                       <Box size={17} strokeWidth={1.5} className={styles.emptyIcon} />
-                    ) : (
-                      <>
-                        <div className={styles.iconContainer}>
-                          {app.iconUrl ? (
-                            <img
-                              src={app.iconUrl}
-                              alt={app.displayName || app.appName}
-                              className={styles.appIconImage}
-                            />
-                          ) : (
-                            <Box size={17} strokeWidth={1.75} />
-                          )}
-                        </div>
-                        {app.coverUrl ? (
-                          <img
-                            src={app.coverUrl}
-                            alt={app.displayName || app.appName}
-                            className={styles.coverImage}
-                            onError={(event) => {
-                              event.currentTarget.hidden = true;
-                            }}
-                          />
-                        ) : null}
-                        <span className={styles.appNameOverlay}>
-                          <span className={styles.appNameText}>{app.displayName || app.appName}</span>
-                        </span>
-                      </>
-                    )}
-                  </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={app.appId}
+                    type="button"
+                    className={styles.appIcon}
+                    title={app.displayName || app.appName}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onAppClick({
+                        ...app,
+                        projectName: app.projectName || project.projectName,
+                        projectDisplayName: app.projectDisplayName || project.displayName,
+                      });
+                    }}
+                  >
+                    <div className={styles.iconContainer}>
+                      {/* 走 AppIcon 而不是裸 img：图标是需要鉴权的 /assets/:id/download，
+                          403/404 时必须回退到 Box，否则页面上直接露出浏览器破图 */}
+                      <AppIcon
+                        iconUrl={app.iconUrl}
+                        alt={app.displayName || app.appName}
+                        size={17}
+                        strokeWidth={1.75}
+                        imgClassName={styles.appIconImage}
+                      />
+                    </div>
+                    {app.coverUrl ? (
+                      <img
+                        src={app.coverUrl}
+                        alt={app.displayName || app.appName}
+                        className={styles.coverImage}
+                        onError={(event) => {
+                          event.currentTarget.hidden = true;
+                        }}
+                      />
+                    ) : null}
+                    <span className={styles.appNameOverlay}>
+                      <span className={styles.appNameText}>{app.displayName || app.appName}</span>
+                    </span>
+                  </button>
                 );
               })}
             </div>

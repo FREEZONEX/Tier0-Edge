@@ -1,28 +1,81 @@
 .role-setting {
   :global {
+    .ant-tabs-nav {
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+
+      &::before {
+        border-bottom-color: var(--ui-line-color);
+      }
+    }
+
     .ant-tabs-nav-operations,
     .ant-tabs-nav-wrap {
-      background-color: var(--ui-uns-button-color);
+      background-color: var(--ui-bg-color);
     }
 
     .ant-tabs-nav-list {
-      padding: 0 12px;
+      gap: 8px;
+      padding: 0;
+    }
+
+    .ant-tabs-tab {
+      min-height: 28px;
+      margin: 0 !important;
+      padding: 4px 10px !important;
+      border: 1px solid var(--ui-line-color);
+      border-radius: 4px;
+      background: var(--ui-bg-color);
+      color: var(--ui-description-card-color);
+
+      &:hover {
+        border-color: var(--ui-tag-output-border);
+        color: var(--ui-text-color);
+      }
+
+      &.ant-tabs-tab-active {
+        border-color: var(--ui-tag-output-border);
+        background: var(--ui-tag-output-bg);
+
+        .ant-tabs-tab-btn {
+          color: var(--ui-tag-output-color);
+        }
+      }
     }
 
     .ant-tabs-tab-btn {
       &:focus {
-        color: var(--ui-theme-color) !important;
+        color: inherit !important;
       }
+    }
+
+    .ant-tabs-ink-bar {
+      display: none;
     }
   }
 
   &:global(.ant-modal .ant-tabs-content-holder) {
-    height: calc(100vh - 320px);
+    height: min(620px, calc(100vh - 360px));
     overflow: auto;
   }
 
   &:global(.fullscreen-mode .ant-tabs-content-holder) {
     height: calc(100vh - 210px);
+  }
+}
+
+.role-tab-close {
+  flex-shrink: 0;
+  color: var(--ui-description-card-color);
+}
+
+.role-modal-title {
+  width: 100%;
+  padding-right: 8px;
+
+  :global(.ant-btn) {
+    flex-shrink: 0;
+    height: 32px;
   }
 }
 

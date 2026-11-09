@@ -1,0 +1,91 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--ui-bg-color);
+  > :global(.ant-tabs) {
+    flex: 1;
+    min-height: 0;
+    > :global(.ant-tabs-nav) {
+      margin: 0;
+      padding: 0 24px;
+    }
+    > :global(.ant-tabs-content-holder) {
+      min-height: 0;
+      :global(.ant-tabs-content),
+      :global(.ant-tabs-tabpane) {
+        height: 100%;
+        min-height: 0;
+      }
+    }
+  }
+}
+.heading {
+  padding: 20px 24px 12px;
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+  }
+}
+.content {
+  padding: 24px;
+  overflow: auto;
+  height: 100%;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  :global(.ant-input-search) {
+    max-width: 420px;
+  }
+  :global(.ant-select) {
+    width: 170px;
+  }
+}
+.json {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 460px;
+  overflow: auto;
+  font-size: 12px;
+}
+.collection-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  height: 100%;
+  > aside {
+    border-right: 1px solid var(--ui-line-color);
+    min-height: 0;
+    overflow: auto;
+  }
+}
+.collection-content {
+  padding: 24px;
+  overflow: auto;
+  min-width: 0;
+}
+.collection-heading {
+  margin-bottom: 24px;
+  h3 {
+    margin: 0 0 6px;
+    font-size: 20px;
+  }
+  code {
+    color: var(--ui-description-card-color);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 900px) {
+  .collection-workspace {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .collection-content {
+    padding: 16px;
+  }
+}

@@ -1,0 +1,234 @@
+.workspace {
+  padding: 20px;
+  min-width: 0;
+  background: var(--ui-bg-color);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.header h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.toolbar :global(.ant-input-search) {
+  max-width: 380px;
+}
+
+.muted {
+  display: block;
+  color: var(--ui-description-card-color);
+  font-size: 12px;
+}
+
+.code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  border: 1px solid var(--ui-line-color);
+  background: var(--ui-charttop-bg-color);
+}
+
+.full {
+  width: 100%;
+}
+
+.collection-sidebar {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--ui-text-color);
+  background: var(--ui-bg-color);
+}
+
+.navigator {
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  :global(.ant-pagination-simple-pager input) {
+    background: var(--ui-bg-color);
+    color: var(--ui-text-color);
+    border-color: var(--ui-line-color);
+  }
+}
+
+.navigator-heading,
+.navigator-actions,
+.detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.navigator-heading h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.collection-list {
+  flex: 1;
+  overflow: auto;
+  min-height: 80px;
+}
+
+.collection-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 12px;
+  text-align: left;
+  cursor: pointer;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--ui-line-color);
+  background: transparent;
+  color: var(--ui-text-color);
+  > svg {
+    flex: none;
+    margin-top: 2px;
+  }
+  &:hover {
+    background: var(--ui-charttop-bg-color);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--ui-theme-color);
+    outline-offset: -2px;
+  }
+  &.active {
+    border-left-color: var(--ui-theme-color);
+    background: var(--ui-menu-active-color);
+  }
+}
+
+.collection-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  > strong,
+  > span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.collection-main {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  > :global(.ant-empty) {
+    margin-top: 100px;
+  }
+}
+
+.header > div:first-child {
+  min-width: 0;
+}
+.header h2 {
+  overflow-wrap: anywhere;
+}
+.header > :global(.ant-space) {
+  flex-shrink: 0;
+}
+.description {
+  color: var(--ui-description-card-color);
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.toolbar > :global(.ant-space) {
+  margin-left: auto;
+}
+
+.record-link {
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-color);
+  text-align: left;
+  cursor: pointer;
+  padding: 2px 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  &:hover strong {
+    color: var(--ui-theme-color);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--ui-theme-color);
+  }
+}
+
+.selected-row > td {
+  background: var(--ui-menu-active-color) !important;
+}
+.record-detail {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid var(--ui-line-color);
+  border-radius: 8px;
+}
+.sample-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  > span:first-child {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.detail-heading {
+  margin-bottom: 12px;
+  h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    padding: 16px;
+  }
+  .header {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  .collection-list {
+    min-height: 90px;
+  }
+  .collection-item {
+    padding: 10px;
+  }
+  .record-detail {
+    padding: 12px;
+  }
+  .toolbar :global(.ant-input-search) {
+    max-width: none;
+  }
+}

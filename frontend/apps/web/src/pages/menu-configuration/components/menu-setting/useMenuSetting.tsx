@@ -18,20 +18,6 @@ const defaultData: any[] = [
         parentKey: 'uns',
       },
       {
-        title: 'Source Flow',
-        titleKey: 'SourceFlow',
-        key: 'source-flow',
-        isLeaf: true,
-        parentKey: 'uns',
-      },
-      {
-        title: 'Event Flow',
-        titleKey: 'EventFlow',
-        key: 'event-flow',
-        isLeaf: true,
-        parentKey: 'uns',
-      },
-      {
         title: 'Edge Connection',
         titleKey: 'Edge Connection',
         key: 'mqtt-auth',
@@ -50,12 +36,6 @@ const defaultData: any[] = [
     title: 'Launchpad',
     titleKey: 'Launchpad',
     key: 'launchpad',
-    isLeaf: true,
-  },
-  {
-    title: 'Notebook',
-    titleKey: 'Notebook',
-    key: 'notebook',
     isLeaf: true,
   },
   {

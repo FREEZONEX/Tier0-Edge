@@ -147,6 +147,193 @@
   padding-top: 6px;
 }
 
+.license-panel {
+  max-width: none;
+}
+
+.license-section {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--ui-home-border-color);
+}
+
+.license-row {
+  display: grid;
+  gap: 10px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--ui-home-border-color);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.license-label {
+  color: var(--ui-text-color);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.license-value {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ui-text-color);
+}
+
+.license-form {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+
+  :global {
+    .ant-form-item {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.licenseModal:global(.ant-modal) {
+  :global(.ant-modal-header) {
+    margin-bottom: 4px !important;
+  }
+
+  :global(.ant-tabs) {
+    margin-top: 0;
+  }
+
+  :global(.ant-tabs-nav) {
+    margin-top: 0;
+    margin-bottom: 12px;
+  }
+}
+
+.license-modal-content {
+  display: grid;
+  gap: 12px;
+
+  .form-field {
+    display: grid;
+    gap: 8px;
+
+    > label {
+      color: var(--ui-text-color);
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 600;
+    }
+  }
+
+  .license-error {
+    color: var(--ant-color-error);
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .token-row {
+    display: flex;
+    gap: 8px;
+
+    :global {
+      .ant-input {
+        flex: 1;
+      }
+    }
+  }
+}
+
+.token-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.mono {
+  font-family: var(--ui-font-mono, 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  letter-spacing: 0.02em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  color: var(--ui-text-color);
+  background: var(--ui-fill-tertiary);
+  border: 1px solid var(--ui-home-border-color);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: currentcolor;
+  border-radius: 50%;
+}
+
+:global(.dark),
+:global(.chartreuseDark) {
+  .license-modal-content {
+    :global(.ant-alert-info) {
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-radius: 3px;
+    }
+
+    :global(.ant-alert-icon) {
+      margin-top: 2px;
+    }
+
+    :global(.ant-alert-message) {
+      color: var(--ui-text-color);
+      font-size: 13px;
+      line-height: 20px;
+    }
+  }
+
+  .status-active {
+    color: var(--ui-status-active-text);
+    background: var(--ui-status-active-bg);
+    border-color: var(--ui-status-active-border);
+  }
+
+  .status-warning {
+    color: var(--ui-warning-color);
+    background: color-mix(in srgb, var(--ui-warning-color) 14%, transparent);
+    border-color: color-mix(in srgb, var(--ui-warning-color) 45%, transparent);
+  }
+
+  .default-password-alert {
+    background: color-mix(in srgb, var(--ui-warning-color) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ui-warning-color) 45%, transparent);
+    border-radius: 3px;
+
+    :global(.ant-alert-message) {
+      color: var(--ui-warning-color);
+    }
+
+    :global(.ant-alert-icon) {
+      color: var(--ui-warning-color);
+    }
+  }
+
+  .status-expired {
+    color: var(--ui-status-inactive-text);
+    background: var(--ui-status-inactive-bg);
+    border-color: var(--ui-status-inactive-border);
+  }
+
+  .status-unknown {
+    color: var(--ui-description-card-color);
+    background: var(--ui-fill-tertiary);
+    border-color: var(--ui-control-border);
+  }
+}
+
 .select {
   width: 180px;
   max-width: 100%;

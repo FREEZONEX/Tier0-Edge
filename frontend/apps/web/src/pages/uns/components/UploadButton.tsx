@@ -112,12 +112,7 @@ const UploadButton = ({
           </Dragger>
         </div>
         <Flex className="upload-modal-footer" gap={8} justify="end">
-          <ComButton
-            color="default"
-            variant="filled"
-            onClick={onClose}
-            title={formatMessage('common.cancel')}
-          >
+          <ComButton color="default" variant="filled" onClick={onClose} title={formatMessage('common.cancel')}>
             {formatMessage('common.cancel')}
           </ComButton>
           <ComButton

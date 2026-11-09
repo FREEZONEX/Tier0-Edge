@@ -1,6 +1,6 @@
 import { CustomAxiosConfigEnum } from '@/utils/request';
 import { coreApi } from './core-adapter';
-import type { AuditLogItem } from './audit-log';
+import type { AuditLogItem, AuditLogPageResp } from './audit-log';
 
 export type FleetNodeStatus = 'deleted' | 'offline' | 'online' | 'unjoined';
 
@@ -10,6 +10,12 @@ export interface FleetNode {
   description?: string;
   centerType: 'cloud' | 'enterprise';
   status: FleetNodeStatus;
+  tunnel?: {
+    status: 'online' | 'offline';
+    connectedAt?: number;
+    lastSeenAt?: number;
+    protocolVersion?: string;
+  };
   activeSessionID?: string;
   firstJoinedAt?: number;
   lastOnlineAt?: number;
@@ -72,31 +78,30 @@ export interface FleetNodeListResp {
   };
 }
 
-export interface FleetUNSScopeState {
-  fleetNodeID: string;
-  sourceRootNodeID: number;
-  targetNodeIDs?: number[];
-  mqttAuthID?: string;
-  sourcePath?: string;
-  targetName?: string;
-  status: 'active' | 'disabled';
-  scopeRevision: number;
-  snapshotVersion: number;
-  lastEventID?: string;
-  createdTime: string;
-  updatedTime: string;
-}
-
-export interface FleetUNSScopeListResp {
-  list: FleetUNSScopeState[];
-  total: number;
-}
-
 export interface FleetHostSummary {
   hostname: string;
   os: string;
   arch: string;
   logicalCPU: number;
+  cpu?: {
+    usagePercent: number;
+    available: boolean;
+    errorCode?: string;
+  };
+  memory?: {
+    totalBytes: number;
+    usedBytes: number;
+    available: boolean;
+    errorCode?: string;
+  };
+  disks?: Array<{
+    name: string;
+    mountPoint?: string;
+    totalBytes: number;
+    usedBytes: number;
+    available: boolean;
+    errorCode?: string;
+  }>;
 }
 
 export type FleetAgentAvailability = 'available' | 'error' | 'notConfigured' | 'unavailable';
@@ -171,6 +176,8 @@ export interface FleetContainerPort {
 }
 
 export interface FleetContainerSummary {
+  containerName?: string;
+  supersededBy?: string;
   containerID: string;
   serviceName: string;
   displayName: string;
@@ -222,6 +229,7 @@ export interface FleetContainerSnapshot {
   };
   containers: FleetContainerSummary[];
   summary: {
+    historical?: number;
     total: number;
     running: number;
     unhealthy: number;
@@ -231,6 +239,8 @@ export interface FleetContainerSnapshot {
 }
 
 export interface FleetRemoteContainerSnapshot extends FleetContainerSnapshot {
+  agentVersion?: string;
+  protocolVersion?: string;
   stale: boolean;
   host?: FleetHostSummary;
 }
@@ -350,9 +360,6 @@ export const deleteFleetNode = async (nodeID: string): Promise<{ fleetNodeID: st
 export const restoreFleetNode = async (nodeID: string): Promise<CreateFleetNodeResp> =>
   coreApi.post(`${fleetNodePath(nodeID)}/restore`, {});
 
-export const getFleetNodeUNSScopes = async (nodeID: string): Promise<FleetUNSScopeListResp> =>
-  coreApi.get(`${fleetNodePath(nodeID)}/uns-scopes`);
-
 export const getFleetNodeContainers = async (nodeID: string, refresh = false): Promise<FleetRemoteContainerSnapshot> =>
   coreApi.get(`${fleetNodePath(nodeID)}/containers`, {
     params: refresh ? { refresh: true } : undefined,
@@ -377,7 +384,13 @@ export const restartFleetNodeContainer = async (
 export const getFleetAuditLogs = async (
   nodeID: string,
   params?: { page?: number; size?: number }
-): Promise<FleetAuditLogListResp> => coreApi.get(`${fleetNodePath(nodeID)}/operations`, { params });
+): Promise<FleetAuditLogListResp> => {
+  const result: AuditLogPageResp = await coreApi.post('/v2/fleet/nodes/audit/list', { nodeId: nodeID, ...params });
+  return { list: result.data, total: result.total, page: result.pageNo, size: result.pageSize };
+};
+
+export const getFleetAuditDetail = (nodeId: string, auditId: number): Promise<AuditLogItem> =>
+  coreApi.post('/v2/fleet/nodes/audit/get', { nodeId, auditId });
 
 export const getFleetOperation = async (nodeID: string, operationID: string): Promise<FleetOperation> =>
   coreApi.get(`${fleetNodePath(nodeID)}/operations/${encodeURIComponent(operationID)}`);
@@ -386,7 +399,7 @@ export const getCurrentFleetNode = async (): Promise<FleetCurrentNode> => coreAp
 
 export const configureCurrentFleetConnection = async (data: {
   accessToken: string;
-}): Promise<FleetCurrentAgentStatus> => coreApi.put('/fleet/current/connection', data);
+}): Promise<FleetCurrentAgentStatus> => coreApi.put('/fleet/current/connection', data, { _noMessage: true });
 
 export const getCurrentFleetContainers = async (): Promise<FleetContainerSnapshot> =>
   coreApi.get('/fleet/current/containers');

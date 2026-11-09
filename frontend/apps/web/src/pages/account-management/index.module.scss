@@ -1,20 +1,194 @@
 .titleActions {
   flex-shrink: 0;
   margin-right: 0;
+
+  :global(.ant-btn) {
+    height: 32px;
+  }
+}
+
+.managementTabs {
+  :global(.ant-tabs-nav) {
+    height: var(--ui-bar-height, 52px);
+    margin: 0 0 16px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--ui-line-color);
+  }
+
+  :global(.ant-tabs-nav::before) {
+    border-bottom: none;
+  }
+
+  :global(.ant-tabs-nav-list) {
+    gap: 24px;
+  }
+
+  :global(.ant-tabs-tab) {
+    margin: 0;
+    padding: 0 4px;
+    color: var(--ui-description-card-color);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+  }
+
+  :global(.ant-tabs-tab:hover),
+  :global(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+    color: var(--ui-text-color);
+  }
+
+  :global(.ant-tabs-ink-bar) {
+    height: 2px;
+    background: var(--ui-theme-color);
+  }
+}
+
+.section-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+
+  :global(.ant-select) {
+    min-width: 150px;
+  }
+}
+
+.user-search {
+  width: min(320px, 28vw);
+}
+
+.filter-select {
+  width: 180px;
+}
+
+.group-filter-select {
+  width: 220px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.batch-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 20px;
+  border-top: 1px solid var(--ui-table-tr-color);
+  border-left: 1px solid var(--ui-table-tr-color);
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border-right: 1px solid var(--ui-table-tr-color);
+    border-bottom: 1px solid var(--ui-table-tr-color);
+  }
+
+  span {
+    color: var(--ui-description-card-color);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--ui-text-color);
+    font-size: 20px;
+    font-weight: 500;
+  }
+}
+
+.batch-field-label {
+  margin-bottom: 8px;
+  color: var(--ui-text-color);
+  font-weight: 500;
+}
+
+.empty-group-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid var(--ui-table-tr-color);
+  background: var(--ui-fill-tertiary);
+}
+
+.empty-group-title {
+  color: var(--ui-text-color);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.empty-group-desc {
+  margin-top: 4px;
+  color: var(--ui-description-card-color);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 20px;
 }
 
 .accountContent {
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ui-bg-color);
+
   > :global(.title) {
-    padding: 0 36px !important;
+    padding: 0 20px !important;
+    border-bottom: none !important;
+    background: var(--ui-bg-color) !important;
+    color: var(--ui-text-color);
+    font-size: 18px;
+    font-weight: 700;
   }
 
   > :global(.content) {
-    padding-top: 24px !important;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 0 !important;
+    background: var(--ui-bg-color);
   }
 }
 
-:global([class*='embedded-page']) .accountContent > :global(.content) {
-  padding-top: 24px !important;
+.table-shell {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+:global([class*='embedded-page']) .accountContent {
+  > :global(.title) {
+    border-bottom: none !important;
+  }
+
+  > :global(.content) {
+    padding-top: 0 !important;
+  }
+
+  .managementTabs {
+    margin-inline: -36px;
+
+    :global(.ant-tabs-nav) {
+      padding-inline: 36px;
+    }
+  }
 }
 
 .accountTable {
@@ -80,7 +254,9 @@
 
     .ant-table-thead > tr > th.ant-table-cell-fix-right .react-resizable-line,
     .ant-table-thead > tr > th.ant-table-cell-scrollbar .react-resizable-line,
-    .ant-table-thead > tr > th:not(.ant-table-cell-fix-right):has(+ th.ant-table-cell-fix-right-first)
+    .ant-table-thead
+      > tr
+      > th:not(.ant-table-cell-fix-right):has(+ th.ant-table-cell-fix-right-first)
       .react-resizable-line {
       display: none;
     }
@@ -143,4 +319,36 @@
 
 .operationDisabled {
   opacity: 0.38;
+}
+
+@media (width <= 1180px) {
+  .user-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .user-search {
+    width: 100%;
+  }
+
+  .toolbar-spacer {
+    display: none;
+  }
+}
+
+@media (width <= 900px) {
+  :global([class*='embedded-page']) .accountContent .managementTabs {
+    margin-inline: -20px;
+
+    :global(.ant-tabs-nav) {
+      padding-inline: 20px;
+    }
+  }
+}
+
+@media (width <= 640px) {
+  .empty-group-state {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

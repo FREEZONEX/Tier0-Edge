@@ -10,8 +10,23 @@
 }
 
 .pro-card-hover {
+  .ui-pin-button-reveal {
+    opacity: 0;
+    visibility: hidden;
+  }
+
   &:hover {
     background: var(--ui-card-hover-bg);
+
+    .ui-pin-button-reveal {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+
+  &:focus-within .ui-pin-button-reveal {
+    opacity: 1;
+    visibility: visible;
   }
 
   &:active {

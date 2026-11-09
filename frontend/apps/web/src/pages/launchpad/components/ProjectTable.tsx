@@ -1,6 +1,6 @@
 import { ProTable } from '@/components';
 import type { ProTableColumns } from '@/components/pro-table/types';
-import { Folder, Star } from '@/components/lucide-icon/carbon';
+import { Folder, Pin } from '@/components/lucide-icon/carbon';
 import { useTranslate } from '@/hooks';
 import type { Project } from '@/pages/launchpad/type';
 import { formatTimestamp } from '@/utils/format';
@@ -12,41 +12,40 @@ import styles from './LaunchpadTable.module.scss';
 interface ProjectTableProps {
   projects: Project[];
   onProjectClick: (project: Project) => void;
-  isProjectFavorite: (id: string | number) => boolean;
-  onToggleFavorite: (project: Project) => void;
+  isProjectPinned: (id: string | number) => boolean;
+  onTogglePin: (project: Project) => void;
   /** 搜索关键词，用于项目名命中高亮 */
   keyword?: string;
 }
 
-const ProjectTable: FC<ProjectTableProps> = ({
-  projects,
-  onProjectClick,
-  isProjectFavorite,
-  onToggleFavorite,
-  keyword,
-}) => {
+const ProjectTable: FC<ProjectTableProps> = ({ projects, onProjectClick, isProjectPinned, onTogglePin, keyword }) => {
   const formatMessage = useTranslate();
 
   const columns: ProTableColumns<Project> = [
     {
       title: '',
-      dataIndex: 'isFavorite',
+      dataIndex: 'pin',
       width: 28,
       maxWidth: 28,
       align: 'center',
       render: (_: unknown, record: Project) => {
-        const favorite = isProjectFavorite(record.projectId);
+        const pinned = isProjectPinned(record.projectId);
         return (
           <button
             type="button"
-            className={classNames(styles.starButton, favorite && styles.starActive)}
-            aria-label={favorite ? 'Remove favorite' : 'Add favorite'}
+            className={classNames(
+              styles.pinButton,
+              'ui-pin-button',
+              pinned && styles.pinActive,
+              pinned && 'ui-pin-button-active'
+            )}
+            aria-label={pinned ? 'Unpin' : 'Pin'}
             onClick={(event) => {
               event.stopPropagation();
-              onToggleFavorite(record);
+              onTogglePin(record);
             }}
           >
-            <Star size={16} />
+            <Pin size={16} />
           </button>
         );
       },

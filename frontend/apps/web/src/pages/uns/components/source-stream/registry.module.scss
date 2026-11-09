@@ -1,0 +1,94 @@
+.registry {
+  padding: 0 16px 24px;
+  min-width: 0;
+}
+.embedded {
+  padding: 0;
+}
+.toolbar,
+.actions,
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.toolbar {
+  padding: 12px 0;
+  flex-wrap: wrap;
+  :global(.ant-input-search) {
+    order: 2;
+    margin-left: auto;
+    flex: 0 1 264px;
+    max-width: 264px;
+    min-width: 160px;
+  }
+  > :global(.ant-btn) {
+    order: 3;
+    flex-shrink: 0;
+  }
+}
+.actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.filter {
+  width: 148px;
+  flex-shrink: 0;
+}
+.identity {
+  :global(.ant-btn) {
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+    height: auto;
+  }
+}
+.icon {
+  display: grid;
+  place-items: center;
+  background: var(--ui-uns-card-bg);
+  border: 1px solid var(--ui-line-color);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .registry:not(.embedded) {
+    padding: 16px;
+  }
+  .toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.identityText {
+  min-width: 0;
+}
+.endpoint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ui-description-card-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity :global(.ant-btn-link) {
+  color: var(--ui-text-color);
+  font-weight: 500;
+  font-size: 14px;
+}
+.identityText {
+  overflow: hidden;
+}
+.identity :global(.ant-btn) {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

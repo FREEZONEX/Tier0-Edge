@@ -12,6 +12,7 @@ export type VisionModel = {
   source: VisionModelSource;
   status: VisionModelStatus;
   modelType: string;
+  labels?: string[];
   license: string;
   fileName: string;
   sizeBytes: number;

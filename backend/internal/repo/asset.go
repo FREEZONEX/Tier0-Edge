@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -24,6 +25,11 @@ type AssetFile struct {
 	ProjectID     int64  `gorm:"column:project_id" json:"projectId"`
 	AppInstanceID string `gorm:"column:app_instance_id" json:"appInstanceId"`
 	SessionID     string `gorm:"column:session_id" json:"sessionId"`
+	// OpID 记录分片上传会话的对象存储 uploadId（仅分片上传的 temp 记录使用）。
+	OpID string `gorm:"column:op_id" json:"opId"`
+	// ExpireAt 是分片上传会话的过期时间（仅 temp 记录使用），过期的 temp 记录
+	// 由后台清理任务按需回收。
+	ExpireAt *time.Time `gorm:"column:expire_at;type:timestamptz" json:"expireAt"`
 	CreatorSoftTime
 	// Populated only by ListAssetFiles via the asset_binding join.
 	BindingID int64  `gorm:"-" json:"bindingId"`
@@ -190,6 +196,35 @@ func (r *AssetRepo) ListActiveAssetFilesByStorageKey(ctx context.Context, storag
 	return rows, err
 }
 
+// GetTempAssetFileByOpID 按分片上传会话的对象存储 uploadId（op_id）查找未完成的
+// temp 记录。uploadId 由对象存储生成、全局唯一，可作为分片会话的服务端凭据；
+// 未命中或记录已 active/deleted 返回 ErrNotFound。
+func (r *AssetRepo) GetTempAssetFileByOpID(ctx context.Context, opID string) (AssetFile, error) {
+	var f AssetFile
+	err := r.db.WithContext(ctx).
+		Where("op_id = ? AND status = 'temp' AND deleted_time = 0", strings.TrimSpace(opID)).
+		Take(&f).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return AssetFile{}, ErrNotFound
+	}
+	return f, err
+}
+
+// MarkMultipartUploadActive 在 complete 成功后把分片上传的 temp 记录置为 active，
+// 并把 size_bytes 覆盖为对象存储汇总的真实大小（分片场景不信任客户端自报大小）。
+func (r *AssetRepo) MarkMultipartUploadActive(ctx context.Context, id, sizeBytes int64) error {
+	res := r.db.WithContext(ctx).Model(&AssetFile{}).
+		Where("id = ? AND status = 'temp' AND deleted_time = 0", id).
+		Updates(touchValues(map[string]any{"status": "active", "size_bytes": sizeBytes}, repoNowMilli()))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // SoftDeleteAssetFile soft-deletes the file row and all of its bindings.
 func (r *AssetRepo) SoftDeleteAssetFile(ctx context.Context, id int64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -241,4 +276,13 @@ func (r *AssetRepo) DeleteAssetBinding(ctx context.Context, id int64) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *AssetRepo) GetAssetBinding(ctx context.Context, id int64) (AssetBinding, error) {
+	var binding AssetBinding
+	err := r.db.WithContext(ctx).Where("id = ? AND deleted_time = 0", id).Take(&binding).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return AssetBinding{}, ErrNotFound
+	}
+	return binding, err
 }

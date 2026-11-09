@@ -26,10 +26,12 @@ func registerEventHandlers(app *App) {
 		return dataingest.ValidateSchema(e.Node.Schema)
 	})
 	bus.OnAfterCommit(events.UnsNodeCreated{}, 10, "dataingest.definition.invalidate.created", func(ctx context.Context, event any) error {
+		node := event.(events.UnsNodeCreated).Node
 		if resolver := app.DataIngest.Resolver(); resolver != nil {
-			resolver.InvalidateNode(event.(events.UnsNodeCreated).Node)
+			resolver.InvalidateNode(node)
 		}
-		clearLatestCache(ctx, app, []repo.UnsNode{event.(events.UnsNodeCreated).Node})
+		clearLatestCache(ctx, app, []repo.UnsNode{node})
+		app.DataQuality.ApplyNodePolicies([]repo.UnsNode{node})
 		return nil
 	})
 	bus.OnAfterCommit(events.UnsNodesCreated{}, 10, "dataingest.definition.invalidate.createdBatch", func(ctx context.Context, event any) error {
@@ -38,34 +40,70 @@ func registerEventHandlers(app *App) {
 			resolver.InvalidateNodes(nodes)
 		}
 		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.ApplyNodePolicies(nodes)
+		return nil
+	})
+	bus.OnAfterCommit(events.UnsNodesUpdated{}, 10, "dataingest.definition.invalidate.updatedBatch", func(ctx context.Context, event any) error {
+		nodes := event.(events.UnsNodesUpdated).Nodes
+		if resolver := app.DataIngest.Resolver(); resolver != nil {
+			resolver.InvalidateNodes(nodes)
+		}
+		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.ApplyNodePolicies(nodes)
 		return nil
 	})
 	bus.OnAfterCommit(events.UnsNodeUpdated{}, 10, "dataingest.definition.invalidate.updated", func(ctx context.Context, event any) error {
+		node := event.(events.UnsNodeUpdated).Node
 		if resolver := app.DataIngest.Resolver(); resolver != nil {
-			resolver.InvalidateNode(event.(events.UnsNodeUpdated).Node)
+			resolver.InvalidateNode(node)
 		}
-		clearLatestCache(ctx, app, []repo.UnsNode{event.(events.UnsNodeUpdated).Node})
+		clearLatestCache(ctx, app, []repo.UnsNode{node})
+		app.DataQuality.ApplyNodePolicies([]repo.UnsNode{node})
 		return nil
 	})
 	bus.OnAfterCommit(events.UnsNodeDeleted{}, 10, "dataingest.definition.invalidate.deleted", func(ctx context.Context, event any) error {
+		nodes := event.(events.UnsNodeDeleted).Nodes
 		if resolver := app.DataIngest.Resolver(); resolver != nil {
-			resolver.InvalidateNodes(event.(events.UnsNodeDeleted).Nodes)
+			resolver.InvalidateNodes(nodes)
 		}
-		clearLatestCache(ctx, app, event.(events.UnsNodeDeleted).Nodes)
+		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.RemoveNodePolicies(ctx, nodes)
 		return nil
 	})
 	bus.OnAfterCommit(events.UnsNodeRestored{}, 10, "dataingest.definition.invalidate.restored", func(ctx context.Context, event any) error {
+		nodes := event.(events.UnsNodeRestored).Nodes
 		if resolver := app.DataIngest.Resolver(); resolver != nil {
-			resolver.InvalidateNodes(event.(events.UnsNodeRestored).Nodes)
+			resolver.InvalidateNodes(nodes)
 		}
-		clearLatestCache(ctx, app, event.(events.UnsNodeRestored).Nodes)
+		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.ApplyNodePolicies(nodes)
+		return nil
+	})
+	bus.OnAfterCommit(events.UnsNodesSyncHidden{}, 10, "dataingest.definition.invalidate.syncHidden", func(ctx context.Context, event any) error {
+		nodes := event.(events.UnsNodesSyncHidden).Nodes
+		if resolver := app.DataIngest.Resolver(); resolver != nil {
+			resolver.InvalidateNodes(nodes)
+		}
+		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.RemoveNodePolicies(ctx, nodes)
+		return nil
+	})
+	bus.OnAfterCommit(events.UnsNodesSyncRestored{}, 10, "dataingest.definition.invalidate.syncRestored", func(ctx context.Context, event any) error {
+		nodes := event.(events.UnsNodesSyncRestored).Nodes
+		if resolver := app.DataIngest.Resolver(); resolver != nil {
+			resolver.InvalidateNodes(nodes)
+		}
+		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.ApplyNodePolicies(nodes)
 		return nil
 	})
 	bus.OnAfterCommit(events.UnsNodeForceDeleted{}, 10, "dataingest.definition.invalidate.forceDeleted", func(ctx context.Context, event any) error {
+		nodes := event.(events.UnsNodeForceDeleted).Nodes
 		if resolver := app.DataIngest.Resolver(); resolver != nil {
-			resolver.InvalidateNodes(event.(events.UnsNodeForceDeleted).Nodes)
+			resolver.InvalidateNodes(nodes)
 		}
-		clearLatestCache(ctx, app, event.(events.UnsNodeForceDeleted).Nodes)
+		clearLatestCache(ctx, app, nodes)
+		app.DataQuality.RemoveNodePolicies(ctx, nodes)
 		return nil
 	})
 

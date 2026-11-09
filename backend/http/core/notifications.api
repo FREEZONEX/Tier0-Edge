@@ -1,0 +1,58 @@
+syntax = "v1"
+
+// 收件箱兼容契约，分页字段保留现有客户端的 pageNo/pageSize。
+type InboxPageReq {
+    PageNo int `form:"pageNo,optional"`
+    PageSize int `form:"pageSize,optional"`
+    ReadStatus string `form:"readStatus,optional"`
+    SourceType string `form:"sourceType,optional"`
+    SourceID string `form:"sourceId,optional"`
+    SourceIds []string `form:"sourceIds,optional"`
+    Keyword string `form:"keyword,optional"`
+    StartTime string `form:"startTime,optional"`
+    EndTime string `form:"endTime,optional"`
+}
+
+type InboxDetailReq { Id string `path:"id"` }
+type InboxIDsReq { IDs []string `json:"ids"` }
+type InboxReadAllReq {
+    ReadStatus string `json:"readStatus,optional"`
+    SourceType string `json:"sourceType,optional"`
+    SourceID string `json:"sourceId,optional"`
+    SourceIds []string `json:"sourceIds,optional"`
+    Keyword string `json:"keyword,optional"`
+    StartTime string `json:"startTime,optional"`
+    EndTime string `json:"endTime,optional"`
+}
+
+// 消息列表和批量操作均由当前登录用户范围约束。
+@server(
+    prefix: /api/core
+    group: core/notifications
+    middleware: SessionAuth
+)
+service backend {
+    @doc(summary: "查询当前用户收件箱")
+    @handler Page
+    get /notifications (InboxPageReq) returns (Envelope)
+
+    @doc(summary: "查询当前用户未读消息数量")
+    @handler UnreadCount
+    get /notifications/unread-count returns (Envelope)
+
+    @doc(summary: "查询当前用户消息详情")
+    @handler Detail
+    get /notifications/:id (InboxDetailReq) returns (Envelope)
+
+    @doc(summary: "标记当前用户消息已读")
+    @handler Read
+    post /notifications/read (InboxIDsReq) returns (Envelope)
+
+    @doc(summary: "按筛选标记当前用户全部消息已读")
+    @handler ReadAll
+    post /notifications/read-all (InboxReadAllReq) returns (Envelope)
+
+    @doc(summary: "删除当前用户消息")
+    @handler Delete
+    post /notifications/delete (InboxIDsReq) returns (Envelope)
+}

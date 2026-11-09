@@ -271,7 +271,7 @@ func (s *createTreeState) prepareNode(cmd SaveCommand) (repo.UnsNode, error) {
 	return node, nil
 }
 
-func (s *createTreeState) commandToNode(cmd SaveCommand, namespace string) (repo.UnsNode, error) {
+func (s *createTreeState) commandToNode(cmd SaveCommand, namespace string, excludeIDs ...int64) (repo.UnsNode, error) {
 	nodeType, err := nodeTypeValue(cmd.NodeType)
 	if err != nil {
 		return repo.UnsNode{}, err
@@ -282,6 +282,9 @@ func (s *createTreeState) commandToNode(cmd SaveCommand, namespace string) (repo
 	}
 	if nodeType == 2 && topicType == 0 {
 		topicType = 1
+	}
+	if nodeType != 2 && cmd.DataQualityPolicy != nil {
+		return repo.UnsNode{}, ErrInvalid
 	}
 	schema, err := jsonValue(cmd.Schema)
 	if err != nil {
@@ -303,33 +306,34 @@ func (s *createTreeState) commandToNode(cmd SaveCommand, namespace string) (repo
 			topicType = 0
 		}
 	}
-	alias, err := s.resolveAlias(cmd.Alias, namespace, nodeType)
+	alias, err := s.resolveAlias(cmd.Alias, namespace, nodeType, excludeIDs...)
 	if err != nil {
 		return repo.UnsNode{}, err
 	}
 	return repo.UnsNode{
-		ParentID:         cmd.ParentID,
-		Name:             strings.TrimSpace(cmd.Name),
-		DisplayName:      strings.TrimSpace(cmd.DisplayName),
-		Description:      cmd.Description,
-		Alias:            alias,
-		Namespace:        namespace,
-		Type:             nodeType,
-		TopicType:        topicType,
-		Schema:           schema,
-		ExtendProperties: extend,
-		EnableHistory:    persistenceFlag(cmd.EnableHistory),
-		MockData:         yesNoFlag(cmd.MockData),
+		ParentID:          cmd.ParentID,
+		Name:              strings.TrimSpace(cmd.Name),
+		DisplayName:       strings.TrimSpace(cmd.DisplayName),
+		Description:       cmd.Description,
+		Alias:             alias,
+		Namespace:         namespace,
+		Type:              nodeType,
+		TopicType:         topicType,
+		Schema:            schema,
+		ExtendProperties:  extend,
+		DataQualityPolicy: cmd.DataQualityPolicy,
+		EnableHistory:     persistenceFlag(cmd.EnableHistory),
+		MockData:          yesNoFlag(cmd.MockData),
 	}, nil
 }
 
-func (s *createTreeState) resolveAlias(rawAlias, namespace string, nodeType int16) (string, error) {
+func (s *createTreeState) resolveAlias(rawAlias, namespace string, nodeType int16, excludeIDs ...int64) (string, error) {
 	alias := normalizeAliasCandidate(rawAlias)
 	if alias != "" {
 		if !isAliasFormatOK(alias) {
 			return "", fmt.Errorf("invalid alias: alias=%s", alias)
 		}
-		if _, exists := s.aliases[alias]; exists {
+		if id, exists := s.aliases[alias]; exists && (len(excludeIDs) == 0 || id != excludeIDs[0]) {
 			return "", fmt.Errorf("alias already exists: alias=%s", alias)
 		}
 		return alias, nil

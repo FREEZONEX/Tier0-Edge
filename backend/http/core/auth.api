@@ -5,8 +5,33 @@ syntax = "v1"
     group: core/auth
 )
 service backend {
+    // Public static bridge and single-use exchange; the ticket is the credential.
+    @handler MiniEntry
+    get /mini-entry
+
+    @handler MiniEntryExchange
+    post /mini-entry-exchange (MiniEntryExchangeReq) returns (Envelope)
+
     @handler Login
     post /login (LoginReq) returns (Envelope)
+
+    @handler ExternalSSOStart
+    get /sso/:provider/start (ExternalSSOStartReq)
+
+    @handler ExternalSSOCallback
+    get /sso/:provider/callback (ExternalSSOCallbackReq)
+
+    @handler ExternalSSOPending
+    get /sso/:provider/pending (ExternalSSOPendingReq) returns (Envelope)
+
+    @handler ExternalSSOUsernameAvailability
+    get /sso/:provider/username-availability (ExternalSSOUsernameAvailabilityReq) returns (Envelope)
+
+    @handler ExternalSSOComplete
+    post /sso/:provider/complete (ExternalSSOCompleteReq) returns (Envelope)
+
+    @handler ExternalSSOLink
+    post /sso/:provider/link (ExternalSSOLinkReq) returns (Envelope)
 }
 
 @server(
@@ -15,6 +40,10 @@ service backend {
     middleware: SessionAuth
 )
 service backend {
+    // Login-only self-session handoff; logic reuses Launchpad permission and app checks.
+    @handler MiniEntryTicket
+    post /mini-entry-ticket (MiniEntryTicketReq) returns (Envelope)
+
     @handler CurrentUser
     get /me returns (Envelope)
 

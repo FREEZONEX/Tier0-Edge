@@ -114,12 +114,7 @@ const ProjectFormModal = forwardRef<ProjectFormModalRef, ProjectFormModalProps>(
             style={{ padding: 0 }}
             footer={
               <Flex gap="8px" justify="end" style={{ marginTop: 8 }}>
-                <ComButton
-                  color="default"
-                  variant="filled"
-                  onClick={onClose}
-                  title={formatMessage('common.cancel')}
-                >
+                <ComButton color="default" variant="filled" onClick={onClose} title={formatMessage('common.cancel')}>
                   {formatMessage('common.cancel')}
                 </ComButton>
                 <ComButton

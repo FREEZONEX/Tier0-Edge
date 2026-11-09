@@ -37,8 +37,10 @@ type APIKeyValidation struct {
 	ResourceKeys []string
 	Name         string
 	KeyPrefix    string
+	AppID        string
 	KeyType      string
 	Permission   string
+	UsageType    string
 }
 
 // sysApiKey carries the key_hash column that never leaves the repo layer.
@@ -53,6 +55,7 @@ type sysApiKey struct {
 	UsageType    string `gorm:"column:usage_type;type:VARCHAR(32);not null;default:'external'"`
 	Permission   string `gorm:"column:permission;type:VARCHAR(32);not null;default:'read_only'"`
 	ResourceKeys string `gorm:"column:resource_keys;type:TEXT;not null;default:''"`
+	AppID        string `gorm:"column:app_id;type:VARCHAR(64);not null;default:'';index;comment:签发时关联的应用ID（app 级凭证元数据，空表示非应用凭证）"`
 	Status       int64  `gorm:"column:status;type:BIGINT;not null;default:1;index"`
 	LastUsedTime int64  `gorm:"column:last_used_time;type:BIGINT;not null;default:0"`
 	SoftOnlyTime
@@ -70,7 +73,7 @@ func (r *APIKeyRepo) ListAPIKeys(ctx context.Context, ownerID int64, keyType, ke
 	if strings.TrimSpace(keyword) != "" {
 		query = query.Where("name ILIKE ?", "%"+strings.TrimSpace(keyword)+"%")
 	}
-	query = query.Where("usage_type != ? OR usage_type IS NULL", "internal")
+	query = query.Where("usage_type NOT IN ? OR usage_type IS NULL", []string{"internal", APIKeyUsageAppData})
 	err := query.Order("id DESC").Find(&out).Error
 	for i := range out {
 		out[i].KeyType = apiKeyOwnerType(out[i].OwnerType)
@@ -79,6 +82,21 @@ func (r *APIKeyRepo) ListAPIKeys(ctx context.Context, ownerID int64, keyType, ke
 }
 
 func (r *APIKeyRepo) CreateAPIKey(ctx context.Context, name string, ownerID, workspaceID int64, permission, usageType, keyType string, resourceKeys []string) (APIKey, string, error) {
+	if usageType == APIKeyUsageAppData {
+		return APIKey{}, "", ErrInvalidArgument
+	}
+	return r.createAPIKey(ctx, name, "", ownerID, workspaceID, permission, usageType, keyType, resourceKeys)
+}
+
+// CreateAppDataKey issues a data-only identity without persisting its plaintext.
+func (r *APIKeyRepo) CreateAppDataKey(ctx context.Context, name, appID string, ownerID, workspaceID int64, resourceKeys []string) (APIKey, string, error) {
+	if appID == "" || len(appID) > APIKeyAppIDMaxLen {
+		return APIKey{}, "", ErrInvalidArgument
+	}
+	return r.createAPIKey(ctx, name, appID, ownerID, workspaceID, APIKeyPermissionRead, APIKeyUsageAppData, "app", resourceKeys)
+}
+
+func (r *APIKeyRepo) createAPIKey(ctx context.Context, name, appID string, ownerID, workspaceID int64, permission, usageType, keyType string, resourceKeys []string) (APIKey, string, error) {
 	if usageType == "" {
 		usageType = "external"
 	}
@@ -95,6 +113,7 @@ func (r *APIKeyRepo) CreateAPIKey(ctx context.Context, name string, ownerID, wor
 	}
 	prefix, suffix := secretEdges(raw)
 	row := sysApiKey{
+		AppID:        appID,
 		Name:         name,
 		KeyHash:      hashSecret(raw),
 		KeyPrefix:    prefix,
@@ -130,7 +149,7 @@ func (r *APIKeyRepo) CreateAPIKey(ctx context.Context, name string, ownerID, wor
 }
 
 // GenerateWorkspaceAPIKey mirrors Cloud API key encoding so the shared SDK can
-// derive the MQTT username and client ID without edition-specific branches.
+// derive the MQTT username and client ID without Enterprise-specific branches.
 func GenerateWorkspaceAPIKey(keyType string, workspaceID int64) (string, error) {
 	token := make([]byte, 32)
 	if _, err := rand.Read(token); err != nil {
@@ -142,6 +161,8 @@ func GenerateWorkspaceAPIKey(keyType string, workspaceID int64) (string, error) 
 		prefix = "sk-svc-"
 	case "agent":
 		prefix = "sk-agent-"
+	case "app":
+		prefix = "sk-app-"
 	}
 	raw := domaincommon.FormatWorkspaceAPIKey(prefix, workspaceID, base64.RawURLEncoding.EncodeToString(token))
 	if raw == "" {
@@ -152,7 +173,8 @@ func GenerateWorkspaceAPIKey(keyType string, workspaceID int64) (string, error) 
 
 // RegisterAPIKey 用外部已生成的 raw key 注册到 sys_api_key（供 OpenAPI 鉴权）。
 // 与 CreateAPIKey 的区别：raw 由调用方提供，且不返回明文（调用方已持有）。
-func (r *APIKeyRepo) RegisterAPIKey(ctx context.Context, raw, name string, ownerID int64, keyType, permission, usageType string, resourceKeys []string) error {
+// appID 为应用级凭证的结构化归属（写入 app_id 列），非应用凭证传空串。
+func (r *APIKeyRepo) RegisterAPIKey(ctx context.Context, raw, name, appID string, ownerID int64, keyType, permission, usageType string, resourceKeys []string) error {
 	raw = strings.TrimSpace(raw)
 	name = strings.TrimSpace(name)
 	if raw == "" || name == "" || ownerID <= 0 {
@@ -173,6 +195,7 @@ func (r *APIKeyRepo) RegisterAPIKey(ctx context.Context, raw, name string, owner
 		"key_suffix":    suffix,
 		"owner_id":      ownerID,
 		"owner_type":    ownerType,
+		"app_id":        strings.TrimSpace(appID),
 		"usage_type":    usageType,
 		"permission":    permission,
 		"resource_keys": strings.Join(resourceKeys, ","),
@@ -213,6 +236,7 @@ func (r *APIKeyRepo) RegisterAPIKey(ctx context.Context, raw, name string, owner
 		KeySuffix:    suffix,
 		OwnerID:      ownerID,
 		OwnerType:    ownerType,
+		AppID:        strings.TrimSpace(appID),
 		UsageType:    usageType,
 		Permission:   permission,
 		ResourceKeys: strings.Join(resourceKeys, ","),
@@ -221,7 +245,7 @@ func (r *APIKeyRepo) RegisterAPIKey(ctx context.Context, raw, name string, owner
 	return normalizeDBError(r.db.WithContext(ctx).Create(&row).Error)
 }
 
-func (r *APIKeyRepo) UpdateAPIKey(ctx context.Context, id, ownerID int64, name, permission string, resourceKeys []string) (APIKey, error) {
+func (r *APIKeyRepo) UpdateAPIKey(ctx context.Context, id, ownerID int64, name, permission string, resourceKeys []string, preserveSameProfile ...bool) (APIKey, error) {
 	updates := touchValues(map[string]any{}, 0)
 	if strings.TrimSpace(name) != "" {
 		updates["name"] = strings.TrimSpace(name)
@@ -229,9 +253,13 @@ func (r *APIKeyRepo) UpdateAPIKey(ctx context.Context, id, ownerID int64, name, 
 	if strings.TrimSpace(permission) != "" {
 		updates["permission"] = strings.TrimSpace(permission)
 		updates["resource_keys"] = strings.Join(resourceKeys, ",")
+		if len(preserveSameProfile) > 0 && preserveSameProfile[0] {
+			updates["resource_keys"] = gorm.Expr("CASE WHEN permission=? THEN resource_keys ELSE ? END", strings.TrimSpace(permission), strings.Join(resourceKeys, ","))
+		}
 	}
 	res := r.db.WithContext(ctx).Model(&APIKey{}).
 		Where("id = ? AND owner_id = ? AND deleted_time = 0", id, ownerID).
+		Where("usage_type != ? OR usage_type IS NULL", APIKeyUsageAppData).
 		Updates(updates)
 	if res.Error != nil {
 		return APIKey{}, normalizeDBError(res.Error)
@@ -250,9 +278,25 @@ func (r *APIKeyRepo) UpdateAPIKey(ctx context.Context, id, ownerID int64, name, 
 }
 
 func (r *APIKeyRepo) DeleteAPIKey(ctx context.Context, id, ownerID int64) error {
-	res := r.db.WithContext(ctx).Model(&APIKey{}).
-		Where("id = ? AND owner_id = ? AND deleted_time = 0", id, ownerID).
-		Updates(softDeleteNoDelByValues(0, 0))
+	return r.deleteAPIKey(ctx, id, ownerID, "")
+}
+
+func (r *APIKeyRepo) DeleteAppDataKey(ctx context.Context, id, ownerID int64, appID string) error {
+	if strings.TrimSpace(appID) == "" {
+		return ErrNotFound
+	}
+	return r.deleteAPIKey(ctx, id, ownerID, appID)
+}
+
+func (r *APIKeyRepo) deleteAPIKey(ctx context.Context, id, ownerID int64, appID string) error {
+	query := r.db.WithContext(ctx).Model(&APIKey{}).
+		Where("id = ? AND owner_id = ? AND deleted_time = 0", id, ownerID)
+	if appID == "" {
+		query = query.Where("usage_type != ? OR usage_type IS NULL", APIKeyUsageAppData)
+	} else {
+		query = query.Where("usage_type = ? AND app_id = ?", APIKeyUsageAppData, appID)
+	}
+	res := query.Updates(softDeleteNoDelByValues(0, 0))
 	if res.Error != nil {
 		return res.Error
 	}
@@ -283,30 +327,41 @@ func (r *APIKeyRepo) ValidateAPIKeyByIDDetail(ctx context.Context, id int64) (AP
 
 func (r *APIKeyRepo) validateAPIKeyDetail(ctx context.Context, condition string, value any) (APIKeyValidation, error) {
 	var row struct {
+		UsageType    string `gorm:"column:usage_type"`
 		ID           int64  `gorm:"column:id"`
 		OwnerID      int64  `gorm:"column:owner_id"`
 		ResourceKeys string `gorm:"column:resource_keys"`
 		Name         string `gorm:"column:name"`
 		KeyPrefix    string `gorm:"column:key_prefix"`
+		AppID        string `gorm:"column:app_id"`
 		OwnerType    string `gorm:"column:owner_type"`
 		Permission   string `gorm:"column:permission"`
+		LastUsedTime int64  `gorm:"column:last_used_time"`
 	}
 	if err := r.db.WithContext(ctx).Table("sys_api_key").
-		Select("id, owner_id, resource_keys, name, key_prefix, owner_type, permission").
+		Select("id, owner_id, resource_keys, name, key_prefix, app_id, owner_type, permission, usage_type, last_used_time").
 		Where(condition+" AND status = 1 AND deleted_time = 0", value).
 		Take(&row).Error; err != nil {
 		return APIKeyValidation{}, err
 	}
 	now := time.Now().UTC().UnixMilli()
-	_ = r.db.WithContext(ctx).Model(&APIKey{}).
-		Where("id = ? AND deleted_time = 0", row.ID).
-		Update("last_used_time", now).Error
+	// This is activity telemetry, not authentication state. Reload validity on
+	// every request, but avoid serializing all readers on a write to the same key.
+	// The conditional update also bounds concurrent observers across processes.
+	cutoff := now - time.Minute.Milliseconds()
+	if row.LastUsedTime <= cutoff {
+		_ = r.db.WithContext(ctx).Model(&APIKey{}).
+			Where("id = ? AND status = 1 AND deleted_time = 0 AND last_used_time <= ?", row.ID, cutoff).
+			Update("last_used_time", now).Error
+	}
 	return APIKeyValidation{
+		UsageType:    row.UsageType,
 		ID:           row.ID,
 		OwnerID:      row.OwnerID,
 		ResourceKeys: splitCSV(row.ResourceKeys),
 		Name:         row.Name,
 		KeyPrefix:    row.KeyPrefix,
+		AppID:        row.AppID,
 		KeyType:      apiKeyOwnerType(row.OwnerType),
 		Permission:   row.Permission,
 	}, nil
@@ -318,6 +373,8 @@ func normalizeAPIKeyOwnerType(value string) string {
 		return "service"
 	case "agent":
 		return "agent"
+	case "app", "app_key":
+		return "app"
 	default:
 		return "personal"
 	}

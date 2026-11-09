@@ -59,7 +59,7 @@ func RoleUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 
 func RoleDeleteHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req types.IdReq
+		var req types.RoleSaveReq
 		if err := gozerohttpx.Parse(r, &req); err != nil {
 			respx.WriteError(w, respx.NewHTTPError(http.StatusBadRequest, "invalid request: "+err.Error()))
 			return

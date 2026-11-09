@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -106,12 +107,46 @@ func (r *AsyncJobRepo) MarkAsyncJobFailed(ctx context.Context, jobKey string, me
 	}, now))
 }
 
+func (r *AsyncJobRepo) CompleteAsyncJobWithAudit(ctx context.Context, jobKey, status, message string, result any, audit AuditLog) error {
+	body, err := marshalAsyncJobJSON(result)
+	if err != nil {
+		return err
+	}
+	if status != AsyncJobStatusSucceeded && status != AsyncJobStatusFailed {
+		return ErrInvalidArgument
+	}
+	now := repoNowMilli()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var job AsyncJob
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("job_key = ?", jobKey).Take(&job).Error; err != nil {
+			return err
+		}
+		if job.Status == AsyncJobStatusSucceeded || job.Status == AsyncJobStatusFailed || job.Status == AsyncJobStatusCanceled {
+			return nil
+		}
+		values := touchValues(map[string]any{
+			"status": status, "result_json": body, "error_message": message, "finished_time": now,
+		}, now)
+		if status == AsyncJobStatusSucceeded {
+			values["progress"] = 100
+		}
+		if err := tx.Model(&AsyncJob{}).Where("job_key = ?", jobKey).Updates(values).Error; err != nil {
+			return err
+		}
+		audit.ResID = jobKey
+		if err := NewAuditRepo(tx).InsertAuditLog(ctx, audit); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func (r *AsyncJobRepo) updateAsyncJob(ctx context.Context, jobKey string, values map[string]any) error {
 	res := r.db.WithContext(ctx).Model(&AsyncJob{}).Where("job_key = ?", jobKey).Updates(values)
 	if res.Error != nil {
 		return res.Error
 	}
-	if res.RowsAffected == 0 {
+	if res.RowsAffected == 0 && !r.activeOnly {
 		return ErrNotFound
 	}
 	return nil
@@ -137,6 +172,29 @@ func marshalAsyncJobJSON(value any) (json.RawMessage, error) {
 	return body, nil
 }
 
-type AsyncJobRepo struct{ db *gorm.DB }
+type AsyncJobRepo struct {
+	db         *gorm.DB
+	activeOnly bool
+}
 
 func NewAsyncJobRepo(in any) *AsyncJobRepo { return &AsyncJobRepo{db: GetCommonConn(in)} }
+
+// ActiveOnly prevents a delayed worker from overwriting a completed job on redelivery.
+func (r *AsyncJobRepo) ActiveOnly() *AsyncJobRepo {
+	return &AsyncJobRepo{db: r.db.Where("status IN ?", []string{AsyncJobStatusPending, AsyncJobStatusRunning}), activeOnly: true}
+}
+
+// GetAsyncJobForUpdate serializes result checkpoints from independent workers.
+func (r *AsyncJobRepo) GetAsyncJobForUpdate(ctx context.Context, jobKey string) (AsyncJob, error) {
+	var job AsyncJob
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("job_key = ?", jobKey).Take(&job).Error
+	return job, err
+}
+
+func (r *AsyncJobRepo) UpdateAsyncJobResult(ctx context.Context, jobKey string, progress int, result any) error {
+	body, err := marshalAsyncJobJSON(result)
+	if err != nil {
+		return err
+	}
+	return r.updateAsyncJob(ctx, jobKey, touchValues(map[string]any{"progress": max(0, min(progress, 99)), "result_json": body}, repoNowMilli()))
+}

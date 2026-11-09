@@ -1,6 +1,6 @@
 import { ProTable } from '@/components';
 import type { ProTableColumns } from '@/components/pro-table/types';
-import { Star } from '@/components/lucide-icon/carbon';
+import { Pin } from '@/components/lucide-icon/carbon';
 import { useTranslate } from '@/hooks';
 import type { App } from '@/pages/launchpad/type';
 import { formatTimestamp } from '@/utils/format';
@@ -13,35 +13,40 @@ import styles from './LaunchpadTable.module.scss';
 interface AppTableProps {
   apps: App[];
   onAppClick: (app: App) => void | Promise<void>;
-  isAppFavorite: (id: string | number) => boolean;
-  onToggleFavorite: (app: App) => void;
+  isAppPinned: (id: string | number) => boolean;
+  onTogglePin: (app: App) => void;
   /** 搜索关键词，用于应用名命中高亮 */
   keyword?: string;
 }
 
-const AppTable: FC<AppTableProps> = ({ apps, onAppClick, isAppFavorite, onToggleFavorite, keyword }) => {
+const AppTable: FC<AppTableProps> = ({ apps, onAppClick, isAppPinned, onTogglePin, keyword }) => {
   const formatMessage = useTranslate();
 
   const columns: ProTableColumns<App> = [
     {
       title: '',
-      dataIndex: 'isFavorite',
+      dataIndex: 'isPinned',
       width: 28,
       maxWidth: 28,
       align: 'center',
       render: (_: unknown, record: App) => {
-        const favorite = isAppFavorite(record.appId);
+        const pinned = isAppPinned(record.appId);
         return (
           <button
             type="button"
-            className={classNames(styles.starButton, favorite && styles.starActive)}
-            aria-label={favorite ? 'Remove favorite' : 'Add favorite'}
+            className={classNames(
+              styles.pinButton,
+              'ui-pin-button',
+              pinned && styles.pinActive,
+              pinned && 'ui-pin-button-active'
+            )}
+            aria-label={pinned ? 'Unpin' : 'Pin'}
             onClick={(event) => {
               event.stopPropagation();
-              onToggleFavorite(record);
+              onTogglePin(record);
             }}
           >
-            <Star size={16} />
+            <Pin size={16} />
           </button>
         );
       },
@@ -81,6 +86,7 @@ const AppTable: FC<AppTableProps> = ({ apps, onAppClick, isAppFavorite, onToggle
         onClick: () => onAppClick(record),
         style: { cursor: 'pointer' },
       })}
+      rowNavigationColumnKey="appName"
     />
   );
 };

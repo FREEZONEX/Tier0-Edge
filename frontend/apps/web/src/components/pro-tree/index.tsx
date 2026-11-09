@@ -40,6 +40,7 @@ const ProTree = forwardRef<ProTreeRef, ProTreeProps>((props, ref) => {
     titleRender,
     treeNodeIcon,
     treeNodeExtra,
+    treeNodePersistentExtra,
     treeNodeCount,
     treeNodeClassName,
     loading,
@@ -106,7 +107,10 @@ const ProTree = forwardRef<ProTreeRef, ProTreeProps>((props, ref) => {
     const _title = titleRender ? titleRender?.(node) : title;
     const Icon = typeof treeNodeIcon === 'function' ? treeNodeIcon(node) : treeNodeIcon;
     const Extra = typeof treeNodeExtra === 'function' ? treeNodeExtra(node) : treeNodeExtra;
+    const PersistentExtra =
+      typeof treeNodePersistentExtra === 'function' ? treeNodePersistentExtra(node) : treeNodePersistentExtra;
     const Count = typeof treeNodeCount === 'function' ? treeNodeCount(node) : treeNodeCount;
+    const nodeClassName = typeof treeNodeClassName === 'function' ? treeNodeClassName(node) : treeNodeClassName;
     const titleStyle = typeof renderTitleStyle === 'function' ? renderTitleStyle(node) : renderTitleStyle;
     if (node.isLoadMoreNode && loadMoreData && lazy) {
       loadMoreData?.(node);
@@ -129,7 +133,7 @@ const ProTree = forwardRef<ProTreeRef, ProTreeProps>((props, ref) => {
           drapOverChanges={drapOverChanges}
           draggable={dndDraggable}
         >
-          <Flex className={cx('treeNodeClassName', 'custom-tree-node')} align="center" gap={8}>
+          <Flex className={cx('treeNodeClassName', 'custom-tree-node', nodeClassName)} align="center" gap={8}>
             <Flex style={{ height: '32px', flex: 1, overflow: 'hidden' }} align="center" gap={8}>
               <Flex
                 style={{
@@ -146,6 +150,7 @@ const ProTree = forwardRef<ProTreeRef, ProTreeProps>((props, ref) => {
                 </div>
               </Flex>
             </Flex>
+            {PersistentExtra && <div className="custom-tree-node-persistent-extra">{PersistentExtra}</div>}
             {Extra && <div className="custom-tree-node-extra">{Extra}</div>}
           </Flex>
         </SortableTreeNode>
@@ -159,10 +164,11 @@ const ProTree = forwardRef<ProTreeRef, ProTreeProps>((props, ref) => {
         drapOverChanges={drapOverChanges}
         draggable={dndDraggable}
       >
-        <div className={treeNodeClassName}>
+        <div className={nodeClassName}>
           {Icon}
           {Dom}
           {Count}
+          {PersistentExtra}
           {Extra}
         </div>
       </SortableTreeNode>

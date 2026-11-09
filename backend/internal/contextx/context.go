@@ -2,17 +2,35 @@ package contextx
 
 import "context"
 
+// FleetTaskSubject is populated only by the Fleet authentication middleware.
+// It grants no local user identity, role, or administrator permissions.
+type FleetTaskSubject struct {
+	Automatic     bool
+	NodeID        string
+	Scope         string
+	ResourceID    string
+	GrantID       string
+	GrantRevision int64
+}
+
 type Subject struct {
-	UserID       int64
-	UserName     string
-	Email        string
-	AuthType     string
-	APIKeyID     int64
-	APIKeyName   string
-	APIKeyPrefix string
-	KeyType      string
-	ResourceKeys map[string]struct{}
-	UIActions    []string
+	FleetTask        *FleetTaskSubject
+	UserID           int64
+	UserName         string
+	Email            string
+	AuthType         string
+	APIKeyID         int64
+	APIKeyName       string
+	APIKeyPrefix     string
+	APIKeyAppID      string
+	APIKeyUsageType  string
+	KeyType          string
+	APIKeyPermission string
+	MCPRestricted    bool     `json:"mcpRestricted,omitempty"`
+	MCPScopes        []string `json:"mcpScopes,omitempty"`
+	MCPGrantID       string   `json:"mcpGrantId,omitempty"`
+	ResourceKeys     map[string]struct{}
+	UIActions        []string
 }
 
 type subjectKey struct{}

@@ -13,6 +13,7 @@ import {
   Tabs,
 } from 'antd';
 import { useTranslate } from '@/hooks';
+import { productName } from '@/utils/product-edition';
 import ComSelect from '../com-select';
 import ProModal from '../pro-modal';
 import { setHomePageApi, updateCurrentUserProfile, userResetPwd } from '@/apis/core-api/user-manage';
@@ -28,15 +29,14 @@ import { updatePersonConfigApi } from '@/apis/core-api/uns';
 import { logoutApi } from '@/apis/core-api/auth';
 import { initI18n, useI18nStore } from '@/stores/i18n-store.ts';
 import { preloadPluginLang } from '@/utils/plugin.ts';
-import { copyToClipboard } from '@/utils/common';
-import { queryLicenseStatus, replaceLicenseKey, queryIdentity, type LicenseStatusResp } from '@/apis/core-api/license';
-import { Copy } from '@/components/lucide-icon/carbon';
 import { Contrast, Globe, LogOut, Settings2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import HomePageSelect from '@/components/home-page-select';
 import { resolveProductVersion } from '@/utils/product-version';
+import { beginLaunchpadExplicitLogout, withLaunchpadStandaloneQuery } from '@/utils/launchpad-site';
 
 const logout = (path?: string) => {
+  beginLaunchpadExplicitLogout();
   logoutApi().then(() => {
     removeToken();
     Cookies.remove(OMC_MODEL, { path: '/' });
@@ -46,7 +46,7 @@ const logout = (path?: string) => {
     storageOpt.remove(APP_USER_TIPS_ENABLE);
     // 清空
     storageOpt.remove('personInfo');
-    location.href = path || LOGIN_URL;
+    window.location.replace(path || LOGIN_URL);
   });
 };
 
@@ -120,24 +120,16 @@ const UserPopover: FC<PopoverProps> = ({ children, ...restProps }) => {
   const [form1] = Form.useForm();
   const [form2] = Form.useForm();
   const [form3] = Form.useForm();
-  const [form4] = Form.useForm();
-  // License 状态
-  const [licenseInfo, setLicenseInfo] = useState<{
-    licenseKey?: string;
-    status?: 'active' | 'expiring_soon' | 'expired' | 'unknown';
-    validUntil?: string;
-    daysRemaining?: number;
-  }>({});
-  const [licenseLoading, setLicenseLoading] = useState(false);
-  const [isEditingLicense, setIsEditingLicense] = useState(false);
-  const [licenseDeviceToken, setLicenseDeviceToken] = useState('');
   const { message } = App.useApp();
 
   const toggleTheme = (v: string) => {
     setTheme(v as ThemeType);
   };
   const name = currentUserInfo.firstName || currentUserInfo.preferredUsername;
-  const version = `v${resolveProductVersion(systemInfo)}`;
+  const version = formatMessage('common.productVersionLabel', {
+    product: productName(systemInfo),
+    version: resolveProductVersion(systemInfo),
+  });
   const userContent = (
     <div className="userPopoverWrap">
       <div className="userAvatar">{name?.slice(0, 1)?.toLocaleUpperCase()}</div>
@@ -260,7 +252,7 @@ const UserPopover: FC<PopoverProps> = ({ children, ...restProps }) => {
             key: 'setting',
             onClick: () => {
               setPopoverOpen(false);
-              navigate('/settings/profile');
+              navigate(withLaunchpadStandaloneQuery('/settings/profile'));
             },
           },
           {
@@ -328,150 +320,12 @@ const UserPopover: FC<PopoverProps> = ({ children, ...restProps }) => {
     }
   };
 
-  // 获取 License 状态
-  const fetchLicenseStatus = async () => {
-    setLicenseLoading(true);
-    try {
-      const data: LicenseStatusResp = await queryLicenseStatus();
-      const phase = data?.phase;
-      const isActivated = data?.activated;
-      let status: 'active' | 'expiring_soon' | 'expired' | 'unknown' = 'unknown';
-      if (!isActivated || phase === 'none') {
-        status = 'unknown';
-      } else if (phase === 'warning') {
-        status = 'expiring_soon';
-      } else if (phase === 'grace' || phase === 'hard_expired') {
-        status = 'expired';
-      } else {
-        status = 'active';
-      }
-
-      setLicenseInfo({
-        licenseKey: data?.licenseKey,
-        validUntil: data?.expireAt,
-        daysRemaining: data?.daysLeft,
-        status,
-      });
-    } catch (error) {
-      console.error('Failed to fetch license status:', error);
-    } finally {
-      setLicenseLoading(false);
-    }
-  };
-
-  // 获取设备标识
-  const fetchDeviceToken = async () => {
-    try {
-      const resp = await queryIdentity();
-      if (resp?.device_token) {
-        setLicenseDeviceToken(resp.device_token);
-      }
-    } catch (error) {
-      console.error('Failed to fetch device token:', error);
-    }
-  };
-
-  const resolveUpdateLicenseKeyErrorMessage = (rawMessage?: string) => {
-    const messageText = (rawMessage || '').trim();
-    if (!messageText) {
-      return formatMessage('license.updateLicenseKeyFailed');
-    }
-
-    // license.error.* 开头的 key 直接走 i18n 翻译
-    if (messageText.startsWith('license.error.')) {
-      return formatMessage(messageText, {}, messageText);
-    }
-
-    const normalized = messageText.toLowerCase();
-    if (
-      messageText.includes('License激活被服务端拒绝') ||
-      messageText.includes('License 激活被服务端拒绝') ||
-      messageText.includes('许可证密钥未通过服务端校验') ||
-      normalized.includes('license activation rejected by server') ||
-      normalized.includes('license key was rejected by the server')
-    ) {
-      return formatMessage('license.updateLicenseKeyRejectedDetail');
-    }
-    if (
-      messageText.includes('许可证密钥无效') ||
-      normalized.includes('this license key is invalid') ||
-      normalized.includes('license key not found on cloud server')
-    ) {
-      return formatMessage('license.invalidLicenseKey');
-    }
-    if (
-      messageText.includes('许可证已被禁用') ||
-      messageText.includes('该许可证已被禁用') ||
-      normalized.includes('license has been disabled') ||
-      normalized.includes('this license has been disabled')
-    ) {
-      return formatMessage('license.disabledLicenseKey');
-    }
-
-    return messageText;
-  };
-
-  // 更新 License Key
-  const onSave4 = async () => {
-    const info = await form4.validateFields();
-    setLicenseLoading(true);
-    try {
-      await replaceLicenseKey(info.licenseKey);
-      message.success(formatMessage('license.updateLicenseKeySuccess'));
-      setIsEditingLicense(false);
-      fetchLicenseStatus();
-    } catch (error: any) {
-      console.error('Failed to update license key:', error);
-      message.error(resolveUpdateLicenseKeyErrorMessage(error?.msg));
-    } finally {
-      setLicenseLoading(false);
-    }
-  };
-
-  // 获取状态颜色和文本
-  const getLicenseStatusInfo = (status?: string) => {
-    switch (status) {
-      case 'active':
-        return {
-          color: '#52c41a',
-          bgColor: '#f6ffed',
-          borderColor: '#b7eb8f',
-          text: formatMessage('license.status.active'),
-        };
-      case 'expiring_soon':
-        return {
-          color: '#faad14',
-          bgColor: '#fffbe6',
-          borderColor: '#ffe58f',
-          text: formatMessage('license.status.expiring'),
-        };
-      case 'expired':
-        return {
-          color: '#ff4d4f',
-          bgColor: '#fff2f0',
-          borderColor: '#ffccc7',
-          text: formatMessage('license.status.expired'),
-        };
-      default:
-        return {
-          color: '#d9d9d9',
-          bgColor: '#fafafa',
-          borderColor: 'var(--ui-line-color)',
-          text: formatMessage('license.status.unknown'),
-        };
-    }
-  };
-
   useEffect(() => {
     if (open) {
       // 更新路由
       fetchBaseStore?.().then(() => {
         form3.setFieldValue('homePage', currentUserInfo?.homePage);
       });
-      // 获取 License 状态和设备标识
-      // Keep the hidden callbacks type-checked without contacting Enterprise-only endpoints.
-      void fetchLicenseStatus;
-      void fetchDeviceToken;
     }
   }, [open]);
 
@@ -645,126 +499,6 @@ const UserPopover: FC<PopoverProps> = ({ children, ...restProps }) => {
         </Form>
       ),
     },
-    {
-      label: formatMessage('common.license'),
-      key: 4,
-      children: (
-        <Flex style={{ minHeight: 300 }} vertical>
-          <Form form={form4} layout="vertical" style={{ flex: 1 }}>
-            {/* License Key */}
-            <Form.Item label={formatMessage('license.licenseKey')}>
-              {isEditingLicense ? (
-                <Form.Item
-                  name="licenseKey"
-                  rules={[{ required: true, message: formatMessage('rule.required') }]}
-                  style={{ marginBottom: 0 }}
-                >
-                  <Input placeholder={formatMessage('license.enterLicenseKey')} />
-                </Form.Item>
-              ) : (
-                <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>
-                  {(() => {
-                    if (!licenseInfo.licenseKey) return '----';
-                    if (licenseInfo.licenseKey.includes('*')) return licenseInfo.licenseKey;
-                    if (licenseInfo.licenseKey.length <= 8) return licenseInfo.licenseKey;
-                    return `${licenseInfo.licenseKey.slice(0, 5)}****${licenseInfo.licenseKey.slice(-4)}`;
-                  })()}
-                </span>
-              )}
-            </Form.Item>
-
-            {/* Status */}
-            <Form.Item label={formatMessage('common.status')}>
-              {(() => {
-                const statusInfo = getLicenseStatusInfo(licenseInfo.status);
-                return (
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      backgroundColor: statusInfo.bgColor,
-                      border: `1px solid ${statusInfo.borderColor}`,
-                      color: statusInfo.color,
-                      fontSize: 12,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        backgroundColor: statusInfo.color,
-                      }}
-                    />
-                    {statusInfo.text}
-                  </span>
-                );
-              })()}
-            </Form.Item>
-
-            {/* Valid Until */}
-            <Form.Item label={formatMessage('license.validUntil')}>
-              <span>{licenseInfo.validUntil || '----'}</span>
-            </Form.Item>
-
-            {/* Device Token */}
-            <Form.Item label={formatMessage('license.deviceToken')}>
-              <Flex gap={8} align="center">
-                <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{licenseDeviceToken || '----'}</span>
-                {licenseDeviceToken && (
-                  <Copy
-                    size={14}
-                    style={{ cursor: 'pointer', color: 'var(--ui-theme-color)', flexShrink: 0 }}
-                    onClick={() => {
-                      copyToClipboard(licenseDeviceToken, (success) => {
-                        if (success) {
-                          message.success(formatMessage('license.copySuccess'));
-                        } else {
-                          message.error(formatMessage('common.copyFail'));
-                        }
-                      });
-                    }}
-                  />
-                )}
-              </Flex>
-            </Form.Item>
-          </Form>
-
-          {/* Action Button */}
-          {isEditingLicense ? (
-            <Flex gap={8} wrap="wrap" style={{ marginTop: 8 }}>
-              <Button
-                onClick={() => {
-                  setIsEditingLicense(false);
-                  form4.resetFields();
-                }}
-                style={{ height: 32, flex: '1 1 96px', minWidth: 0 }}
-              >
-                {formatMessage('common.cancel')}
-              </Button>
-              <Button
-                onClick={onSave4}
-                style={{ height: 32, flex: '1 1 96px', minWidth: 0 }}
-                type="primary"
-                loading={licenseLoading}
-              >
-                {formatMessage('common.save')}
-              </Button>
-            </Flex>
-          ) : (
-            <Button
-              onClick={() => setIsEditingLicense(true)}
-              style={{ height: 32, color: 'var(--ui-theme-color)', border: '1px solid var(--ui-theme-color)' }}
-            >
-              {formatMessage('license.changeLicenseKey')}
-            </Button>
-          )}
-        </Flex>
-      ),
-    },
   ];
   return (
     <>
@@ -800,7 +534,7 @@ const UserPopover: FC<PopoverProps> = ({ children, ...restProps }) => {
             },
           }}
         >
-          <Tabs tabPosition="left" items={items.filter((item) => item.key !== 4).map((item) => ({ ...item, forceRender: true }))} />
+          <Tabs tabPosition="left" items={items.map((item) => ({ ...item, forceRender: true }))} />
 
           {/*<Divider*/}
           {/*  style={{*/}

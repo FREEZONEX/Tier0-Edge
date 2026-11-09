@@ -53,7 +53,6 @@ export type TreeStoreState = {
   smallFile: boolean;
   filePath?: string;
   params?: any;
-  tabType: 'uns' | 'others';
 };
 
 export type TreeStoreActions = {
@@ -79,7 +78,6 @@ export type TreeStoreActions = {
   setCheckedKeys: (newCheckedKeys: ((checkedKeys: Key[]) => Key[] | void) | Key[]) => void;
   setLoading: (value: TreeStoreState['loading']) => void;
   setJsonData: (value: TreeStoreState['jsonData']) => void;
-  setTabType: (value: TreeStoreState['tabType']) => void;
   setParams: (value: TreeStoreState['params']) => void;
   setFilePath: (value: TreeStoreState['filePath']) => void;
   setSmallFile: (value: TreeStoreState['smallFile']) => void;
@@ -130,7 +128,6 @@ const initialState = {
   checkedKeys: [],
   lazyTree: false,
   smallFile: true,
-  tabType: 'uns' as const,
 };
 
 // 根节点的特殊ID
@@ -292,7 +289,6 @@ const createTreeStore = (initProps?: Partial<TreeStoreProps>) => {
       setJsonData: (jsonData) => set({ jsonData }),
       setFilePath: (filePath) => set({ filePath }),
       setSmallFile: (smallFile) => set({ smallFile }),
-      setTabType: (tabType) => set({ tabType }),
       setCheckedKeys: (next) =>
         set((state) => {
           if (typeof next === 'function') {

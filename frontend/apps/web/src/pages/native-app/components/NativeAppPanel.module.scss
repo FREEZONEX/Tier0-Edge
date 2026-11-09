@@ -1,0 +1,125 @@
+.panel {
+  min-width: 0;
+}
+
+.stack,
+.grants {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.manager-content {
+  padding: 0 24px 24px;
+}
+
+.stream-policy {
+  border-top: 1px solid var(--ui-border-color);
+  margin-top: 8px;
+  padding-top: 16px;
+}
+
+.request-target {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  > span:first-child {
+    flex: 1;
+    min-width: 160px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.grant-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr auto;
+  gap: 8px;
+}
+
+.bundle {
+  border: 1px solid var(--ui-border-color);
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.job {
+  padding: 16px;
+  border: 1px solid var(--ui-border-color);
+  margin-bottom: 16px;
+}
+
+.logs {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  background: var(--ui-bg-color);
+  color: var(--ui-text-color);
+  padding: 12px;
+}
+
+@media (width <= 800px) {
+  .grant-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-block: 16px;
+
+  > :global(.ant-input-affix-wrapper) {
+    width: min(280px, 100%);
+  }
+}
+
+.neutralStatus {
+  color: var(--ui-description-card-color);
+  background: var(--ui-fill-secondary);
+}
+
+.catalogCard {
+  position: relative;
+  cursor: default;
+
+  &:focus-within {
+    border-color: var(--ui-theme-color);
+  }
+}
+
+.cardLink {
+  color: inherit;
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+  }
+}
+
+.cardActions {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cardActions,
+.rowActions {
+  button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+@media (hover: none) {
+  .panel .rowActions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

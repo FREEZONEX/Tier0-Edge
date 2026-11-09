@@ -1,0 +1,19 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core
+    group: core/mcp
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @doc(
+        summary: "当前实例 MCP 接入信息"
+        description: "实际入口、传输、认证、可用范围与版本；不代表客户端已连接"
+        authType: "admin"
+        resource: "apikey"
+        action: "view"
+        group: "core/mcp"
+    )
+    @handler McpInfo
+    get /mcp/info returns (Envelope)
+}

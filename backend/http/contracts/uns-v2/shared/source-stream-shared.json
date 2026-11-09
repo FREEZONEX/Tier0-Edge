@@ -1,0 +1,2194 @@
+{
+  "provenance": {
+    "repository": "FREEZONEX/Tier0-Enterprise-New",
+    "revision": "23388b2d04b692ebb798fabc89c15541d952a092",
+    "path": "backend/internal/domain/unsv2/contract_generated.go",
+    "sha256": "ef0207033e2e27de102c76182600b08db413e2decafaa3c3d94bdd17feaa70ab"
+  },
+  "schemas": {
+    "SourceDefinition": {
+      "additionalProperties": false,
+      "description": "Unified Source connection. Choose the matching protocol object; edge-sql uses one of sql.query (preset) or sql.queries (named). Query the target protocol catalog for installed execution, TLS and state capabilities.",
+      "properties": {
+        "credentialRef": {
+          "description": "Opaque existing credential reference returned for authorized editing and accepted on input. It contains no secret. Provision secrets only through create.credentials or credentials/update; secret material is never returned in the document.",
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "endpoint": {
+          "description": "Protocol connection address or a discovered native device key. Never include credentials in the address. Managed server roles use the target-defined managed endpoint.",
+          "type": "string"
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "tls": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "caRef": {
+                  "type": "string"
+                },
+                "clientIdentityRef": {
+                  "type": "string"
+                }
+              },
+              "description": "Target-managed TLS references. Targets without reference resolution must explicitly report unsupported. Prefer protocol caCertificate for public CA material; private keys belong in credentials.values."
+            },
+            "ingress": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "mqtt-device"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "description": "Managed MQTT device ingress allocation. Requires mqtt protocol and server role; targets without this capability must reject it as unsupported, never ignore it."
+            }
+          }
+        },
+        "file": {
+          "$ref": "#/components/schemas/FileSourceOptions"
+        },
+        "http": {
+          "$ref": "#/components/schemas/HTTPConnection"
+        },
+        "modbus": {
+          "$ref": "#/components/schemas/ModbusOptions"
+        },
+        "mqtt": {
+          "$ref": "#/components/schemas/MQTTOptions"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63
+        },
+        "opcua": {
+          "$ref": "#/components/schemas/OPCUAOptions"
+        },
+        "openProtocol": {
+          "$ref": "#/components/schemas/OpenProtocolOptions"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "http-api",
+            "oauth2",
+            "mqtt",
+            "opcua",
+            "modbus-tcp",
+            "usb-hid",
+            "file-read",
+            "edge-sql",
+            "open-protocol"
+          ]
+        },
+        "role": {
+          "default": "client",
+          "enum": [
+            "client",
+            "server"
+          ],
+          "type": "string"
+        },
+        "runtimeLocation": {
+          "default": "local",
+          "enum": [
+            "local"
+          ],
+          "type": "string"
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "sql": {
+          "$ref": "#/components/schemas/SQLConnection"
+        }
+      },
+      "required": [
+        "endpoint",
+        "protocol"
+      ],
+      "type": "object",
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "file-read"
+                  ]
+                }
+              },
+              "required": [
+                "file"
+              ]
+            },
+            {
+              "properties": {
+                "protocol": {
+                  "not": {
+                    "enum": [
+                      "file-read"
+                    ]
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "edge-sql"
+                  ]
+                }
+              },
+              "required": [
+                "sql"
+              ]
+            },
+            {
+              "properties": {
+                "protocol": {
+                  "not": {
+                    "enum": [
+                      "edge-sql"
+                    ]
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "sql"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "open-protocol"
+                  ]
+                }
+              },
+              "required": [
+                "openProtocol"
+              ]
+            },
+            {
+              "properties": {
+                "protocol": {
+                  "not": {
+                    "enum": [
+                      "open-protocol"
+                    ]
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "openProtocol"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "teamcenter"
+              }
+            },
+            "required": [
+              "sourceType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "properties": {
+                  "parameters": {
+                    "properties": {
+                      "fileSelections": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "items": {
+                          "$ref": "#/components/schemas/TeamcenterFileSelection"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "salesforce"
+              }
+            },
+            "required": [
+              "sourceType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "properties": {
+                  "parameters": {
+                    "properties": {
+                      "salesforceQueries": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "items": {
+                          "$ref": "#/components/schemas/SalesforceQueryDeclaration"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "http-api"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "http"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "oauth2"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "http"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "mqtt"
+              }
+            },
+            "required": [
+              "protocol"
+            ],
+            "not": {
+              "required": [
+                "extensions"
+              ],
+              "properties": {
+                "extensions": {
+                  "required": [
+                    "ingress"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mqtt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "opcua"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "opcua"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "modbus-tcp"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "modbus"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "http-api"
+              }
+            },
+            "required": [
+              "protocol"
+            ],
+            "not": {
+              "properties": {
+                "role": {
+                  "const": "server"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "required": [
+                  "authentication"
+                ],
+                "properties": {
+                  "authentication": {
+                    "enum": [
+                      "none",
+                      "basic",
+                      "bearer",
+                      "custom",
+                      "http"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "oauth2"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "required": [
+                  "oauth"
+                ],
+                "properties": {
+                  "authentication": {
+                    "enum": [
+                      ""
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "mqtt"
+              }
+            },
+            "required": [
+              "protocol"
+            ],
+            "not": {
+              "properties": {
+                "role": {
+                  "const": "server"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "mqtt": {
+                "required": [
+                  "clientId"
+                ],
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "extensions"
+            ],
+            "properties": {
+              "extensions": {
+                "required": [
+                  "ingress"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "protocol",
+              "role"
+            ],
+            "properties": {
+              "protocol": {
+                "const": "mqtt"
+              },
+              "role": {
+                "const": "server"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "FileSourceOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "caCertificate": {
+          "type": "string"
+        },
+        "directories": {
+          "items": {
+            "$ref": "#/components/schemas/FileDirectory"
+          },
+          "type": "array",
+          "maxItems": 128
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/components/schemas/FileSelection"
+          },
+          "type": "array",
+          "maxItems": 128
+        },
+        "sshHostKey": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "resources"
+          ],
+          "properties": {
+            "resources": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "directories"
+          ],
+          "properties": {
+            "directories": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    },
+    "FileDirectory": {
+      "additionalProperties": false,
+      "properties": {
+        "extensions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "bytes",
+            "edifact"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "User-declared logical resource selection name within this Source, not a database Source ID or asset file ID. Reuse the same selection name for stable resource identity."
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "extensions",
+        "format"
+      ],
+      "type": "object"
+    },
+    "FileSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User-declared logical resource selection name within this Source, not a database Source ID or asset file ID. Reuse the same selection name for stable resource identity."
+        },
+        "path": {
+          "type": "string"
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "T_JYD",
+              "T_JYD_MX",
+              "T_YHB"
+            ]
+          },
+          "uniqueItems": true,
+          "description": "Omit for a byte resource, or select QC2000 tables from a SQLite snapshot."
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "type": "object"
+    },
+    "HTTPConnection": {
+      "additionalProperties": false,
+      "properties": {
+        "anonymous": {
+          "type": "boolean"
+        },
+        "authentication": {
+          "type": "string"
+        },
+        "caCertificate": {
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "oauth": {
+          "$ref": "#/components/schemas/OAuthConfig"
+        },
+        "parameters": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "port": {
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "OAuthConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "authorizationUrl": {
+          "type": "string"
+        },
+        "clientAuthentication": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "grantType": {
+          "type": "string"
+        },
+        "scopes": {
+          "type": "string"
+        },
+        "tokenUrl": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tokenUrl",
+        "clientId",
+        "clientAuthentication"
+      ],
+      "type": "object"
+    },
+    "ModbusOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "pollIntervalMs": {
+          "type": "integer"
+        },
+        "ranges": {
+          "items": {
+            "$ref": "#/components/schemas/ModbusRange"
+          },
+          "type": "array"
+        },
+        "unitId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 247,
+          "default": 1
+        }
+      },
+      "required": [
+        "unitId"
+      ],
+      "type": "object"
+    },
+    "ModbusRange": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string",
+          "description": "对象 ID（字符串），从发现或读取接口取得；不要把名称当成 ID。"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "table": {
+          "type": "string"
+        },
+        "unitId": {
+          "type": "integer"
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "table",
+        "address",
+        "quantity"
+      ],
+      "type": "object"
+    },
+    "MQTTOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "caCertificate": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "correlationField": {
+          "type": "string"
+        },
+        "packetEnvelope": {
+          "type": "boolean"
+        },
+        "qos": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "replyTopic": {
+          "type": "string"
+        },
+        "replyTopicField": {
+          "type": "string"
+        },
+        "requestTopic": {
+          "type": "string"
+        },
+        "serverSubscribeTopics": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "subscriptions": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "topicFilters": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "devicePublishTopics": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Managed server logical topic filters; availability and the combined topic budget are defined by the target protocol catalog."
+        },
+        "deviceSubscribeTopics": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Managed server logical topic filters; availability and the combined topic budget are defined by the target protocol catalog."
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "OPCUAOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "samplingIntervalMs": {
+          "type": "integer"
+        },
+        "securityMode": {
+          "type": "string"
+        },
+        "securityPolicy": {
+          "type": "string"
+        },
+        "serverCertificate": {
+          "type": "string"
+        },
+        "serverNodes": {
+          "items": {
+            "$ref": "#/components/schemas/OPCUAServerNode"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "securityMode",
+        "securityPolicy"
+      ],
+      "type": "object"
+    },
+    "OPCUAServerNode": {
+      "additionalProperties": false,
+      "properties": {
+        "dataType": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "description": "对象 ID（字符串），从发现或读取接口取得；不要把名称当成 ID。"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeClass": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "nodeClass",
+        "dataType",
+        "direction"
+      ],
+      "type": "object"
+    },
+    "OpenProtocolOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "bufferLimit": {
+          "type": "integer"
+        },
+        "cellId": {
+          "type": "integer"
+        },
+        "channelId": {
+          "type": "integer"
+        },
+        "controllerName": {
+          "type": "string"
+        },
+        "historyEndId": {
+          "type": "integer"
+        },
+        "historyStartId": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "controllerName",
+        "cellId",
+        "channelId"
+      ],
+      "type": "object"
+    },
+    "SQLConnection": {
+      "additionalProperties": false,
+      "properties": {
+        "caCertificate": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string",
+          "enum": [
+            "sql:tool-inventory",
+            "sql:tool-loans",
+            "sql:tool-sharpenings",
+            "sql:tool-suppliers",
+            "sql:wms-schema",
+            "sql:wms-inventory",
+            "sql:wms-movements",
+            "sql:quality-inspections"
+          ],
+          "description": "Preset approved business SELECT, supported on Cloud and Enterprise. Tool/WMS presets require PostgreSQL; quality-inspections requires SQL Server. Fixed reads support keyset scan; verify-full TLS is required. Query and queries are mutually exclusive."
+        },
+        "wms": {
+          "$ref": "#/components/schemas/WMSMapping"
+        },
+        "queries": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 64,
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32768
+          },
+          "description": "Source-owned named queries on Cloud and Enterprise; never override SQL in Stream acquisition. PostgreSQL/MySQL use read-only transactions and bounded read. SQL Server has no public preview or live-query dryRun; explicitly authorized Stream execution is potentially writing and uses effect journaling. No named-query scan. limit 1..100; timeoutMs 100..10000."
+        },
+        "tlsMode": {
+          "type": "string",
+          "enum": [
+            "verify-full",
+            "disable"
+          ]
+        }
+      },
+      "type": "object",
+      "oneOf": [
+        {
+          "required": [
+            "query"
+          ],
+          "not": {
+            "required": [
+              "queries"
+            ]
+          }
+        },
+        {
+          "required": [
+            "queries"
+          ],
+          "not": {
+            "required": [
+              "query"
+            ]
+          }
+        }
+      ]
+    },
+    "WMSMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "keyColumn": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "table",
+        "fields",
+        "keyColumn"
+      ],
+      "type": "object"
+    },
+    "TeamcenterFileSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "datasetUid": {
+          "type": "string"
+        },
+        "fileUid": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "description": "对象 ID（字符串），从发现或读取接口取得；不要把名称当成 ID。"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "itemUid": {
+          "type": "string"
+        },
+        "queryUid": {
+          "type": "string"
+        },
+        "revisionUid": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "queryUid",
+        "itemId",
+        "itemUid",
+        "revisionUid",
+        "datasetUid",
+        "fileUid"
+      ],
+      "type": "object"
+    },
+    "SalesforceQueryDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "cdc": {
+          "type": "boolean"
+        },
+        "end": {
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string",
+          "description": "对象 ID（字符串），从发现或读取接口取得；不要把名称当成 ID。"
+        },
+        "object": {
+          "type": "string"
+        },
+        "queryAll": {
+          "type": "boolean"
+        },
+        "start": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "object",
+        "fields",
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "NativeSourceDocument": {
+      "additionalProperties": false,
+      "description": "Unified Source connection. Choose the matching protocol object; edge-sql uses one of sql.query (preset) or sql.queries (named). Query the target protocol catalog for installed execution, TLS and state capabilities.",
+      "properties": {
+        "credentialRef": {
+          "description": "Opaque existing credential reference returned for authorized editing and accepted on input. It contains no secret. Provision secrets only through create.credentials or credentials/update; secret material is never returned in the document.",
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "endpoint": {
+          "description": "Protocol connection address or a discovered native device key. Never include credentials in the address. Managed server roles use the target-defined managed endpoint.",
+          "type": "string"
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "tls": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "caRef": {
+                  "type": "string"
+                },
+                "clientIdentityRef": {
+                  "type": "string"
+                }
+              },
+              "description": "Target-managed TLS references. Targets without reference resolution must explicitly report unsupported. Prefer protocol caCertificate for public CA material; private keys belong in credentials.values."
+            },
+            "ingress": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "mqtt-device"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "description": "Managed MQTT device ingress allocation. Requires mqtt protocol and server role; targets without this capability must reject it as unsupported, never ignore it."
+            }
+          }
+        },
+        "file": {
+          "$ref": "#/components/schemas/FileSourceOptions"
+        },
+        "http": {
+          "$ref": "#/components/schemas/HTTPConnection"
+        },
+        "modbus": {
+          "$ref": "#/components/schemas/ModbusOptions"
+        },
+        "mqtt": {
+          "$ref": "#/components/schemas/MQTTOptions"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63
+        },
+        "opcua": {
+          "$ref": "#/components/schemas/OPCUAOptions"
+        },
+        "openProtocol": {
+          "$ref": "#/components/schemas/OpenProtocolOptions"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "http-api",
+            "oauth2",
+            "mqtt",
+            "opcua",
+            "modbus-tcp",
+            "usb-hid",
+            "file-read",
+            "edge-sql",
+            "open-protocol"
+          ]
+        },
+        "role": {
+          "default": "client",
+          "enum": [
+            "client",
+            "server"
+          ],
+          "type": "string"
+        },
+        "runtimeLocation": {
+          "default": "local",
+          "enum": [
+            "local"
+          ],
+          "type": "string"
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "sql": {
+          "$ref": "#/components/schemas/SQLConnection"
+        }
+      },
+      "required": [
+        "endpoint",
+        "protocol"
+      ],
+      "type": "object",
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "file-read"
+                  ]
+                }
+              },
+              "required": [
+                "file"
+              ]
+            },
+            {
+              "properties": {
+                "protocol": {
+                  "not": {
+                    "enum": [
+                      "file-read"
+                    ]
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "edge-sql"
+                  ]
+                }
+              },
+              "required": [
+                "sql"
+              ]
+            },
+            {
+              "properties": {
+                "protocol": {
+                  "not": {
+                    "enum": [
+                      "edge-sql"
+                    ]
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "sql"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "open-protocol"
+                  ]
+                }
+              },
+              "required": [
+                "openProtocol"
+              ]
+            },
+            {
+              "properties": {
+                "protocol": {
+                  "not": {
+                    "enum": [
+                      "open-protocol"
+                    ]
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "openProtocol"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "teamcenter"
+              }
+            },
+            "required": [
+              "sourceType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "properties": {
+                  "parameters": {
+                    "properties": {
+                      "fileSelections": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "items": {
+                          "$ref": "#/components/schemas/TeamcenterFileSelection"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "salesforce"
+              }
+            },
+            "required": [
+              "sourceType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "properties": {
+                  "parameters": {
+                    "properties": {
+                      "salesforceQueries": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "items": {
+                          "$ref": "#/components/schemas/SalesforceQueryDeclaration"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "http-api"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "http"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "oauth2"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "http"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "mqtt"
+              }
+            },
+            "required": [
+              "protocol"
+            ],
+            "not": {
+              "required": [
+                "extensions"
+              ],
+              "properties": {
+                "extensions": {
+                  "required": [
+                    "ingress"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mqtt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "opcua"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "opcua"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "modbus-tcp"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "modbus"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "http-api"
+              }
+            },
+            "required": [
+              "protocol"
+            ],
+            "not": {
+              "properties": {
+                "role": {
+                  "const": "server"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "required": [
+                  "authentication"
+                ],
+                "properties": {
+                  "authentication": {
+                    "enum": [
+                      "none",
+                      "basic",
+                      "bearer",
+                      "custom",
+                      "http"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "oauth2"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http": {
+                "required": [
+                  "oauth"
+                ],
+                "properties": {
+                  "authentication": {
+                    "enum": [
+                      ""
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "mqtt"
+              }
+            },
+            "required": [
+              "protocol"
+            ],
+            "not": {
+              "properties": {
+                "role": {
+                  "const": "server"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "mqtt": {
+                "required": [
+                  "clientId"
+                ],
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "extensions"
+            ],
+            "properties": {
+              "extensions": {
+                "required": [
+                  "ingress"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "protocol",
+              "role"
+            ],
+            "properties": {
+              "protocol": {
+                "const": "mqtt"
+              },
+              "role": {
+                "const": "server"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "SourceCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "writeOnly": true,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "bearer",
+            "custom",
+            "http",
+            "oauth2",
+            "certificate"
+          ]
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 1024,
+          "writeOnly": true
+        },
+        "secret": {
+          "type": "string",
+          "maxLength": 65536,
+          "writeOnly": true
+        },
+        "values": {
+          "type": "object",
+          "maxProperties": 128,
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "writeOnly": true
+        },
+        "certificateFileId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        },
+        "privateKeyFileId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19,
+          "writeOnly": true
+        },
+        "caFileId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "basic"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "username",
+              "secret"
+            ],
+            "properties": {
+              "username": {
+                "minLength": 1
+              },
+              "secret": {
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "bearer"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "secret"
+            ],
+            "properties": {
+              "secret": {
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "certificate"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "certificateFileId",
+              "privateKeyFileId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "custom",
+                  "http"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "values"
+            ],
+            "properties": {
+              "values": {
+                "minProperties": 1
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "username"
+                  ]
+                },
+                {
+                  "required": [
+                    "secret"
+                  ]
+                },
+                {
+                  "required": [
+                    "certificateFileId"
+                  ]
+                },
+                {
+                  "required": [
+                    "privateKeyFileId"
+                  ]
+                },
+                {
+                  "required": [
+                    "caFileId"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "StreamDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "script"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "script": {
+          "$ref": "#/components/schemas/StreamScript"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/components/schemas/StreamSourceAlias"
+          }
+        },
+        "sourceBindings": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/components/schemas/StreamSourceBinding"
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "not": {
+        "required": [
+          "sources",
+          "sourceBindings"
+        ]
+      }
+    },
+    "StreamScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "timeoutMs"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 131072,
+          "writeOnly": true
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000,
+          "default": 1000
+        }
+      }
+    },
+    "StreamSourceAlias": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Opaque execution snapshot version. It may conservatively advance even for a rename. Use the authoritative receipt; never derive configRevision from revision."
+        },
+        "target": {
+          "$ref": "#/components/schemas/StreamSourceTarget"
+        },
+        "acquisition": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Protocol acquisition only; cannot override connection or credentials."
+        },
+        "alias": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "resources": {
+          "type": "array",
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "sourceId",
+            "configRevision"
+          ],
+          "not": {
+            "required": [
+              "target"
+            ]
+          }
+        },
+        {
+          "required": [
+            "target"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "sourceId"
+                ]
+              },
+              {
+                "required": [
+                  "configRevision"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "required": [
+        "alias"
+      ]
+    },
+    "StreamSourceTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fleetNodeId",
+        "sourceId",
+        "configRevision"
+      ],
+      "properties": {
+        "fleetNodeId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+          "maxLength": 128
+        },
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Opaque execution snapshot version. It may conservatively advance even for a rename. Use the authoritative receipt; never derive configRevision from revision."
+        }
+      }
+    },
+    "StreamSourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Opaque execution snapshot version. It may conservatively advance even for a rename. Use the authoritative receipt; never derive configRevision from revision."
+        },
+        "target": {
+          "$ref": "#/components/schemas/StreamSourceTarget"
+        },
+        "acquisition": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Protocol acquisition only; cannot override connection or credentials."
+        },
+        "alias": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "resources": {
+          "type": "array",
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "sourceId",
+            "configRevision"
+          ],
+          "not": {
+            "required": [
+              "target"
+            ]
+          }
+        },
+        {
+          "required": [
+            "target"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "sourceId"
+                ]
+              },
+              {
+                "required": [
+                  "configRevision"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "alias"
+            ]
+          },
+          "then": {
+            "required": [
+              "resources"
+            ]
+          }
+        }
+      ]
+    },
+    "SourceCredentialImpactRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "expectedRevision",
+        "action"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Opaque execution snapshot version. It may conservatively advance even for a rename. Use the authoritative receipt; never derive configRevision from revision."
+        },
+        "action": {
+          "type": "string",
+          "const": "credentials"
+        }
+      },
+      "description": "Inspect credential-rotation dependencies before confirmation. Never include document or secrets. The confirmation token binds Source ID, expected revision, dependency snapshot and action, not a generated credential reference. Do not automatically confirm dependencies."
+    }
+  },
+  "platformExtensions": {
+    "cloud": {
+      "StreamDefinition": {
+        "description": "Cloud deployment projection only; these fields do not become common Enterprise inputs.",
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "default": "program"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudStreamEntry"
+            }
+          },
+          "messages": {
+            "type": "array",
+            "maxItems": 32,
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/CloudStreamMessageDeclaration"
+            }
+          }
+        }
+      },
+      "schemas": {
+        "CloudStreamEntry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "config": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "topic": {
+              "type": "string",
+              "maxLength": 128,
+              "readOnly": true
+            },
+            "request": {
+              "$ref": "#/components/schemas/CloudStreamRequestDefinition"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ]
+        },
+        "CloudStreamRequestDefinition": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "contractVersion": {
+              "type": "string"
+            },
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "outputSchema": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "sideEffect": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            "idempotency": {
+              "type": "string",
+              "enum": [
+                "none",
+                "optional",
+                "required"
+              ]
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30000
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "name",
+            "contractVersion",
+            "inputSchema",
+            "outputSchema",
+            "sideEffect",
+            "idempotency",
+            "timeoutMs"
+          ]
+        },
+        "CloudStreamMessageDeclaration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "topic": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "access": {
+              "type": "string",
+              "enum": [
+                "publish"
+              ]
+            }
+          },
+          "required": [
+            "topic",
+            "access"
+          ]
+        }
+      }
+    }
+  }
+}

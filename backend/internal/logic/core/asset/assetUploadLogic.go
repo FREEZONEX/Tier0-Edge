@@ -38,5 +38,6 @@ func (l *AssetUploadLogic) AssetUpload(req *types.AssetUploadReq) (resp *types.E
 	if err != nil {
 		return nil, logicx.Error(err)
 	}
+	RecordUploadAudit(l.ctx, l.svcCtx, data)
 	return respx.Envelope(data), nil
 }

@@ -1,0 +1,82 @@
+.global-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-bg-color);
+}
+
+// 与 Cloud ComGlobalSpinner 保持相同的尺寸、路径和节奏。
+.spinner {
+  --size: 20px;
+
+  position: relative;
+  display: block;
+  width: 100px;
+  height: 100px;
+
+  &::before,
+  &::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    box-sizing: border-box;
+    width: var(--size);
+    height: var(--size);
+    content: '';
+    background: var(--ui-loading-color);
+    animation: spinner-up 2.4s cubic-bezier(0, 0, 0.24, 1.21) infinite;
+  }
+
+  &::after {
+    top: calc(50% - var(--size));
+    left: calc(50% - var(--size));
+    animation-name: spinner-down;
+  }
+}
+
+@keyframes spinner-down {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  25% {
+    transform: translateX(100%);
+  }
+
+  50% {
+    transform: translateX(100%) translateY(100%);
+  }
+
+  75% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes spinner-up {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  25% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(-100%) translateY(-100%);
+  }
+
+  75% {
+    transform: translateY(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner::before,
+  .spinner::after {
+    animation: none;
+  }
+}

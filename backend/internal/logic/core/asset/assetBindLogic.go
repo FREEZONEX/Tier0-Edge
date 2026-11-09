@@ -7,6 +7,7 @@ import (
 	"context"
 
 	domainasset "backend/internal/domain/asset"
+	auditdomain "backend/internal/domain/audit"
 	respx "backend/internal/httpx"
 	"backend/internal/logic/logicx"
 
@@ -31,12 +32,17 @@ func NewAssetBindLogic(ctx context.Context, svcCtx *svc.ServiceContext) *AssetBi
 }
 
 func (l *AssetBindLogic) AssetBind(req *types.AssetBindReq) (resp *types.Envelope, err error) {
+	ownerID := domainasset.ParseOwnerID(req.OwnerId)
 	data, err := l.svcCtx.App.Asset.Bind(l.ctx, domainasset.BindCommand{
-		FileID: req.FileId, OwnerType: req.OwnerType, OwnerID: domainasset.ParseOwnerID(req.OwnerId),
+		FileID: req.FileId, OwnerType: req.OwnerType, OwnerID: ownerID,
 		PermissionKey: req.PermissionKey, UserID: logicx.UserID(l.ctx),
 	})
 	if err != nil {
 		return nil, logicx.Error(err)
 	}
+	recordAssetAudit(l.ctx, l.svcCtx, req.FileId, "", auditdomain.BizCreate, map[string]any{
+		"ownerType": req.OwnerType,
+		"ownerId":   ownerID,
+	})
 	return respx.Envelope(data), nil
 }

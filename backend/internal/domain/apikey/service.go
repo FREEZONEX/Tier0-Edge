@@ -62,7 +62,8 @@ func (s *Service) Update(ctx context.Context, id, userID int64, name, permission
 	}
 	permission = repo.NormalizeAPIKeyPermission(permission)
 	resourceKeys := repo.APIKeyResourceKeysForPermission(permission)
-	item, err := s.keys.UpdateAPIKey(ctx, id, userID, name, permission, resourceKeys)
+	// 修改名称或保持原权限档位时，不能丢掉 MCP 等显式选择的只读范围。
+	item, err := s.keys.UpdateAPIKey(ctx, id, userID, name, permission, resourceKeys, true)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return nil, ErrNotFound

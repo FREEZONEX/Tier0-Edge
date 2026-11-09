@@ -1,0 +1,35 @@
+.template-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.import-upload {
+  min-height: 176px;
+
+  :global(.ant-upload) {
+    min-height: 176px;
+  }
+}
+
+.upload-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--ui-text-color);
+
+  p {
+    margin: 0;
+  }
+
+  span {
+    color: var(--ui-description-card-color);
+    font-size: 12px;
+  }
+}
+
+.footer {
+  padding-top: 4px;
+  border-top: 1px solid var(--ui-table-tr-color);
+}

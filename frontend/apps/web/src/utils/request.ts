@@ -1,5 +1,5 @@
 import axios, { type AxiosRequestConfig } from 'axios';
-import { getToken } from './auth';
+import { getToken } from './auth-token';
 import { message, notification } from 'antd';
 import qs from 'qs';
 import { getIntl } from '@/stores/i18n-store.ts';
@@ -46,6 +46,96 @@ export interface AxiosWrapperRequestConfig extends AxiosRequestConfig {
   [CustomAxiosConfigEnum.NoMessage]?: boolean;
   [CustomAxiosConfigEnum.NoCode]?: boolean;
 }
+
+export type EventStreamSubscription = {
+  close: () => void;
+};
+
+type EventStreamOptions<T> = {
+  onMessage: (data: T) => void;
+  onError: (error: unknown) => void;
+  onClose?: () => void;
+};
+
+const readEventBlock = <T>(block: string, onMessage: (data: T) => void) => {
+  const data = block
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n');
+  if (data) {
+    onMessage(JSON.parse(data) as T);
+  }
+};
+
+/**
+ * 原生 EventSource 无法携带当前登录态使用的 Authorization / X-Sa-Token 请求头。
+ * 统一从请求层发起 fetch 流，保持和 ApiWrapper 相同的认证约定。
+ */
+export const subscribeAuthenticatedEventStream = <T>(
+  url: string,
+  { onMessage, onError, onClose }: EventStreamOptions<T>
+): EventStreamSubscription => {
+  const controller = new AbortController();
+  let closed = false;
+
+  const consume = async () => {
+    let failed = false;
+    try {
+      const headers = new Headers({ Accept: 'text/event-stream' });
+      const token = getToken();
+      if (token) {
+        headers.set('X-Sa-Token', token);
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      const response = await window.fetch(url, {
+        headers,
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(`Event stream request failed (${response.status})`);
+      }
+      if (!response.body) {
+        throw new Error('Event stream response body is unavailable');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() || '';
+        blocks.forEach((block) => readEventBlock<T>(block, onMessage));
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        readEventBlock<T>(buffer, onMessage);
+      }
+    } catch (error) {
+      failed = true;
+      if (!closed) {
+        onError(error);
+      }
+    } finally {
+      if (!closed && !failed) {
+        onClose?.();
+      }
+    }
+  };
+
+  void consume();
+  return {
+    close: () => {
+      if (closed) return;
+      closed = true;
+      controller.abort();
+    },
+  };
+};
 
 // create an axios instance
 const service = axios.create({
@@ -158,6 +248,8 @@ service.interceptors.response.use(
     const err = {
       code: BusinessCodeEnum.Fail,
       msg: error.message,
+      data: error.response?.data?.data,
+      error: error.response?.data?.error,
       config: error.config,
     };
     const config: AxiosWrapperRequestConfig | undefined = error.config;
@@ -192,7 +284,9 @@ service.interceptors.response.use(
           );
         }
       } else if (error.code === 'ECONNABORTED' && showDefaultMessage) {
-        message.error(getIntl('common.requestTimeout', {}, 'Request timed out. Please check your network and try again.'));
+        message.error(
+          getIntl('common.requestTimeout', {}, 'Request timed out. Please check your network and try again.')
+        );
       } else if (error.message === 'Network Error' && showDefaultMessage) {
         message.error(getIntl('common.networkFailed', {}, 'Network connection failed, please check your network'));
       } else if (showDefaultMessage) {

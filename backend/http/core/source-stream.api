@@ -1,0 +1,534 @@
+syntax = "v1"
+
+// Standalone contract during implementation. Import into backend.api only with
+// generated handlers, permission seeds and real domain implementations.
+type SourceStreamEnvelope {
+	code int         `json:"code"`
+	msg  string      `json:"msg"`
+	data interface{} `json:"data,optional"`
+}
+
+type SourceStreamEmpty {}
+
+type SourceHIDPreviewReq {
+	endpoint string `json:"endpoint"`
+	timeoutMs int `json:"timeoutMs"`
+}
+
+type SourceListReq {
+	page         int    `form:"page,optional"`
+	size         int    `form:"size,optional"`
+	search       string `form:"search,optional"`
+	protocol     string `form:"protocol,optional"`
+	health       string `form:"health,optional"`
+}
+
+type SourceIDReq {
+	sourceId int64 `path:"sourceId"`
+}
+
+type SourceSaveReq {
+	sourceId                int64       `path:"sourceId,optional"`
+	expectedRevision        int64       `json:"expectedRevision"`
+	document                interface{} `json:"document"`
+	confirmedImpactRevision string      `json:"confirmedImpactRevision,optional"`
+}
+
+type SourceMutationReq {
+	sourceId                int64  `path:"sourceId"`
+	expectedRevision        int64  `json:"expectedRevision"`
+	confirmedImpactRevision string `json:"confirmedImpactRevision,optional"`
+}
+
+
+type SourceProbeReq {
+	sourceId  int64       `json:"sourceId,optional"`
+	document  interface{} `json:"document,optional"`
+	timeoutMs int         `json:"timeoutMs"`
+}
+
+type SourceDiscoverReq {
+	sourceId          int64  `path:"sourceId"`
+	expectedRevision  int64  `json:"expectedRevision"`
+	parentResourceRef string `json:"parentResourceRef,optional"`
+	cursor            string `json:"cursor,optional"`
+	limit             int    `json:"limit,optional"`
+}
+
+type SourceCredentialSaveReq {
+	sourceId                int64  `path:"sourceId"`
+	expectedRevision        int64  `json:"expectedRevision"`
+	kind                    string `json:"kind"`
+	username                string `json:"username,optional"`
+	secret                  string `json:"secret,optional"`
+	values                  map[string]string `json:"values,optional"`
+	certificateFileId       int64  `json:"certificateFileId,optional"`
+	privateKeyFileId        int64  `json:"privateKeyFileId,optional"`
+	caFileId                int64  `json:"caFileId,optional"`
+	confirmedImpactRevision string `json:"confirmedImpactRevision,optional"`
+}
+
+type SourceOAuthStartReq {
+ sourceId int64 `path:"sourceId"`
+ redirectUri string `json:"redirectUri"`
+}
+
+type SourceOAuthCompleteReq {
+ sourceId int64 `path:"sourceId"`
+ state string `json:"state"`
+ code string `json:"code"`
+}
+
+type StreamListReq {
+	page     int    `form:"page,optional"`
+	size     int    `form:"size,optional"`
+	search   string `form:"search,optional"`
+	sourceId int64  `form:"sourceId,optional"`
+	topicId  int64  `form:"topicId,optional"`
+	model    string `form:"model,optional"`
+	status   string `form:"status,optional"`
+}
+
+type StreamIDReq {
+	streamId int64 `path:"streamId"`
+}
+
+type StreamSaveReq {
+	streamId         int64       `path:"streamId,optional"`
+	expectedRevision int64       `json:"expectedRevision"`
+	document         interface{} `json:"document"`
+}
+
+type StreamMutationReq {
+	streamId         int64 `path:"streamId"`
+	expectedRevision int64 `json:"expectedRevision"`
+}
+
+type StreamValidateReq {
+	document               interface{} `json:"document"`
+	expectedSourceRevision int64       `json:"expectedSourceRevision,optional"`
+}
+
+type StreamTestReq {
+	document               interface{} `json:"document"`
+	input                  interface{} `json:"input"`
+	// v2: input previews supplied data; fetch reads authorized GET/HEAD sources and previews writes without committing.
+	phase                  string      `json:"phase"`
+	entryId                string      `json:"entryId,optional"`
+	expectedSourceRevision int64       `json:"expectedSourceRevision,optional"`
+}
+
+type StreamDeployReq {
+	streamId               int64 `path:"streamId"`
+	expectedRevision       int64 `json:"expectedRevision"`
+	expectedSourceRevision int64 `json:"expectedSourceRevision,optional"`
+}
+
+type StreamRollbackReq {
+	streamId               int64 `path:"streamId"`
+	versionId              int64 `path:"versionId"`
+	expectedRevision       int64 `json:"expectedRevision"`
+	expectedSourceRevision int64 `json:"expectedSourceRevision,optional"`
+}
+
+type StreamVersionListReq {
+	streamId int64 `path:"streamId"`
+	page     int   `form:"page,optional"`
+	size     int   `form:"size,optional"`
+}
+
+type StreamInvokeReq {
+	streamId              int64       `path:"streamId"`
+	entryId               string      `json:"entryId,optional"`
+	expectedActiveVersion int64       `json:"expectedActiveVersion"`
+	idempotencyKey        string      `json:"idempotencyKey"`
+	input                 interface{} `json:"input"`
+	timeoutMs             int         `json:"timeoutMs"`
+}
+
+type StreamRunListReq {
+	page     int    `form:"page,optional"`
+	size     int    `form:"size,optional"`
+	sourceId int64  `form:"sourceId,optional"`
+	streamId int64  `form:"streamId,optional"`
+	topicId  int64  `form:"topicId,optional"`
+	model    string `form:"model,optional"`
+	status   string `form:"status,optional"`
+}
+
+type StreamRunIDReq {
+	runId string `path:"runId"`
+}
+
+type StreamTopicRelationsReq {
+	topicId int64 `path:"topicId"`
+}
+
+@server (
+	prefix:     /api/core/uns
+	timeout:    40s
+	group:      core/sourcestream
+	middleware: SessionAuth,Permission
+)
+service backend {
+ @doc(
+  summary: "校验 Source 连接配置"
+  description: "仅校验协议配置结构，不连接设备、不保存配置或凭证"
+  authType: "admin"
+  resource: "uns.source"
+  action: "validate"
+  group: "core/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler SourceValidate
+ post /sources/validate (SourceValidateReq) returns (SourceStreamEnvelope)
+	@doc (
+		summary:       "获取 Source 协议定义"
+		description:   "返回内置协议配置与支持操作；协议定义不是可管理实体"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceProtocolList
+	get /source-protocols (SourceStreamEmpty) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查询 Source"
+		description:   "分页读取真实配置和独立健康状态；不返回明文凭据"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceList
+	get /sources (SourceListReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "创建 Source 草稿"
+		description:   "保存协议配置，expectedRevision 为零，不启动协议连接或 Stream"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "create"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceCreate
+	post /sources (SourceSaveReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查看 Source 详情"
+		description:   "读取脱敏连接配置、原生资源、期望状态、实际状态与最近采集时间"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceDetail
+	get /sources/:sourceId (SourceIDReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "更新 Source 配置"
+		description:   "校验配置版本及共享影响面版本；冲突时拒绝覆盖"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "update"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceUpdate
+	put /sources/:sourceId (SourceSaveReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "删除 Source"
+		description:   "只允许删除无 Stream 引用且已停用的 Source；不删除历史运行记录"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "delete"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceDelete
+	delete /sources/:sourceId (SourceMutationReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查看 Source 影响面"
+		description:   "返回关联 Stream、Topic 及影响面版本，供配置变更前确认"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceImpact
+	get /sources/:sourceId/impact (SourceIDReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "测试 Source 连接"
+		description:   "使用草稿或已存配置执行有时限的协议握手，不写设备或 Topic"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "test"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceProbe
+	post /sources/probe (SourceProbeReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary: "列出本机可选的 USB HID 文本输入设备"
+		authType: "admin"
+		resource: "uns.source"
+		action: "manage"
+		group: "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceHIDDevices
+	post /sources/usb-hid/devices (SourceStreamEmpty) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary: "临时读取指定 USB HID 设备的一条完整文本"
+		authType: "admin"
+		resource: "uns.source"
+		action: "manage"
+		group: "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceHIDPreview
+	post /sources/usb-hid/preview (SourceHIDPreviewReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "发现 Source 原生资源"
+		description:   "OPC UA 按父节点浏览；MQTT 仅观测授权过滤范围；Modbus 使用显式寄存器范围，不扫描猜测设备"
+		authType:      "admin"
+		resource:      "uns.source"
+		action:        "test"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler SourceDiscover
+	post /sources/:sourceId/discover (SourceDiscoverReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "设置 Source 凭据"
+		description:   "凭据加密持久化且只返回引用；请求秘密字段不得进入审计、日志或配置导出"
+		authType:      "admin"
+		resource:      "uns.source.credentials"
+		action:        "update"
+		group:         "core/sourcestream"
+		recordLogMode: "3"
+	)
+	@handler SourceCredentialSave
+	put /sources/:sourceId/credentials (SourceCredentialSaveReq) returns (SourceStreamEnvelope)
+ @doc (
+  summary: "SourceOAuthStart"
+  description: "OAuth authorization; secrets and authorization codes are never logged"
+  authType: "admin"
+  resource: "uns.source.credentials"
+  action: "update"
+  group: "core/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler SourceOAuthStart
+ post /sources/:sourceId/oauth/start (SourceOAuthStartReq) returns (SourceStreamEnvelope)
+
+ @doc (
+  summary: "SourceOAuthComplete"
+  description: "OAuth authorization; secrets and authorization codes are never logged"
+  authType: "admin"
+  resource: "uns.source.credentials"
+  action: "update"
+  group: "core/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler SourceOAuthComplete
+ post /sources/:sourceId/oauth/complete (SourceOAuthCompleteReq) returns (SourceStreamEnvelope)
+
+
+	@doc (
+		summary:       "查询 Stream"
+		description:   "分页读取映射定义及草稿、生效版本、运行状态"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamList
+	get /streams (StreamListReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "创建 Stream 草稿"
+		description:   "固定一个 Source，保存处理文档，未部署前不执行、不写 Topic"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "create"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamCreate
+	post /streams (StreamSaveReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查看 Stream 详情"
+		description:   "读取输入处理输出、关联 Source、Topic 及生效版本"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamDetail
+	get /streams/:streamId (StreamIDReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "保存 Stream 草稿"
+		description:   "按 expectedRevision 乐观并发保存；不改变正在运行的版本"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "update"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamUpdate
+	put /streams/:streamId (StreamSaveReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "删除 Stream"
+		description:   "仅删除已停用映射；保留历史版本、运行记录和 Topic 数据"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "delete"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamDelete
+	delete /streams/:streamId (StreamMutationReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "校验 Stream"
+		description:   "校验脚本、Source 版本、资源归属、模型、Topic 权限和 Schema，不执行设备操作"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "test"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamValidate
+	post /streams/validate (StreamValidateReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "试运行 Stream"
+		description:   "使用正式编译器和受限 Goja 执行器处理提供的输入；禁止设备操作、NATS 发布及 Topic 写入"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "test"
+		group:         "core/sourcestream"
+		recordLogMode: "3"
+	)
+	@handler StreamTest
+	post /streams/test (StreamTestReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "部署 Stream"
+		description:   "校验并激活不可变执行版本；失败保留旧版本，返回部署任务而非假运行成功"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "publish"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamDeploy
+	post /streams/:streamId/deploy (StreamDeployReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "停用 Stream"
+		description:   "停止接受新执行，保留当前在途结果、版本及历史记录"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "disable"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamDisable
+	post /streams/:streamId/disable (StreamMutationReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查询 Stream 版本"
+		description:   "分页返回不可变版本与部署状态"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamVersionList
+	get /streams/:streamId/versions (StreamVersionListReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "回滚 Stream 版本"
+		description:   "重新校验指定历史版本及当前 Source、Topic 引用后激活，不绕过权限和健康检查"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "restore"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamRollback
+	post /streams/:streamId/versions/:versionId/activate (StreamRollbackReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "调用 Stream 同步操作"
+		description:   "执行真实设备操作并返回响应转换结果；不经过 NATS；写操作额外校验操作权限且超时不自动重试"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "execute"
+		group:         "core/sourcestream"
+		recordLogMode: "3"
+	)
+	@handler StreamInvoke
+	post /streams/:streamId/invoke (StreamInvokeReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查询 Stream 运行记录"
+		description:   "按 Source、Stream、Topic 和访问模型查询持久执行记录；不包含凭据"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamRunList
+	get /stream-runs (StreamRunListReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查看 Stream 运行详情"
+		description:   "查看转换结果、目标逐项状态、错误位置及收到、接受、执行完成等不同回执"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamRunDetail
+	get /stream-runs/:runId (StreamRunIDReq) returns (SourceStreamEnvelope)
+
+	@doc (
+		summary:       "查看 Topic 接入关系"
+		description:   "查询 Topic 的入站、出站与请求回复映射；返回稳定 Source、Stream、Topic 引用"
+		authType:      "admin"
+		resource:      "uns.stream"
+		action:        "view"
+		group:         "core/sourcestream"
+		recordLogMode: "1"
+	)
+	@handler StreamTopicRelations
+	get /topics/:topicId/streams (StreamTopicRelationsReq) returns (SourceStreamEnvelope)
+}
+
+type SourceValidateReq {
+ document interface{} `json:"document"`
+}

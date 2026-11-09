@@ -16,6 +16,7 @@ export interface ApiKeyCreatePayload {
   permission?: string;
   usageType?: string;
   keyType?: string;
+  resourceKeys?: string[];
 }
 
 export interface ApiKeyUpdatePayload {
@@ -97,6 +98,11 @@ export interface AIEmbeddingTestResult {
   latencyMs: number;
 }
 
+export interface AITrustedHosts {
+  hosts: string[];
+  customized: boolean;
+}
+
 export const queryAIProviderConfigs = async (workspaceId = 1) =>
   aiConfigApi.get('/configs', { params: { workspaceId } });
 
@@ -113,3 +119,8 @@ export const updateAIProviderConfig = async (id: number, data: AIProviderConfigP
 
 export const deleteAIProviderConfig = async (id: number, workspaceId = 1) =>
   aiConfigApi.delete(`/configs/${id}`, { params: { workspaceId } });
+
+export const queryAITrustedHosts = async (): Promise<AITrustedHosts> => aiConfigApi.get('/trusted-hosts');
+
+export const saveAITrustedHosts = async (hosts: string[]): Promise<AITrustedHosts> =>
+  aiConfigApi.put('/trusted-hosts', { hosts });

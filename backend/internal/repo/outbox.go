@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -35,7 +37,7 @@ func (r *OutboxRepo) EnqueueOutbox(ctx context.Context, event OutboxEvent) error
 	event.Status = "pending"
 	event.Attempts = 0
 	event.NextRetryTime = now
-	return r.db.WithContext(ctx).
+	return r.query(ctx).
 		Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "event_id"}}, DoNothing: true}).
 		Create(&event).Error
 }
@@ -49,7 +51,7 @@ func (r *OutboxRepo) ClaimOutbox(ctx context.Context, worker string, limit int, 
 	}
 	now := time.Now().UTC().UnixMilli()
 	var out []OutboxEvent
-	err := r.db.WithContext(ctx).Raw(`
+	err := r.query(ctx).Raw(r.sql(`
 UPDATE sys_outbox_event
 SET locked_by=?, locked_until_time=?, updated_time=?
 WHERE id IN (
@@ -61,7 +63,7 @@ WHERE id IN (
     LIMIT ?
     FOR UPDATE SKIP LOCKED
 )
-RETURNING id, event_id, event_type, aggregate_type, aggregate_id, payload, status, attempts, next_retry_time, last_error, locked_by, locked_until_time, created_time, updated_time`,
+RETURNING id, event_id, event_type, aggregate_type, aggregate_id, payload, status, attempts, next_retry_time, last_error, locked_by, locked_until_time, created_time, updated_time`),
 		worker, now+lockMs, repoTimeFromMilli(now), now, now, limit).Scan(&out).Error
 	return out, err
 }
@@ -73,9 +75,12 @@ func (r *OutboxRepo) ClaimOutboxByTypes(ctx context.Context, worker string, even
 	if limit <= 0 {
 		limit = 10
 	}
+	if r.table == "uns_collection_storage_outbox" {
+		return r.claimStorageBatch(ctx, worker, limit, lockMs)
+	}
 	now := time.Now().UTC().UnixMilli()
 	var out []OutboxEvent
-	err := r.db.WithContext(ctx).Raw(`
+	err := r.query(ctx).Raw(r.sql(`
 UPDATE sys_outbox_event
 SET locked_by=?, locked_until_time=?, updated_time=?
 WHERE id IN (
@@ -88,14 +93,14 @@ WHERE id IN (
     LIMIT ?
     FOR UPDATE SKIP LOCKED
 )
-RETURNING id, event_id, event_type, aggregate_type, aggregate_id, payload, status, attempts, next_retry_time, last_error, locked_by, locked_until_time, created_time, updated_time`,
+RETURNING id, event_id, event_type, aggregate_type, aggregate_id, payload, status, attempts, next_retry_time, last_error, locked_by, locked_until_time, created_time, updated_time`),
 		worker, now+lockMs, repoTimeFromMilli(now), eventTypes, now, now, limit).Scan(&out).Error
 	return out, err
 }
 
 func (r *OutboxRepo) MarkOutboxDone(ctx context.Context, eventID string) error {
 	now := time.Now().UTC().UnixMilli()
-	return r.db.WithContext(ctx).Model(&OutboxEvent{}).
+	return r.query(ctx).Model(&OutboxEvent{}).
 		Where("event_id = ?", eventID).
 		Updates(touchValues(map[string]any{"status": "done", "locked_by": "", "locked_until_time": 0}, now)).Error
 }
@@ -103,13 +108,13 @@ func (r *OutboxRepo) MarkOutboxDone(ctx context.Context, eventID string) error {
 func (r *OutboxRepo) MarkOutboxRetry(ctx context.Context, eventID string, attempts int, nextRetryTime int64, lastError string) error {
 	now := time.Now().UTC().UnixMilli()
 	status := "pending"
-	if attempts >= 5 {
+	if attempts >= 5 && r.table != "uns_collection_storage_outbox" {
 		status = "dead"
 	}
-	return r.db.WithContext(ctx).Model(&OutboxEvent{}).
+	return r.query(ctx).Model(&OutboxEvent{}).
 		Where("event_id = ?", eventID).
 		Updates(touchValues(map[string]any{
-			"status":            status,
+			"status":            gorm.Expr("CASE WHEN event_type = ? THEN 'pending' ELSE ? END", "fleet.user.sync.requested", status),
 			"attempts":          attempts,
 			"next_retry_time":   nextRetryTime,
 			"last_error":        lastError,
@@ -118,6 +123,90 @@ func (r *OutboxRepo) MarkOutboxRetry(ctx context.Context, eventID string, attemp
 		}, now)).Error
 }
 
-type OutboxRepo struct{ db *gorm.DB }
+type OutboxRepo struct {
+	claimMu        sync.Mutex
+	lastCollection string
+	db             *gorm.DB
+	table          string
+}
 
-func NewOutboxRepo(in any) *OutboxRepo { return &OutboxRepo{db: GetCommonConn(in)} }
+func (r *OutboxRepo) query(ctx context.Context) *gorm.DB { return r.db.WithContext(ctx).Table(r.table) }
+func (r *OutboxRepo) sql(s string) string                { return strings.ReplaceAll(s, "sys_outbox_event", r.table) }
+func NewStorageOutboxRepo(in any) *OutboxRepo {
+	return &OutboxRepo{db: GetUnsConn(in), table: "uns_collection_storage_outbox"}
+}
+
+// 已完成事件保留重试窗口后分批清理；幂等性仍由目标表的 event_id 保证。
+func (r *OutboxRepo) PruneCompletedOutbox(ctx context.Context, eventTypes []string, before time.Time, limit int) (int64, error) {
+	if len(eventTypes) == 0 {
+		return 0, nil
+	}
+	if before.IsZero() || limit <= 0 || limit > 1000 {
+		return 0, ErrInvalidArgument
+	}
+	result := r.query(ctx).Exec(r.sql(`
+DELETE FROM sys_outbox_event
+WHERE id IN (
+    SELECT id FROM sys_outbox_event
+    WHERE status = 'done' AND event_type IN ? AND updated_time < ?
+    ORDER BY updated_time, id
+    LIMIT ?
+    FOR UPDATE SKIP LOCKED
+)`), eventTypes, before, limit)
+	return result.RowsAffected, result.Error
+}
+
+func NewOutboxRepo(in any) *OutboxRepo {
+	return &OutboxRepo{db: GetCommonConn(in), table: "sys_outbox_event"}
+}
+
+func (r *OutboxRepo) GetOutboxEvent(ctx context.Context, eventID string) (OutboxEvent, error) {
+	var event OutboxEvent
+	err := r.query(ctx).Where("event_id = ?", eventID).First(&event).Error
+	return event, err
+}
+
+func (r *OutboxRepo) UpdateOutboxPayload(ctx context.Context, eventID string, payload json.RawMessage) error {
+	result := r.query(ctx).Model(&OutboxEvent{}).Where("event_id = ?", eventID).Update("payload", payload)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Rotate Collection heads so an older backlog cannot starve another Collection.
+// Only a contiguous eligible prefix is leased; a retry/lease blocks later events
+// in the same Collection, while other Collections continue. Lease/ack semantics
+// are the same as the general outbox. The cursor is only a fairness hint.
+func (r *OutboxRepo) claimStorageBatch(ctx context.Context, worker string, limit int, lockMs int64) ([]OutboxEvent, error) {
+	r.claimMu.Lock()
+	defer r.claimMu.Unlock()
+	now := time.Now().UTC().UnixMilli()
+	var rows []OutboxEvent
+	err := r.query(ctx).Raw(`
+WITH heads AS (
+ SELECT DISTINCT ON (aggregate_id) aggregate_id, id, next_retry_time, locked_until_time
+ FROM uns_collection_storage_outbox WHERE status='pending' ORDER BY aggregate_id,id
+), chosen AS (
+ SELECT aggregate_id FROM heads WHERE next_retry_time<=? AND locked_until_time<?
+ ORDER BY CASE WHEN aggregate_id>? THEN 0 ELSE 1 END,aggregate_id LIMIT 1
+), candidates AS (
+ SELECT o.id FROM uns_collection_storage_outbox o JOIN chosen c USING(aggregate_id)
+ WHERE o.status='pending' AND o.id<COALESCE((
+  SELECT min(b.id) FROM uns_collection_storage_outbox b WHERE b.aggregate_id=o.aggregate_id AND b.status='pending'
+  AND (b.next_retry_time>? OR b.locked_until_time>=?)
+ ),9223372036854775807)
+ ORDER BY o.id LIMIT ? FOR UPDATE OF o SKIP LOCKED
+)
+UPDATE uns_collection_storage_outbox SET locked_by=?,locked_until_time=?,updated_time=?
+WHERE id IN (SELECT id FROM candidates)
+RETURNING id,event_id,event_type,aggregate_type,aggregate_id,payload,status,attempts,next_retry_time,last_error,locked_by,locked_until_time,created_time,updated_time`,
+		now, now, r.lastCollection, now, now, limit, worker, now+lockMs, repoTimeFromMilli(now)).Scan(&rows).Error
+	if len(rows) > 0 {
+		r.lastCollection = rows[0].AggregateID
+	}
+	return rows, err
+}

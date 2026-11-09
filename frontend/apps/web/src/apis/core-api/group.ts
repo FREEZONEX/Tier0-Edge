@@ -27,6 +27,8 @@ export const markGroup = async (id: string, status: boolean) => {
   return mapFlow(await coreApi.put(`/flows/${id}/mark`, { pinned: status }));
 };
 
+export const getGroupDetail = async (id: string) => mapFlow(await coreApi.get(`/flows/${id}`));
+
 export const optGroup = async (params: { type?: number; bizId: string; id: string; status: boolean }) => {
   const detail = await coreApi.get(`/flows/${params.bizId}`);
   return mapFlow(

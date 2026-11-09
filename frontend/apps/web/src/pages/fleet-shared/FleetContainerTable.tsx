@@ -59,6 +59,7 @@ export const FleetContainerTable = ({
   const formatMessage = useTranslate();
   const [keyword, setKeyword] = useState('');
   const [state, setState] = useState('');
+  const [deployment, setDeployment] = useState('current');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const searchPlaceholder = formatMessage('fleet.runtime.searchPlaceholder', undefined, formatMessage('common.search'));
@@ -67,6 +68,7 @@ export const FleetContainerTable = ({
   const filteredContainers = useMemo(() => {
     const normalizedKeyword = normalizeText(keyword);
     return containers.filter((container) => {
+      if ((deployment === 'history') !== !!container.supersededBy) return false;
       if (state && normalizeState(container.state) !== state) {
         return false;
       }
@@ -74,6 +76,7 @@ export const FleetContainerTable = ({
         return true;
       }
       return [
+        container.containerName,
         container.displayName,
         container.serviceName,
         container.containerID,
@@ -82,7 +85,7 @@ export const FleetContainerTable = ({
         container.composeService,
       ].some((value) => normalizeText(value).includes(normalizedKeyword));
     });
-  }, [containers, keyword, state]);
+  }, [containers, keyword, state, deployment]);
 
   const lastPage = Math.max(1, Math.ceil(filteredContainers.length / pageSize));
   const currentPage = Math.min(page, lastPage);
@@ -96,6 +99,25 @@ export const FleetContainerTable = ({
   return (
     <div className={styles.containerList}>
       <div className={styles.toolbar}>
+        <Select
+          className={styles.deploymentFilter}
+          aria-label={formatMessage('fleet.runtime.deployment')}
+          value={deployment}
+          options={[
+            {
+              value: 'current',
+              label: `${formatMessage('fleet.runtime.currentDeployment')} (${containers.filter((item) => !item.supersededBy).length})`,
+            },
+            {
+              value: 'history',
+              label: `${formatMessage('fleet.runtime.historyDeployment')} (${containers.filter((item) => item.supersededBy).length})`,
+            },
+          ]}
+          onChange={(value) => {
+            setDeployment(value);
+            setPage(1);
+          }}
+        />
         <Input.Search
           allowClear
           className={styles.search}

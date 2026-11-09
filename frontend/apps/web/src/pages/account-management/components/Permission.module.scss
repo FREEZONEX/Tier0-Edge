@@ -1,0 +1,25 @@
+.permission {
+  .permission-group {
+    margin-top: 10px;
+    overflow: hidden;
+    border: 1px solid var(--ui-t-dividr-color);
+    border-radius: 4px;
+  }
+
+  .menu-bar {
+    :global {
+      .ant-checkbox-label {
+        font-size: 15px;
+        font-weight: 700;
+      }
+    }
+  }
+
+  .operation-bar {
+    :global {
+      .ant-checkbox-label {
+        font-weight: 700;
+      }
+    }
+  }
+}

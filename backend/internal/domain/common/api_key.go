@@ -6,14 +6,14 @@ import (
 )
 
 const (
-	// PlatformWorkspaceID is the single workspace used by Tier0 Edge.
+	// PlatformWorkspaceID is the single workspace used by Enterprise.
 	PlatformWorkspaceID = int64(1)
 
 	apiKeyWorkspacePrefix = "ws"
 	apiKeyWorkspaceSep    = "_"
 )
 
-// FormatWorkspaceAPIKey formats workspace API keys consistently and
+// FormatWorkspaceAPIKey keeps Enterprise API keys compatible with Cloud and
 // with the SDK workspace parser.
 func FormatWorkspaceAPIKey(prefix string, workspaceID int64, token string) string {
 	prefix = strings.TrimSpace(prefix)

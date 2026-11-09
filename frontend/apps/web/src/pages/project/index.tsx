@@ -130,7 +130,8 @@ const Project = () => {
                           navigate(
                             `/project/${record.id}?${getSearchParamsString({
                               from: location.pathname,
-                            })}`
+                            })}`,
+                            { state: { tabName: text } }
                           );
                         }}
                         title={text}
@@ -225,6 +226,16 @@ const Project = () => {
                 },
               ]}
               dataSource={data as any}
+              onRow={(record: ProjectItem) => ({
+                onClick: () => {
+                  navigate(
+                    `/project/${record.id}?${getSearchParamsString({
+                      from: location.pathname,
+                    })}`,
+                    { state: { tabName: record.name } }
+                  );
+                },
+              })}
               resizeable
               pagination={{
                 total: pagination?.total,

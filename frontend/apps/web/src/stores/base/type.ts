@@ -1,4 +1,3 @@
-import type { LicenseModules } from '@/apis/core-api/license.ts';
 import type { ContainerItemProps, ResourceProps, SystemInfoProps, UserInfoProps } from '@/stores/types.ts';
 
 export type TBaseStore = {
@@ -40,5 +39,4 @@ export type TBaseStore = {
   // 按钮权限列表
   buttonList: string[];
   // license 授权的模块开关；接口失败或字段缺失时为 undefined，按「不限制」处理
-  licenseModules?: LicenseModules;
 };

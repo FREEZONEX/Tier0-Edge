@@ -89,13 +89,13 @@ func (s *Service) PlatformMembers(ctx context.Context, query PlatformMembersQuer
 	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
 	membersByID := make(map[int64]*platformMemberAggregate, len(rows))
 	for _, row := range rows {
-		status := platformUserStatus(row.Status)
+		status := enterprisePlatformUserStatus(row.Status)
 		if len(statusFilter) > 0 {
 			if _, ok := statusFilter[status]; !ok {
 				continue
 			}
 		}
-		if !platformMemberMatchesKeyword(row, keyword) {
+		if !enterprisePlatformMemberMatchesKeyword(row, keyword) {
 			continue
 		}
 
@@ -216,7 +216,7 @@ func normalizePlatformMemberStatuses(values []string) (map[string]struct{}, erro
 	return result, nil
 }
 
-func platformUserStatus(status int64) string {
+func enterprisePlatformUserStatus(status int64) string {
 	if status == 1 {
 		return "active"
 	}
@@ -234,7 +234,7 @@ func normalizePlatformMemberRoleFilters(roleKey string, roles []string) map[stri
 	return result
 }
 
-func platformMemberMatchesKeyword(row repo.PlatformMemberRow, keyword string) bool {
+func enterprisePlatformMemberMatchesKeyword(row repo.PlatformMemberRow, keyword string) bool {
 	if keyword == "" {
 		return true
 	}

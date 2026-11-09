@@ -1,4 +1,7 @@
 .DS_Store
+/.temp/
+# Business Apps are maintained and released outside the platform repository.
+/apps/
 Thumbs.db
 
 *.log
@@ -6,10 +9,13 @@ Thumbs.db
 *.tmp
 *.pid
 
+/plan/
 /plan_codex_v5/
 /CLAUDE.md
 /design-qa.md
+/checks/
 /output/
+/release/
 
 .env.local
 .env.*.local
@@ -28,33 +34,31 @@ frontend/output/
 backend/*.exe
 backend/*.test
 backend/.build/
+/fleet-agent/fleet-agent
+/fleet-agent/fleet-agent.exe
 
 deploy/backups/
+deploy/runtime/openssh/*
+!deploy/runtime/openssh/README.md
+!deploy/runtime/openssh/windows-amd64/
+deploy/runtime/openssh/windows-amd64/*
+!deploy/runtime/openssh/windows-amd64/OpenSSH-Win64-10.4.0.0p1-Preview.zip
+!deploy/runtime/openssh/windows-amd64/SHA256SUMS
 deploy/instances/
 deploy/local/
-deploy/mount/certs/*
-!deploy/mount/certs/tls/
-deploy/mount/certs/tls/*
-!deploy/mount/certs/tls/.gitkeep
 deploy/.env
 deploy/.env.runtime
 deploy/.env.tmp
 # 独立 worker 主机的本地配置(.env.example 是提交的模板)
+deploy/vision-worker/.env
 deploy/docker-compose.yml
 deploy/docker-compose.override.yml
 deploy/.install-state.json
+deploy/certs/*
+!deploy/certs/README.md
 .playwright-mcp/
 .playwright-cli/
+.feishu-bug-assets/
 .codegraph
 *.tsbuildinfo
-
-# Open-source synchronization metadata
-/.open-source-sync.json
-/OPEN_SOURCE_GENERATED.md
-
-# Local test and screenshot artifacts
-codex-clipboard-*
-screenshot-*
-**/screenshots/
-test-results/
-playwright-report/
+vision-worker/models/*.onnx

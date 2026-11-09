@@ -1,0 +1,117 @@
+.form {
+  padding-top: 4px;
+}
+
+.subjectSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-table-tr-color);
+  background: var(--ui-charttop-bg-color);
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  span {
+    color: var(--ui-description-card-color);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--ui-text-color);
+  }
+}
+
+.roleHint {
+  margin-top: -14px;
+  margin-bottom: 18px;
+  color: var(--ui-description-card-color);
+  font-size: 12px;
+}
+
+.subject-tree-popup {
+  :global(.ant-select-tree-list-holder-inner) {
+    gap: 2px;
+  }
+
+  :global(.ant-select-tree-treenode) {
+    min-height: 32px;
+    padding: 0 8px;
+    align-items: center;
+  }
+
+  :global(.ant-select-tree-node-content-wrapper) {
+    min-width: 0;
+    padding: 4px 6px;
+  }
+
+  :global(.ant-select-tree-switcher) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :global(.ant-select-tree-treenode-disabled) {
+    color: var(--ui-description-card-color);
+  }
+}
+
+.subject-tree-section {
+  margin-top: 4px;
+  padding-top: 0 !important;
+
+  .subject-option-name,
+  .subject-option > svg {
+    color: var(--ui-description-card-color);
+  }
+
+  .subject-option-name {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.subject-option {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+
+  > svg {
+    flex: 0 0 auto;
+    color: var(--ui-description-card-color);
+  }
+}
+
+.subject-option-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subject-existing-tag {
+  flex: 0 0 auto;
+  margin-inline-start: 2px;
+  color: var(--ui-description-card-color);
+}
+
+.subject-selection-tag {
+  max-width: 100%;
+}
+
+.footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-table-tr-color);
+}

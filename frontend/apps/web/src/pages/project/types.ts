@@ -8,6 +8,8 @@
 export interface AppItem {
   /** 应用 ID */
   appId: number;
+  /** 本地安装的稳定授权主体 UUID，与导入来源及部署 UUID 分离 */
+  appPrincipalId?: string;
   /** 应用稳定键 */
   appKey?: string;
   /** 来源应用的 App ID（导入/替换时记录在 manifest 中的包身份） */
@@ -44,6 +46,10 @@ export interface AppItem {
   deployStatus?: string;
   /** 应用部署错误信息 */
   deployError?: string;
+  /** 应用 schema 名（动态应用部署时预占/写入 project_app.schema_name） */
+  schemaName?: string;
+  networkAlias?: string;
+  internalUrl?: string;
   /** 应用访问 URL */
   url?: string;
   /** 应用静态 URL */
@@ -117,7 +123,7 @@ export interface ProjectRole {
  */
 export interface ProjectMember {
   /** 成员 ID */
-  memberId: number;
+  memberId: number | string;
   /** 用户 ID */
   userId: string;
   /** 用户名称 */
@@ -127,5 +133,5 @@ export interface ProjectMember {
   /** 角色列表 */
   roles?: ProjectRole[];
   /** 更新时间 */
-  updatedAt: string;
+  updatedAt: string | number;
 }

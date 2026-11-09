@@ -11,6 +11,7 @@ export interface DevInfo {
   VITE_REMOTE_PREFIX?: string;
   VITE_ENABLE_LOCAL_REMOTE?: string;
   VITE_ENABLE_HOST: boolean;
+  VITE_ALLOWED_HOSTS?: string;
   LAUNCHPAD_PORT?: string;
   VITE_LAUNCHPAD_PORT?: string;
 }
@@ -28,7 +29,16 @@ export const parseConfig = (config: any) => {
 };
 
 // agent-svc: uns-agent 集成（2026-07-15）——网关路由 /agent-svc/** 反代 uns-agent-api，dev 模式同样要转发，否则 Agent tab 的聊天/画布接口在本地开发态 404。
-export const proxyList = ['api', 'openapi', 'gateway', 'chat2db/api', 'files/system/resource', 'kong-admin', 'agent-svc'];
+export const proxyList = [
+  'runtime-env.js',
+  'api',
+  'openapi',
+  'gateway',
+  'chat2db/api',
+  'files/system/resource',
+  'kong-admin',
+  'agent-svc',
+];
 
 export const getProxy = (baseUrl?: string, singleList?: string, singleUrl?: string, secure?: boolean) => {
   const proxyConfig: any = {};
@@ -100,6 +110,7 @@ export const getDevInfo = (): DevInfo => {
     VITE_REMOTE_PREFIX: explicitEnv.VITE_REMOTE_PREFIX || envConfig.VITE_REMOTE_PREFIX,
     VITE_ENABLE_LOCAL_REMOTE: explicitEnv.VITE_ENABLE_LOCAL_REMOTE || envConfig.VITE_ENABLE_LOCAL_REMOTE,
     VITE_ENABLE_HOST: explicitEnv.VITE_ENABLE_HOST || envConfig.VITE_ENABLE_HOST,
+    VITE_ALLOWED_HOSTS: explicitEnv.VITE_ALLOWED_HOSTS || envConfig.VITE_ALLOWED_HOSTS,
     LAUNCHPAD_PORT: launchpadPort,
     VITE_LAUNCHPAD_PORT: launchpadPort,
   };

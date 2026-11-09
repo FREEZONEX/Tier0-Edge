@@ -1,0 +1,178 @@
+syntax = "v1"
+
+type OpenapiUnsMetaListReq {
+    kind string `json:"kind,optional"`
+    deleted bool `json:"deleted,optional"`
+    page int `json:"page,optional"`
+    size int `json:"size,optional"`
+}
+
+type OpenapiUnsRecordListReq {
+    collectionId string `path:"collectionId"`
+    search string `json:"search,optional"`
+    page int `json:"page,optional"`
+    size int `json:"size,optional"`
+}
+
+type OpenapiUnsSampleListReq {
+    collectionId string `path:"collectionId"`
+    recordId string `json:"recordId"`
+    startTime int64 `json:"startTime,optional"`
+    endTime int64 `json:"endTime,optional"`
+    page int `json:"page,optional"`
+    size int `json:"size,optional"`
+}
+
+type OpenapiTopicCreateReq {
+ expectedRevision int64 `json:"expectedRevision"`
+ document interface{} `json:"document"`
+}
+type OpenapiTopicUpdateReq {
+ id string `path:"id"`
+ expectedRevision int64 `json:"expectedRevision"`
+ document interface{} `json:"document"`
+}
+type OpenapiTopicDetailReq { id string `path:"id"` }
+type OpenapiTopicListReq {
+ page int `json:"page,optional"`
+ size int `json:"size,optional"`
+}
+@server (
+ prefix: /openapi/v1/uns
+ group: openapi/v1/unsmeta
+ middleware: ApiKeyAuth
+)
+service backend {
+ @doc(
+  summary: "TopicCreate"
+  description: "Requires uns.manage on both the API Key and its owner. Create a UUID-based namespace Topic. document contains name and optional description, parentId, collectionId or fields. No metric type is selected. expectedRevision must be zero."
+  authType: "admin"
+  resource: "uns"
+  action: "create"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "3"
+ )
+ @handler OpenapiTopicCreate
+ post /topics/create (OpenapiTopicCreateReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "TopicUpdate"
+  description: "Requires uns.manage on both the API Key and its owner. Replace the Topic document using its current expectedRevision. Existing Topic ID is a UUID; use this facade for metadata Topics."
+  authType: "admin"
+  resource: "uns"
+  action: "update"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "3"
+ )
+ @handler OpenapiTopicUpdate
+ post /topics/:id/update (OpenapiTopicUpdateReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "TopicValidate"
+  description: "Requires uns.manage on both the API Key and its owner. Validate Topic fields, referenced collections and parent hierarchy without writing. Supply id and expectedRevision when validating an update."
+  authType: "admin"
+  resource: "uns"
+  action: "validate"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiTopicValidate
+ post /topics/validate (UnsTopicValidateReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "TopicList"
+  description: "Requires uns.read on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns"
+  action: "view"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiTopicList
+ post /topics/list (OpenapiTopicListReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "TopicDetail"
+  description: "Requires uns.read on both the API Key and its owner. Read a UUID-based Topic definition and resolved bound field values. For collection-backed data use the collection records or samples query."
+  authType: "admin"
+  resource: "uns"
+  action: "view"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiTopicDetail
+ post /topics/:id/detail (OpenapiTopicDetailReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsMetaList"
+  description: "Requires uns.read on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns"
+  action: "view"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiUnsMetaList
+ post /metadata/list (OpenapiUnsMetaListReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsMetaSave"
+  description: "Requires uns.manage on both the API Key and its owner. Save a folder, collection or Topic definition using kind and document. Create with expectedRevision=0; update using id and current revision. Source and Stream kinds are rejected."
+  authType: "admin"
+  resource: "uns"
+  action: "update"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "3"
+ )
+ @handler OpenapiUnsMetaSave
+ post /metadata/save (UnsMetaSaveReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsMetaView"
+  description: "Requires uns.read on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns"
+  action: "view"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiUnsMetaView
+ post /metadata/:id/view (UnsMetaViewReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsMetaState"
+  description: "Requires uns.manage on both the API Key and its owner. Delete or restore a metadata object using restore and expectedRevision. Delete additionally requires uns.delete; referenced objects cannot be deleted."
+  authType: "admin"
+  resource: "uns"
+  action: "update"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "3"
+ )
+ @handler OpenapiUnsMetaState
+ post /metadata/:id/state (UnsMetaStateReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsCollectionCreate"
+  description: "Requires uns.manage on both the API Key and its owner. Create a collection and its namespace Topic atomically. document requires name and recordSchema; sampleSchema is optional. Returns collection and topic."
+  authType: "admin"
+  resource: "uns"
+  action: "create"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "3"
+ )
+ @handler OpenapiUnsCollectionCreate
+ post /collections/create (UnsCollectionCreateReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsRecordList"
+  description: "Requires uns.read on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns"
+  action: "view"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiUnsRecordList
+ post /collections/:collectionId/records/list (OpenapiUnsRecordListReq) returns (UnsMetaEnvelope)
+ @doc(
+  summary: "UnsSampleList"
+  description: "Requires uns.read on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns"
+  action: "view"
+  group: "openapi/v1/unsmeta"
+  recordLogMode: "1"
+ )
+ @handler OpenapiUnsSampleList
+ post /collections/:collectionId/samples/list (OpenapiUnsSampleListReq) returns (UnsMetaEnvelope)
+}

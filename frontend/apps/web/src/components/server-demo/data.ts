@@ -1,4 +1,5 @@
 import { getIntl } from '@/stores/i18n-store.ts';
+import { resolveMqttWebsocketPort } from '@/utils/mqtt';
 import type { TabItems } from './index';
 
 interface ConfigTypes {
@@ -237,7 +238,8 @@ const data: { [x: string]: ConfigTypes | ((arg0: any) => ConfigTypes) } = {
     ],
   }),
   mqtt: (params: any): ConfigTypes => {
-    const { dataType, hostName, topic, jsObj, tcpPort, fieldExampleList } = params;
+    const { dataType, hostName, topic, jsObj, tcpPort, fieldExampleList, mqttWebsocketUrl } = params;
+    const mqttWebsocketPort = resolveMqttWebsocketPort(mqttWebsocketUrl);
     return {
       title: getIntl('mqttAccessMethod'),
       tabItems: [
@@ -248,12 +250,12 @@ const data: { [x: string]: ConfigTypes | ((arg0: any) => ConfigTypes) } = {
             {
               key: 'MQTTUrl',
               label: getIntl('uns.MQTTUrl'),
-              value: `mqtt://${hostName}`,
+              value: mqttWebsocketUrl,
             },
             {
               key: 'MQTTPort',
               label: getIntl('uns.MQTTPort'),
-              value: 1883,
+              value: mqttWebsocketPort,
             },
             {
               key: 'topic',
@@ -289,7 +291,7 @@ const data: { [x: string]: ConfigTypes | ((arg0: any) => ConfigTypes) } = {
         rejectUnauthorized: false,
       };
 
-      const connectUrl ='ws://${hostName}:8083/mqtt';
+      const connectUrl ='${mqttWebsocketUrl}';
 
       const client = mqtt.connect(connectUrl, options);
 

@@ -73,6 +73,8 @@ const Roles: FC<PageProps> = () => {
       });
 
       setRoles(Array.from(roleMap.values()));
+    } catch {
+      setRoles([]);
     } finally {
       setLoading(false);
     }

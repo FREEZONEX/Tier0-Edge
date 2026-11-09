@@ -1,0 +1,23 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core/gateway
+    group: core/gateway
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler GatewayRouteList
+    get /routes returns (Envelope)
+
+    @handler GatewayRouteCreate
+    post /routes (GatewayRouteReq) returns (Envelope)
+
+    @handler GatewayRouteUpdate
+    put /routes/:routeKey (GatewayRouteReq) returns (Envelope)
+
+    @handler GatewayRouteDelete
+    delete /routes/:routeKey (RouteKeyReq) returns (Envelope)
+
+    @handler GatewayRouteTest
+    post /routes/:routeKey/test (RouteKeyReq) returns (Envelope)
+}

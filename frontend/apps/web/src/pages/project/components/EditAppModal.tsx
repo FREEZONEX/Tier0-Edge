@@ -3,7 +3,7 @@ import ProModal from '@/components/pro-modal';
 import { useTranslate } from '@/hooks';
 import type { AppItem } from '@/pages/project/types';
 import { projectAppMediaUrl, uploadProjectAppMedia } from '@/utils/project-app-media';
-import { App, Button, Form, Input } from 'antd';
+import { App, Button, Form, Input, Typography } from 'antd';
 import type { RcFile } from 'antd/es/upload';
 import { forwardRef, useImperativeHandle, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router';
@@ -137,6 +137,11 @@ const EditAppModal = forwardRef<EditAppModalRef, EditAppModalProps>(({ refreshRe
             <Input value={editingApp?.version || ''} disabled />
           </div>
         </div>
+        {editingApp?.internalUrl ? (
+          <Form.Item label={formatMessage('project.internalUrl')} style={COMPACT_ITEM_STYLE}>
+            <Typography.Text copyable>{editingApp.internalUrl}</Typography.Text>
+          </Form.Item>
+        ) : null}
         <Form.Item name="description" label={formatMessage('common.description')} className={styles.descriptionItem}>
           <Input.TextArea
             rows={3}

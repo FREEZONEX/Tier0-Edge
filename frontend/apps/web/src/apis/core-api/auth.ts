@@ -2,6 +2,7 @@ import {
   authApi,
   buttonUrisForResourceKeys,
   coreResourcesForResourceKeys,
+  iamApi,
   routeUrisForResourceKeys,
   type CoreResource,
 } from './core-adapter';
@@ -16,9 +17,23 @@ const isSuperAdmin = (user?: any) => {
   }
   return ['tier0', 'admin'].includes(String(user?.userName || '').trim());
 };
-const defaultHomePage = '/uns';
+const defaultHomePage = '/home';
 const defaultProfileEmail = 'tier0@example.com';
 const validEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// cookie 寿命跟随登录有效期设置(后端按设置签发 JWT 并返回 sessionExpireAt);
+// 旧后端未返回该字段时回退原 0.5 天。
+// 注意:Chrome 104+ 将 cookie 显式有效期钳制在 400 天内,permanent(100 年)实际
+// 按 400 天写入;真正的"永不掉线"需要滑动续期机制,另行跟进。
+const DEFAULT_TOKEN_COOKIE_EXPIRES_DAYS = 0.5;
+const MAX_TOKEN_COOKIE_EXPIRES_DAYS = 400;
+const tokenCookieExpires = (sessionExpireAt?: string) => {
+  if (!sessionExpireAt) return DEFAULT_TOKEN_COOKIE_EXPIRES_DAYS;
+  const expireAt = new Date(sessionExpireAt);
+  if (Number.isNaN(expireAt.getTime())) return DEFAULT_TOKEN_COOKIE_EXPIRES_DAYS;
+  const maxExpires = new Date(Date.now() + MAX_TOKEN_COOKIE_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+  return expireAt > maxExpires ? maxExpires : expireAt;
+};
 
 const normalizeProfileEmail = (email?: string, user?: any) => {
   const value = String(email || '').trim();
@@ -57,9 +72,19 @@ const getCurrentUserConfig = async () => {
     return { homePage: defaultHomePage };
   }
 };
+
 const getPermissionResources = async (user: any = {}) => {
-  return coreResourcesForResourceKeys(user?.resourceKeys || []);
-}
+  const resourceKeys = user?.resourceKeys || [];
+  if (user?.superAdmin !== true) {
+    return coreResourcesForResourceKeys(resourceKeys);
+  }
+  try {
+    const resources = (await iamApi.get('/resources')) as CoreResource[];
+    return Array.isArray(resources) ? resources : [];
+  } catch {
+    return coreResourcesForResourceKeys(resourceKeys);
+  }
+};
 
 const buildUserPermissions = (resources: CoreResource[] = [], user?: any, config?: any) => {
   const resourceList = routeUrisForResourceKeys(resources, user?.resourceKeys || []);
@@ -77,10 +102,9 @@ const buildUserPermissions = (resources: CoreResource[] = [], user?: any, config
   };
 };
 
-export const loginApi = async (data?: Record<string, unknown>) => {
-  const result = await authApi.post('/login', data);
+const completeLogin = async (result: any) => {
   if (result?.token) {
-    setToken(result.token, { expires: 0.5, path: '/' });
+    setToken(result.token, { expires: tokenCookieExpires(result?.sessionExpireAt), path: '/' });
   }
   const [resources, config] = await Promise.all([getPermissionResources(result), getCurrentUserConfig()]);
   const permissions = buildUserPermissions(resources as CoreResource[], result, config);
@@ -95,6 +119,55 @@ export const loginApi = async (data?: Record<string, unknown>) => {
     ...permissions,
   };
 };
+
+export const loginApi = async (data?: Record<string, unknown>) => {
+  const result = await authApi.post('/login', data);
+  return completeLogin(result);
+};
+
+export type ExternalSSOPending = {
+  displayName?: string;
+  email?: string;
+  suggestedUsername?: string;
+  mfaAuthenticated?: boolean;
+  redirectUri?: string;
+};
+
+export const getExternalSSOPending = (provider: string, ticket: string): Promise<ExternalSSOPending> =>
+  authApi.get(`/sso/${encodeURIComponent(provider)}/pending`, { params: { ticket }, _noMessage: true });
+
+export const checkExternalSSOUsername = (
+  provider: string,
+  ticket: string,
+  username: string
+): Promise<{ available: boolean }> =>
+  authApi.get(`/sso/${encodeURIComponent(provider)}/username-availability`, {
+    params: { ticket, username },
+    _noMessage: true,
+  });
+
+export const completeExternalSSO = async (provider: string, ticket: string, username: string) => {
+  const result = await authApi.post(
+    `/sso/${encodeURIComponent(provider)}/complete`,
+    { ticket, username },
+    { _noMessage: true }
+  );
+  return completeLogin(result);
+};
+
+export const linkExternalSSO = async (provider: string, ticket: string, username: string, password: string) => {
+  const result = await authApi.post(
+    `/sso/${encodeURIComponent(provider)}/link`,
+    { ticket, username, password },
+    { _noMessage: true }
+  );
+  return completeLogin(result);
+};
+
+export const externalSSOStartURL = (provider: string, redirectUri?: string) => {
+  const query = redirectUri ? `?redirectUri=${encodeURIComponent(redirectUri)}` : '';
+  return `/api/core/auth/sso/${encodeURIComponent(provider)}/start${query}`;
+};
 // 获取用户信息
 export const getUserInfo = async () => {
   const user = await authApi.get('/me');
@@ -107,6 +180,7 @@ export const getUserInfo = async () => {
     tipsEnable: 0,
     sub: String(user?.userId || ''),
     preferredUsername: user?.userName,
+    roleCode: user?.roleCode,
     firstName: user?.nickName || user?.userName,
     email: normalizeProfileEmail(user?.email, user),
     phone: user?.phone,

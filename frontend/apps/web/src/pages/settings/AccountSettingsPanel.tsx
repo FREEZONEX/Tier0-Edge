@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { App, Button, Form, Input, Modal, Alert } from 'antd';
+import { Alert, App, Button, Form, Input, Modal } from 'antd';
 import { Edit, Password, UserAvatar } from '@carbon/icons-react';
 import ComSelect from '@/components/com-select';
 import HomePageSelect from '@/components/home-page-select';
@@ -14,7 +14,7 @@ import { passwordRegex, validNameRegex } from '@/utils/pattern';
 import { preloadPluginLang } from '@/utils/plugin.ts';
 import { storageOpt } from '@/utils/storage';
 import { updatePersonConfigApi } from '@/apis/core-api/uns';
-import { isLaunchpadStandalonePort } from '@/utils/launchpad-site';
+import { beginLaunchpadExplicitLogout, isLaunchpadStandaloneSite } from '@/utils/launchpad-site';
 import Cookies from 'js-cookie';
 import styles from './account-settings-panel.module.scss';
 
@@ -25,13 +25,14 @@ type AccountSettingsPanelProps = {
 };
 
 const logout = (path?: string) => {
+  beginLaunchpadExplicitLogout();
   logoutApi().then(() => {
     removeToken();
     Cookies.remove(OMC_MODEL, { path: '/' });
     storageOpt.remove(APP_USER_GUIDE_ROUTES);
     storageOpt.remove(APP_USER_TIPS_ENABLE);
     storageOpt.remove('personInfo');
-    location.href = path || LOGIN_URL;
+    window.location.replace(path || LOGIN_URL);
   });
 };
 
@@ -61,7 +62,7 @@ const AccountSettingsPanel = ({ activeTab = 'profile' }: AccountSettingsPanelPro
   const name = currentUserInfo.firstName || currentUserInfo.preferredUsername || '';
   const avatarInitial = name.trim().slice(0, 1).toLocaleUpperCase();
   const canEditAccount = currentUserInfo?.sub !== 'guest';
-  const showHomePagePreference = !isLaunchpadStandalonePort();
+  const showHomePagePreference = !isLaunchpadStandaloneSite();
   const menuGroupNoSub = useMemo(() => menuGroup?.filter((item: any) => !item.subMenu) || [], [menuGroup]);
 
   const resetProfileForm = () => {
@@ -211,7 +212,7 @@ const AccountSettingsPanel = ({ activeTab = 'profile' }: AccountSettingsPanelPro
               type="warning"
               showIcon
               className={styles['default-password-alert']}
-              message={formatMessage('account.defaultPasswordStillInUse')}
+              message={formatMessage('account.passwordResetPending')}
               action={
                 <Button size="small" type="primary" onClick={() => setIsEditingPassword(true)}>
                   {formatMessage('account.updatePassword')}

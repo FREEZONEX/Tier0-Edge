@@ -43,9 +43,7 @@ export const getLaunchpadAppByNameApi = async (
 };
 
 /** 获取当前用户收藏列表 */
-export const getLaunchpadFavoritesApi = async (
-  resType?: string
-): Promise<{ list: LaunchpadFavoriteItem[] }> => {
+export const getLaunchpadFavoritesApi = async (resType?: string): Promise<{ list: LaunchpadFavoriteItem[] }> => {
   const config: Record<string, any> = { [CustomAxiosConfigEnum.NoMessage]: true };
   if (resType) {
     config.params = { resType };

@@ -5,7 +5,7 @@
 //     postgres://test:test@localhost:5432/tier0_test?sslmode=disable，
 //     可用环境变量 TEST_DATABASE_URL 覆盖（本机端口不一致或 CI 时）。
 //   - 每个测试创建独立数据库（t_<测试名>_<随机后缀>），结束后自动 DROP，完全隔离。
-//     不做 schema 级隔离的原因：sink 迁移 DDL 硬编码 uns schema
+//     不做 schema 级隔离的原因：sink 迁移 DDL 固定使用 public schema
 //     （internal/repo/migrations/sink_schema.sql），schema 级隔离会跨测试共享该 schema。
 //   - 建表直接复用生产迁移（repo.Store.Migrate：schema.sql + 版本化迁移），并执行
 //     repo.Store.Seed 灌入内置 Admin/Operator 角色与默认资源，与生产启动路径一致。
@@ -42,6 +42,25 @@ func DSN() string {
 		return v
 	}
 	return DefaultDSN
+}
+
+// SetLegacySourceState seeds historical persisted flags for lifecycle regression
+// tests. Source activation is no longer a product operation. This fixture also
+// advances the metadata revision, preserving tests of old snapshot boundaries.
+func SetLegacySourceState(ctx context.Context, service interface {
+	Source(context.Context, int64) (map[string]any, error)
+}, id, revision int64, state string) (map[string]any, error) {
+	if state != "enabled" && state != "disabled" {
+		return nil, repo.ErrInvalidArgument
+	}
+	_, err := repo.NewSourceStreamRepo(ctx).ChangeSource(ctx, id, revision, func(_ *gorm.DB, item *repo.Source) error {
+		item.DesiredState = state
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return service.Source(ctx, id)
 }
 
 // NewTestDB 创建独立测试数据库并完成迁移与种子数据，返回 *repo.Store 与该库 DSN。

@@ -41,12 +41,7 @@ const useFormModal = ({
         style={{ padding: 0 }}
         footer={
           <Flex gap="10px" justify="end">
-            <ComButton
-              color="default"
-              variant="filled"
-              onClick={onCancel}
-              title={formatMessage('common.cancel')}
-            >
+            <ComButton color="default" variant="filled" onClick={onCancel} title={formatMessage('common.cancel')}>
               {formatMessage('common.cancel')}
             </ComButton>
             <ComButton type="primary" variant="solid" onClick={onSave} title={formatMessage('common.save')}>

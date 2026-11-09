@@ -1,0 +1,6 @@
+{
+  "NATS-LICENSE.txt": "https://raw.githubusercontent.com/nats-io/nats-server/v2.15.2/LICENSE",
+  "PostgreSQL-COPYRIGHT.txt": "https://raw.githubusercontent.com/postgres/postgres/REL_17_11/COPYRIGHT",
+  "TimescaleDB-LICENSE.txt": "https://raw.githubusercontent.com/timescale/timescaledb/2.20.0/LICENSE",
+  "TimescaleDB-TSL-LICENSE.txt": "https://raw.githubusercontent.com/timescale/timescaledb/2.20.0/tsl/LICENSE-TIMESCALE"
+}

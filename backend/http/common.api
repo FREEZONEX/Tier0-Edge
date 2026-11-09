@@ -49,6 +49,44 @@ type LoginResp {
     forceChangePassword bool `json:"forceChangePassword"`
     resourceKeys []string `json:"resourceKeys"`
     uiActions []string `json:"uiActions"`
+    sessionExpireAt string `json:"sessionExpireAt,optional"`
+}
+
+type ExternalSSOStartReq {
+    provider string `path:"provider"`
+    redirectUri string `form:"redirectUri,optional"`
+}
+
+type ExternalSSOCallbackReq {
+    provider string `path:"provider"`
+    code string `form:"code,optional"`
+    state string `form:"state,optional"`
+    error string `form:"error,optional"`
+    errorDescription string `form:"error_description,optional"`
+}
+
+type ExternalSSOPendingReq {
+    provider string `path:"provider"`
+    ticket string `form:"ticket"`
+}
+
+type ExternalSSOUsernameAvailabilityReq {
+    provider string `path:"provider"`
+    ticket string `form:"ticket"`
+    username string `form:"username"`
+}
+
+type ExternalSSOCompleteReq {
+    provider string `path:"provider"`
+    ticket string `json:"ticket"`
+    username string `json:"username"`
+}
+
+type ExternalSSOLinkReq {
+    provider string `path:"provider"`
+    ticket string `json:"ticket"`
+    username string `json:"username"`
+    password string `json:"password"`
 }
 
 type CurrentUserResp {
@@ -92,18 +130,6 @@ type CurrentUserProfileReq {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 type PageReq {
     pageNo int `form:"pageNo,optional"`
     pageSize int `form:"pageSize,optional"`
@@ -119,6 +145,7 @@ type UserRoleReq {
 type UserSaveReq {
     username string `json:"username"`
     password string `json:"password,optional"`
+    forceChangePassword bool `json:"forceChangePassword,optional"`
     firstName string `json:"firstName,optional"`
     email string `json:"email,optional"`
     phone string `json:"phone,optional"`
@@ -135,6 +162,46 @@ type UserUpdateReq {
     enabled bool `json:"enabled,optional"`
     homePage string `json:"homePage,optional"`
     roleList []UserRoleReq `json:"roleList,optional"`
+}
+
+type UserBatchUpdateReq {
+    userIds []int64 `json:"userIds"`
+    homePage string `json:"homePage,optional"`
+    roleList []UserRoleReq `json:"roleList,optional"`
+}
+
+type UserGroupIdReq {
+    groupId int64 `path:"groupId"`
+}
+
+type UserGroupSaveReq {
+    groupId int64 `path:"groupId,optional"`
+    groupName string `json:"groupName"`
+    description string `json:"description,optional"`
+}
+
+type UserGroupMembersSaveReq {
+    groupId int64 `path:"groupId"`
+    userIds []int64 `json:"userIds"`
+}
+
+type UserImportReq {
+    sourceFileId int64 `json:"sourceFileId"`
+}
+
+type UserExportReq {
+    scope string `json:"scope"`
+    userIds []int64 `json:"userIds,optional"`
+    groupIds []int64 `json:"groupIds,optional"`
+    keyword string `json:"keyword,optional"`
+    statuses []string `json:"statuses,optional"`
+    roleIds []int64 `json:"roleIds,optional"`
+    sensitiveMode string `json:"sensitiveMode,optional"`
+}
+
+type UserJobReq {
+    jobKey string `path:"jobKey"`
+    stream bool `form:"stream,optional"`
 }
 
 type UserPasswordResetReq {
@@ -156,32 +223,13 @@ type NodeIdReq {
     nodeId int64 `path:"nodeId"`
 }
 
-type FlowIdReq {
+
+type VersionIdReq {
     flowId int64 `path:"flowId"`
+    versionId int64 `path:"versionId"`
 }
 
 
-
-
-
-type NodeRedNodeTypeListReq {
-    flowType string `form:"flowType"`
-}
-
-type NodeRedMissingNodeListReq {
-    flowType string `form:"flowType"`
-}
-
-type NodeRedMissingNodeDeleteReq {
-    id string `form:"id"`
-    flowId string `form:"flowId,optional"`
-    scope string `form:"scope,optional"`
-    flowType string `form:"flowType"`
-}
-
-type NodeRedMissingNodeCleanupReq {
-    flowType string `json:"flowType,optional"`
-}
 
 
 
@@ -282,48 +330,24 @@ type InfoResp {
     mqttBroker string `json:"mqttBroker"`
 }
 
-type OpenapiFlowLegacyListReq {
-    keyword string `json:"keyword,optional"`
-    flowType string `json:"flowType,optional"`
-}
 
-type OpenapiFlowLegacyGetReq {
-    id int64 `json:"id"`
-}
 
-type OpenapiFlowLegacyCreateReq {
-    flowName string `json:"flowName"`
-    flowType string `json:"flowType"`
-    description string `json:"description,optional"`
-    template string `json:"template,optional"`
-}
 
-type OpenapiFlowLegacyUpdateReq {
-    id int64 `json:"id"`
-    flowName string `json:"flowName,optional"`
-    description string `json:"description,optional"`
-    template string `json:"template,optional"`
-    isFavorite int64 `json:"isFavorite,optional"`
-}
 
-type OpenapiFlowLegacyDeleteReq {
-    ids []int64 `json:"ids"`
-}
 
-type OpenapiFlowLegacyDeployReq {
-    id int64 `json:"id"`
-    flowsJson string `json:"flowsJson"`
-}
 
-type OpenapiFlowLegacyNodesReq {
-    flowType string `json:"flowType"`
-}
 
 type UnsListReq {
     parentId int64 `form:"parentId,optional"`
     parentIdSet bool `form:"parentIdSet,optional"`
     keyword string `form:"keyword,optional"`
     includeRecycle bool `form:"includeRecycle,optional"`
+}
+
+type UnsDataQualityPolicyReq {
+    notifyOnIssue bool `json:"notifyOnIssue,optional"`
+    expectedIntervalMs int64 `json:"expectedIntervalMs,optional"`
+    missingGraceMs int64 `json:"missingGraceMs,optional"`
 }
 
 type UnsNodeSaveReq {
@@ -344,6 +368,7 @@ type UnsNodeSaveReq {
     withFlow bool `json:"withFlow,optional"`
     addFlow bool `json:"addFlow,optional"`
     mockData bool `json:"mockData,optional"`
+    dataQualityPolicy *UnsDataQualityPolicyReq `json:"dataQualityPolicy,optional"`
 }
 
 type UnsDashboardReq {
@@ -353,9 +378,15 @@ type UnsDashboardReq {
     limit int `form:"limit,optional"`
 }
 
+type UnsRestoreReq {
+    nodeId int64 `path:"nodeId"`
+    confirm bool `json:"confirm,optional"`
+}
 
-
-
+type UnsForceDeleteReq {
+    nodeId int64 `path:"nodeId"`
+    deleteFlow bool `form:"deleteFlow,optional"`
+}
 
 type UnsImportJobReq {
     dryRun bool `json:"dryRun,optional"`
@@ -373,52 +404,12 @@ type UnsLabelReq {
     description string `json:"description,optional"`
 }
 
-type FlowListReq {
-    flowType string `form:"flowType,optional"`
-    parentId int64 `form:"parentId,optional"`
-    keyword string `form:"keyword,optional"`
-}
 
-type FlowMockField {
-    name string `json:"name"`
-    fieldType string `json:"type,optional"`
-}
 
-type FlowSaveReq {
-    flowId int64 `path:"flowId,optional"`
-    sourceId int64 `json:"sourceId,optional"`
-    parentId int64 `json:"parentId,optional"`
-    flowType string `json:"flowType"`
-    nodeType string `json:"nodeType"`
-    name string `json:"name"`
-    description string `json:"description,optional"`
-    template string `json:"template,optional"`
-    unsNodeIds []int64 `json:"unsNodeIds,optional"`
-    mockData bool `json:"mockData,optional"`
-    mockTopic string `json:"mockTopic,optional"`
-    mockFields []FlowMockField `json:"mockFields,optional"`
-    mockTriggerMode string `json:"mockTriggerMode,optional"`
-}
 
-type FlowDataReq {
-    flowId int64 `path:"flowId"`
-    flowData string `json:"flowData"`
-}
 
-type FlowMarkReq {
-    flowId int64 `path:"flowId"`
-    pinned bool `json:"pinned"`
-}
 
-type FlowStatusReq {
-    flowId int64 `path:"flowId"`
-    status string `json:"status"`
-}
 
-type FlowDeployReq {
-    flowId int64 `path:"flowId"`
-    flowData string `json:"flowData,optional"`
-}
 
 type AssetListReq {
     pageNo int `form:"pageNo,optional"`
@@ -453,10 +444,6 @@ type UnsAttachmentListReq {
     includeFileUrl *bool `json:"includeFileUrl,optional"`
 }
 
-type UnsBindFlowReq {
-    unsId int64 `json:"unsId"`
-    flowId int64 `json:"flowId"`
-}
 
 type AssetBindReq {
     fileId int64 `json:"fileId"`
@@ -514,21 +501,53 @@ type ResourceActionSaveReq {
     enabled int64 `json:"enabled,optional"`
 }
 
+type MqttAuthReq {
+    username string `json:"username"`
+    password string `json:"password,optional"`
+    clientid string `json:"clientid,optional"`
+    peerhost string `json:"peerhost,optional"`
+    protoName string `json:"protoName,optional"`
+}
 
+type MqttAclReq {
+    username string `json:"username"`
+    clientid string `json:"clientid,optional"`
+    topic string `json:"topic"`
+    action string `json:"action"`
+}
 
+type MqttAuthClientListReq {
+    clientType string `form:"type,optional"`
+    keyword string `form:"keyword,optional"`
+}
 
+type MqttAuthClientCreateReq {
+    name string `json:"name,optional"`
+    clientType string `json:"type,optional"`
+    description string `json:"description,optional"`
+    clientIdRandomSuffixEnabled bool `json:"clientIdRandomSuffixEnabled,optional"`
+}
 
+type LicenseActivateReq {
+    licenseKey string `json:"licenseKey"`
+}
 
+type LicenseImportReq {
+    licenseKey string `json:"licenseKey,optional"`
+    bundleJson string `json:"bundleJson,optional"`
+}
 
+type LicenseReplaceReq {
+    licenseKey string `json:"licenseKey,optional"`
+    bundleJson string `json:"bundleJson,optional"`
+}
 
-
-
-
-
-
-
-
-
+type LicenseMqttAuthReq {
+    username string `json:"username"`
+    password string `json:"password,optional"`
+    clientid string `json:"clientid,optional"`
+    ipaddress string `json:"ipaddress,optional"`
+}
 
 type OAuthClientReq {
     id int64 `path:"id,optional"`
@@ -556,25 +575,129 @@ type OAuthTokenReq {
     codeVerifier string `json:"codeVerifier,optional"`
 }
 
+type ProjectListReq {
+    keyword string `form:"keyword,optional"`
+}
 
+type ProjectSaveReq {
+    id int64 `path:"id,optional"`
+    name string `json:"name"`
+    description string `json:"description,optional"`
+}
 
+type ProjectAppImportReq {
+    projectId int64 `path:"projectId"`
+    id int64 `json:"id,optional"`
+    fileId int64 `json:"fileId,optional"`
+    appName string `json:"appName,optional"`
+    description string `json:"description,optional"`
+    originalName string `json:"originalName,optional"`
+    attachmentName string `json:"attachmentName,optional"`
+    attachmentPath string `json:"attachmentPath,optional"`
+    schemaName string `json:"schemaName,optional"`
+    networkAlias string `json:"networkAlias,optional"`
+    envPolicy string `json:"envPolicy,optional"`
+    envVars []EnvVarItem `json:"envVars,optional"`
+    volumePolicy string `json:"volumePolicy,optional"`
+    volumes []AppVolumeItem `json:"volumes,optional"`
+}
 
+type ProjectAppReplaceReq {
+    networkAlias string `json:"networkAlias,optional"`
+    projectId int64 `path:"projectId"`
+    appId int64 `path:"appId"`
+    id int64 `json:"id,optional"`
+    fileId int64 `json:"fileId,optional"`
+    appName string `json:"appName,optional"`
+    description string `json:"description,optional"`
+    originalName string `json:"originalName,optional"`
+    attachmentName string `json:"attachmentName,optional"`
+    attachmentPath string `json:"attachmentPath,optional"`
+    envPolicy string `json:"envPolicy,optional"`
+    envVars []EnvVarItem `json:"envVars,optional"`
+    volumePolicy string `json:"volumePolicy,optional"`
+    volumes []AppVolumeItem `json:"volumes,optional"`
+}
 
+type EnvVarItem {
+    key string `json:"key"`
+    value string `json:"value"`
+}
 
+type AppVolumeItem {
+    hostPath string `json:"hostPath"`
+    containerPath string `json:"containerPath"`
+    readOnly bool `json:"readOnly,optional"`
+}
 
+type ProjectAppImportPreviewReq {
+    projectId int64 `path:"projectId"`
+    fileId int64 `json:"fileId"`
+}
 
+type ProjectAppImportPreviewResp {
+    appId string `json:"appId,optional"`
+    projectId string `json:"projectId,optional"`
+    schemaDefault string `json:"schemaDefault,optional"`
+    envVars []EnvVarItem `json:"envVars,optional"`
+}
 
+type ProjectAppManualSaveReq {
+    projectId int64 `path:"projectId"`
+    name string `json:"name"`
+    description string `json:"description,optional"`
+    accessMode string `json:"accessMode,optional"`
+    containerName string `json:"containerName,optional"`
+    containerPort int `json:"containerPort,optional"`
+    targetPath string `json:"targetPath,optional"`
+    entryUrl string `json:"entryUrl,optional"`
+    openInPlatform bool `json:"openInPlatform,optional"`
+    iconAssetId int64 `json:"iconAssetId,optional"`
+}
 
+type ProjectAppUpdateReq {
+    projectId int64 `path:"projectId"`
+    appId int64 `path:"appId"`
+    name string `json:"name"`
+    description string `json:"description,optional"`
+    iconAssetId int64 `json:"iconAssetId,optional"`
+    coverAssetId int64 `json:"coverAssetId,optional"`
+}
 
+type ProjectAppReq {
+    projectId int64 `path:"projectId"`
+    appId int64 `path:"appId,optional"`
+}
 
+type ProjectAppStatusReq {
+    projectId int64 `path:"projectId"`
+    appId int64 `path:"appId"`
+    status string `json:"status"`
+}
 
+type ProjectMemberReq {
+    projectId int64 `path:"projectId"`
+    memberId int64 `path:"memberId,optional"`
+}
 
+type ProjectMemberSaveReq {
+    projectId int64 `path:"projectId"`
+    memberId int64 `path:"memberId,optional"`
+    userId string `json:"userId,optional"`
+    roleIds []int64 `json:"roleIds,optional"`
+}
 
+type ProjectMemberGroupReq {
+    projectId int64 `path:"projectId"`
+    projectGroupId int64 `path:"projectGroupId,optional"`
+}
 
-
-
-
-
+type ProjectMemberGroupSaveReq {
+    projectId int64 `path:"projectId"`
+    projectGroupId int64 `path:"projectGroupId,optional"`
+    groupId int64 `json:"groupId,optional"`
+    roleIds []int64 `json:"roleIds,optional"`
+}
 
 type AuditLogPageReq {
     pageNo int `json:"pageNo,optional"`
@@ -584,6 +707,25 @@ type AuditLogPageReq {
     resType string `json:"resType,optional"`
     businessType string `json:"businessType,optional"`
     operatorKeyword string `json:"operatorKeyword,optional"`
+    code int `json:"code,optional"`
+    startTime string `json:"startTime,optional"`
+    endTime string `json:"endTime,optional"`
+    scopeName string `json:"scopeName,optional"`
+    operatorId int64 `json:"operatorId,optional"`
+    resourceKeyword string `json:"resourceKeyword,optional"`
+    resId string `json:"resId,optional"`
+    requestId string `json:"requestId,optional"`
+    ip string `json:"ip,optional"`
+    result string `json:"result,optional"`
+}
+
+type LoginLogPageReq {
+    pageNo int `json:"pageNo,optional"`
+    pageSize int `json:"pageSize,optional"`
+    keyword string `json:"keyword,optional"`
+    userName string `json:"userName,optional"`
+    ipAddr string `json:"ipAddr,optional"`
+    eventType string `json:"eventType,optional"`
     code int `json:"code,optional"`
     startTime string `json:"startTime,optional"`
     endTime string `json:"endTime,optional"`
@@ -602,4 +744,121 @@ type HomeRecentItem {
     routePath string `json:"routePath"`
     icon string `json:"icon"`
     operatedAt int64 `json:"operatedAt"`
+}
+
+type LaunchpadListReq {
+    keyword string `form:"keyword,optional"`
+    userId int64 `form:"userId,optional"`
+}
+
+type LaunchpadProjectReq {
+    projectId int64 `path:"projectId"`
+    keyword string `form:"keyword,optional"`
+}
+
+type LaunchpadAppReq {
+    projectId int64 `path:"projectId"`
+    appId int64 `path:"appId"`
+}
+
+type LaunchpadGetMembersReq {
+    projectName string `path:"projectName"`
+    roleKey string `json:"roleKey,optional"`
+    roles []string `json:"roles,optional"`
+    updatedAtStart string `json:"updatedAtStart,optional"`
+    updatedAtEnd string `json:"updatedAtEnd,optional"`
+    page int64 `json:"page,optional"`
+    size int64 `json:"size,optional"`
+}
+
+type LaunchpadMemberRoleAppResp {
+    appId string `json:"appId"`
+    appName string `json:"appName"`
+}
+
+type LaunchpadMemberRoleResp {
+    roleId string `json:"roleId"`
+    roleKey string `json:"roleKey"`
+    roleName string `json:"roleName,optional"`
+    description string `json:"description,optional"`
+    memberCount int64 `json:"memberCount"`
+    apps []LaunchpadMemberRoleAppResp `json:"apps,optional"`
+}
+
+type LaunchpadMemberResp {
+    userId string `json:"userId"`
+    userName string `json:"userName,optional"`
+    email string `json:"email,optional"`
+    roles []LaunchpadMemberRoleResp `json:"roles"`
+    updatedAt string `json:"updatedAt,optional"`
+}
+
+type LaunchpadMembersResp {
+    list []LaunchpadMemberResp `json:"list"`
+    total int64 `json:"total"`
+    page int64 `json:"page"`
+    size int64 `json:"size"`
+}
+
+type LaunchpadFavoriteItem {
+    resType string `json:"resType"`
+    resID string `json:"resId"`
+    resName string `json:"resName,optional"`
+}
+
+type LaunchpadFavoriteListReq {
+    resType string `form:"resType,optional"`
+}
+
+type LaunchpadFavoriteBatchReq {
+    items []LaunchpadFavoriteItem `json:"items"`
+}
+
+type LaunchpadAppViewReq {
+    appID int64 `path:"appId"`
+}
+
+type LaunchpadShortcutIconReq {
+    appID int64 `path:"appId"`
+    expires int64 `form:"expires,optional"`
+    signature string `form:"signature,optional"`
+}
+
+
+type ClusterTokenCreateReq {
+    tokenName string `json:"tokenName"`
+    description string `json:"description,optional"`
+}
+
+type ClusterHandshakeReq {
+    token string `json:"token"`
+    nodeKey string `json:"nodeKey"`
+    nodeName string `json:"nodeName"`
+    role string `json:"role"`
+    endpoint string `json:"endpoint,optional"`
+    capabilitiesJson string `json:"capabilitiesJson,optional"`
+}
+
+type ClusterConnectReq {
+    token string `json:"token,optional"`
+    unsVersion int `json:"unsVersion,optional"`
+    selectedDirectoryIds []string `json:"selectedDirectoryIds,optional"`
+    selectedCollectionIds []string `json:"selectedCollectionIds,optional"`
+    selectedRootNodeIDs []string `json:"selectedRootNodeIDs,optional"`
+    expectedScopeRevision int64 `json:"expectedScopeRevision"`
+    syncMetricEnabled bool `json:"syncMetricEnabled,optional"`
+}
+
+type ClusterTestConnectReq {
+    token string `json:"token"`
+}
+
+// One-time native mini program to same-origin web session handoff.
+type MiniEntryTicketReq {
+    projectId int64 `json:"projectId"`
+    appId int64 `json:"appId"`
+}
+
+type MiniEntryExchangeReq {
+    ticket string `json:"ticket"`
 }

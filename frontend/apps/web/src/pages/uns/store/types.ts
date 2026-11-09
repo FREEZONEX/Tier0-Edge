@@ -18,6 +18,8 @@ export type TreeStoreState = {
   loadMoreText?: string;
   loadDataDefaultParams?: Record<string, unknown>;
   loading: boolean;
+  // 首次无搜索条件的根节点加载成功后，允许 URL 定位；失败后刷新也可恢复。
+  rootInitialized: boolean;
   // 搜索框值
   searchValue: string;
   // 树类型

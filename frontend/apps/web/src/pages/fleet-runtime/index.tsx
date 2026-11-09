@@ -25,6 +25,9 @@ import { FleetContainerTable, fleetContainerSorters } from '@/pages/fleet-shared
 import { useFleetContainerLogs } from '@/pages/fleet-shared/useFleetContainerLogs';
 import { hasPermission } from '@/utils/auth';
 import { FleetHAPanel } from './FleetHAPanel';
+import FleetCollaborationRegistration from '../fleet-management/FleetCollaborationRegistration';
+
+import FleetControlGrants from '../fleet-management/FleetControlGrants';
 import styles from './index.module.scss';
 
 const formatTimestamp = (value?: number) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-');
@@ -201,7 +204,9 @@ const FleetRuntimePage = () => {
         onHeaderCell: () => ({ className: styles.tableHeaderCellSingle }),
         render: (_, record) => (
           <span className={styles.serviceName} title={record.displayName || record.serviceName}>
-            {record.displayName || record.serviceName || record.containerID.slice(0, 12)}
+            {record.supersededBy
+              ? record.containerName
+              : record.displayName || record.serviceName || record.containerID.slice(0, 12)}
           </span>
         ),
       },
@@ -223,7 +228,7 @@ const FleetRuntimePage = () => {
         width: 148,
         sorter: fleetContainerSorters.startedAt,
         onHeaderCell: () => ({ className: styles.tableHeaderCellSingle }),
-        render: formatUptime,
+        render: (value: number, record) => (record.state === 'running' ? formatUptime(value) : '-'),
       },
       {
         title: <span className={styles.tableHeaderSingle}>{formatMessage('fleet.runtime.restartCount')}</span>,
@@ -337,6 +342,8 @@ const FleetRuntimePage = () => {
         </div>
 
         <div className={styles.body}>
+          <FleetCollaborationRegistration local />
+          <FleetControlGrants />
           {agent?.availability !== 'available' ? (
             <div className={styles.unavailable}>
               <ComEmpty description={formatMessage('fleet.runtime.agentUnavailable')} />

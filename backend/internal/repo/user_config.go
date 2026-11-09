@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	DefaultHomePage         = "/uns"
-	DefaultOperatorHomePage = "/uns"
+	DefaultHomePage         = "/home"
+	DefaultOperatorHomePage = "/launchpad"
 )
 
 func normalizeUserHomePage(value string) string {
@@ -73,6 +73,11 @@ type UserConfig struct {
 
 func (UserConfig) TableName() string { return "sys_user_config" }
 
+type UserHomePageUpdate struct {
+	UserID   int64
+	HomePage string
+}
+
 type UserConfigRepo struct{ db *gorm.DB }
 
 func NewUserConfigRepo(in any) *UserConfigRepo { return &UserConfigRepo{db: GetCommonConn(in)} }
@@ -116,4 +121,46 @@ func (r *UserConfigRepo) UpdateUserConfig(ctx context.Context, userID int64, hom
 		return UserConfig{}, err
 	}
 	return r.GetUserConfig(ctx, userID)
+}
+
+func (r *UserConfigRepo) UpdateUserHomePages(ctx context.Context, actorID int64, updates []UserHomePageUpdate) error {
+	if actorID <= 0 || len(updates) == 0 {
+		return ErrInvalidArgument
+	}
+	now := time.Now().UTC()
+	userIDs := make([]int64, 0, len(updates))
+	rows := make([]UserConfig, 0, len(updates))
+	for _, update := range updates {
+		if update.UserID <= 0 {
+			return ErrInvalidArgument
+		}
+		userIDs = append(userIDs, update.UserID)
+		rows = append(rows, UserConfig{
+			UserID:      update.UserID,
+			HomePage:    normalizeUserHomePage(update.HomePage),
+			CreatedTime: now,
+			UpdatedTime: now,
+		})
+	}
+
+	return normalizeDBError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var users []sysUserInfo
+		if err := tx.Select("user_id", "user_name").
+			Where("user_id IN ? AND deleted_time = 0", userIDs).
+			Find(&users).Error; err != nil {
+			return err
+		}
+		if len(users) != len(userIDs) {
+			return gorm.ErrRecordNotFound
+		}
+		for _, user := range users {
+			if strings.EqualFold(strings.TrimSpace(user.UserName), "tier0") && user.ID != actorID {
+				return ErrSystemReadonly
+			}
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"home_page", "updated_time"}),
+		}).Create(&rows).Error
+	}))
 }

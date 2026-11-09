@@ -3,6 +3,9 @@ import type { AuditLogItem } from '@/apis/core-api/audit-log';
 type Translate = (id: string, opt?: any, defaultMessage?: string, description?: string | object) => string;
 
 const moduleLabelMap: Record<string, { id: string; fallback: string }> = {
+  Fleet: { id: 'auditLog.module.Fleet', fallback: 'Fleet' },
+  Platform: { id: 'auditLog.module.Platform', fallback: 'Platform' },
+  AuditLog: { id: 'auditLog.resource.AuditLog', fallback: 'Audit Log' },
   Auth: { id: 'auditLog.module.Auth', fallback: 'Authentication' },
   UserManagement: { id: 'auditLog.module.UserManagement', fallback: 'User Management' },
   Role: { id: 'auditLog.module.Role', fallback: 'Role' },
@@ -31,6 +34,16 @@ const moduleLabelMap: Record<string, { id: string; fallback: string }> = {
 };
 
 const actionLabelMap: Record<string, { id: string; fallback: string }> = {
+  SSHTerminalCreate: { id: 'auditLog.action.SSHTerminalCreate', fallback: 'Open terminal' },
+  SSHTerminalClose: { id: 'auditLog.action.SSHTerminalClose', fallback: 'Close terminal' },
+  SSHTerminalFinish: { id: 'auditLog.action.SSHTerminalFinish', fallback: 'Terminal session ended' },
+  View: { id: 'auditLog.action.View', fallback: 'View' },
+  Rollback: { id: 'auditLog.action.Rollback', fallback: 'Rollback' },
+  SaveAs: { id: 'auditLog.action.SaveAs', fallback: 'Save As' },
+  MoveToRecycleBin: { id: 'auditLog.action.MoveToRecycleBin', fallback: 'Move to Recycle Bin' },
+  Invite: { id: 'auditLog.action.Invite', fallback: 'Invite' },
+  RemoveMember: { id: 'auditLog.action.RemoveMember', fallback: 'Remove Member' },
+  ChangeRole: { id: 'auditLog.action.ChangeRole', fallback: 'Change Role' },
   Create: { id: 'auditLog.action.Create', fallback: 'Create' },
   Update: { id: 'auditLog.action.Update', fallback: 'Update' },
   Delete: { id: 'auditLog.action.Delete', fallback: 'Delete' },
@@ -112,8 +125,9 @@ export const getAuditScopeLabel = (record: Pick<AuditLogItem, 'scopeType' | 'sco
         return t('auditLog.scope.projectWithName', { name: scopeName }, `System: ${scopeName}`);
       }
       return t('auditLog.scope.project', {}, 'System');
-    case 1:
     default:
+      return t('auditLog.notRecorded');
+    case 1:
       if (scopeName) {
         return scopeName;
       }
@@ -122,14 +136,11 @@ export const getAuditScopeLabel = (record: Pick<AuditLogItem, 'scopeType' | 'sco
 };
 
 export const getAuditModuleLabel = (
-  scopeType: number | undefined,
-  scopeName: string | undefined,
+  _scopeType: number | undefined,
+  _scopeName: string | undefined,
   resType: string | undefined,
   t: Translate
 ) => {
-  if (scopeType === 2 && scopeName?.trim()) {
-    return scopeName.trim();
-  }
   return getMappedLabel(resType, t, moduleLabelMap) || t('auditLog.unknown', {}, 'Unknown');
 };
 
@@ -152,9 +163,10 @@ const getUnsPathFromDetail = (detailJson?: string) => {
 };
 
 export const getAuditResourceLabel = (
-  record: Pick<AuditLogItem, 'resType' | 'resName' | 'detailJson'>,
+  record: Pick<AuditLogItem, 'resType' | 'resName' | 'detailJson' | 'resourcePath'>,
   t: Translate
 ) => {
+  if (record.resourcePath) return record.resourcePath;
   const unsPath = record.resType === 'UNS' ? getUnsPathFromDetail(record.detailJson) : '';
   if (unsPath) {
     return unsPath;
@@ -169,15 +181,7 @@ export const getAuditResourceLabel = (
 export const getAuditOperatorLabel = (record: Pick<AuditLogItem, 'operatorName' | 'operatorEmail' | 'operatorId'>) =>
   record.operatorName?.trim() || record.operatorEmail?.trim() || record.operatorId?.trim() || '-';
 
-export const getAuditResultLabel = (record: Pick<AuditLogItem, 'code' | 'resultMsg'>, t: Translate) => {
-  const resultMsg = record.resultMsg?.trim() || '';
-  if (!resultMsg) {
-    return record.code === 200
-      ? t('auditLog.result.success', {}, 'Success')
-      : t('auditLog.result.failed', {}, 'Failed');
-  }
-  if (resultMsg.toLowerCase() === 'success') {
-    return t('auditLog.result.success', {}, 'Success');
-  }
-  return resultMsg;
-};
+export const getAuditResult = (record: Pick<AuditLogItem, 'code' | 'result'>) =>
+  record.result || (record.code === 202 ? 'accepted' : record.code >= 200 && record.code < 400 ? 'success' : 'failed');
+export const getAuditResultLabel = (record: Pick<AuditLogItem, 'code' | 'result'>, t: Translate) =>
+  t('auditLog.result.' + getAuditResult(record));

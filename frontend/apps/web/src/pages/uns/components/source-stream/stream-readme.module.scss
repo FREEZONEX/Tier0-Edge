@@ -1,0 +1,284 @@
+.page {
+  container: stream-readme / inline-size;
+  min-width: 0;
+  color: var(--ui-text-color);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--ui-line-color);
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.article {
+  padding: 28px;
+  min-width: 0;
+  max-width: 1000px;
+
+  section + section {
+    margin-top: 28px;
+  }
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    margin: 0 0 12px;
+  }
+
+  p {
+    margin: 8px 0;
+    line-height: 1.7;
+  }
+}
+
+.muted {
+  color: var(--ui-option-color);
+  font-size: 13px;
+}
+
+.aside {
+  border-left: 1px solid var(--ui-line-color);
+  padding: 24px;
+
+  section {
+    margin-top: 28px;
+  }
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    margin: 0 0 12px;
+  }
+
+  p {
+    line-height: 1.65;
+  }
+}
+
+.agent-action {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--ui-line-color);
+  background: var(--ui-fill-tertiary);
+
+  span {
+    font-size: 14px;
+  }
+
+  code {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.entries {
+  display: grid;
+  gap: 10px;
+}
+
+.logic-list {
+  padding-left: 22px;
+  margin: 0;
+
+  li {
+    padding: 4px 0 10px 6px;
+  }
+
+  strong,
+  span {
+    display: block;
+  }
+
+  span {
+    color: var(--ui-option-color);
+    margin-top: 5px;
+    line-height: 1.6;
+  }
+}
+
+.source-list,
+.resource-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li + li {
+    border-top: 1px solid var(--ui-line-color);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  code {
+    display: block;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  :global(.ant-btn) {
+    padding: 0;
+    height: auto;
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+  }
+}
+
+.resource-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-wrap: anywhere;
+
+  span {
+    color: var(--ui-option-color);
+    font-size: 13px;
+  }
+}
+
+.facts {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: 13px;
+
+  dt {
+    color: var(--ui-option-color);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.markdown {
+  overflow-wrap: anywhere;
+
+  h1,
+  h2,
+  h3 {
+    font-size: 16px;
+    margin: 16px 0 8px;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    background: var(--ui-fill-tertiary);
+    padding: 12px;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  td,
+  th {
+    border: 1px solid var(--ui-line-color);
+    padding: 6px 10px;
+  }
+}
+
+.code-view {
+  padding: 20px 28px;
+}
+
+.code-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  color: var(--ui-option-color);
+}
+
+.create-page {
+  padding: 36px 32px;
+  max-width: 880px;
+
+  h1 {
+    font-size: 24px;
+    margin: 16px 0;
+  }
+
+  p {
+    line-height: 1.7;
+    margin: 12px 0 20px;
+  }
+}
+
+.creation-guide {
+  margin: 36px 0 0;
+  padding-left: 24px;
+
+  li {
+    padding: 0 0 20px 8px;
+  }
+
+  strong,
+  span {
+    display: block;
+  }
+
+  span {
+    margin-top: 6px;
+    color: var(--ui-option-color);
+  }
+}
+
+@media (width <= 1000px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aside {
+    border-left: 0;
+    border-top: 1px solid var(--ui-line-color);
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+}
+
+@container stream-readme (max-width: 780px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aside {
+    border-left: 0;
+    border-top: 1px solid var(--ui-line-color);
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+}

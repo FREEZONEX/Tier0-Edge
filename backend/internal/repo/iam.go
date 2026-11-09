@@ -28,14 +28,15 @@ type User struct {
 func (User) TableName() string { return "sys_user_info" }
 
 type UserCreate struct {
-	UserName string
-	NickName string
-	Email    string
-	Phone    string
-	Password string
-	Status   int64
-	RoleID   int64
-	UserID   int64
+	UserName    string
+	NickName    string
+	Email       string
+	Phone       string
+	Password    string
+	Status      int64
+	IsRandomPwd bool
+	RoleID      int64
+	UserID      int64
 }
 
 type UserUpdate struct {
@@ -48,6 +49,14 @@ type UserUpdate struct {
 	RoleID   int64
 	HasRole  bool
 	ActorID  int64
+}
+
+type UserBatchUpdate struct {
+	UserIDs   []int64
+	HomePages []UserHomePageUpdate
+	RoleID    int64
+	HasRole   bool
+	ActorID   int64
 }
 
 type Role struct {
@@ -199,19 +208,20 @@ func (r *IAMRepo) MarkLogin(ctx context.Context, userID int64) error {
 
 func (r *IAMRepo) ListUsers(ctx context.Context) ([]map[string]any, error) {
 	type userRow struct {
-		UserID      int64  `gorm:"column:user_id"`
-		UserName    string `gorm:"column:user_name"`
-		NickName    string `gorm:"column:nick_name"`
-		Email       string `gorm:"column:email"`
-		Phone       string `gorm:"column:phone"`
-		Status      int64  `gorm:"column:status"`
-		LastLogin   int64  `gorm:"column:last_login"`
-		IsRandomPwd bool   `gorm:"column:is_random_pwd"`
-		HomePage    string `gorm:"column:home_page"`
+		UserID      int64     `gorm:"column:user_id"`
+		UserName    string    `gorm:"column:user_name"`
+		NickName    string    `gorm:"column:nick_name"`
+		Email       string    `gorm:"column:email"`
+		Phone       string    `gorm:"column:phone"`
+		Status      int64     `gorm:"column:status"`
+		LastLogin   int64     `gorm:"column:last_login"`
+		IsRandomPwd bool      `gorm:"column:is_random_pwd"`
+		HomePage    string    `gorm:"column:home_page"`
+		CreatedTime time.Time `gorm:"column:created_time"`
 	}
 	var rows []userRow
 	if err := r.db.WithContext(ctx).Table("sys_user_info u").
-		Select("u.user_id, u.user_name, u.nick_name, u.email, u.phone, u.status, u.last_login, u.is_random_pwd, COALESCE(uc.home_page, '') AS home_page").
+		Select("u.user_id, u.user_name, u.nick_name, u.email, u.phone, u.status, u.last_login, u.is_random_pwd, COALESCE(uc.home_page, '') AS home_page, u.created_time").
 		Joins("LEFT JOIN sys_user_config uc ON uc.user_id = u.user_id").
 		Where("u.deleted_time = 0").Order("u.user_id").Scan(&rows).Error; err != nil {
 		return nil, err
@@ -230,6 +240,10 @@ func (r *IAMRepo) ListUsers(ctx context.Context) ([]map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		createdTime := int64(0)
+		if !r.CreatedTime.IsZero() {
+			createdTime = r.CreatedTime.UTC().UnixMilli()
+		}
 		out = append(out, map[string]any{
 			"userId":      r.UserID,
 			"userName":    r.UserName,
@@ -238,6 +252,7 @@ func (r *IAMRepo) ListUsers(ctx context.Context) ([]map[string]any, error) {
 			"phone":       phone,
 			"status":      r.Status,
 			"lastLogin":   r.LastLogin,
+			"createdTime": createdTime,
 			"isRandomPwd": r.IsRandomPwd,
 			"homePage":    normalizeUserHomePage(r.HomePage),
 			"roleList":    roleMap[r.UserID],
@@ -257,95 +272,12 @@ func (r *IAMRepo) CreateUser(ctx context.Context, input UserCreate) (map[string]
 	if username == "" || strings.TrimSpace(input.Password) == "" || input.RoleID <= 0 {
 		return nil, ErrInvalidArgument
 	}
-	status := int64(0)
-	if input.Status != 0 {
-		status = 1
-	}
-	now := time.Now().UTC().UnixMilli()
-	ts := repoTimeFromMilli(now)
-	var createdID int64
+	var created User
 	var role sysRoleInfo
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockUserEmailWrites(tx); err != nil {
-			return err
-		}
-		if err := tx.Where("id = ? AND deleted_time = 0", input.RoleID).Take(&role).Error; err != nil {
-			return err
-		}
-		var count int64
-		if err := tx.Model(&sysUserInfo{}).Where("user_name = ? AND deleted_time = 0", username).Count(&count).Error; err != nil {
-			return err
-		}
-		if count > 0 {
-			return ErrUserAccountDuplicate
-		}
-		if err := ensureUserEmailAvailable(tx, email, 0); err != nil {
-			return err
-		}
-		encryptedEmail, encryptedPhone, err := encryptUserContactPair(email, phone)
-		if err != nil {
-			return err
-		}
-		userID, err := nextPersonalID(tx, "sys_user_info", "user_id")
-		if err != nil {
-			return err
-		}
-		row := sysUserInfo{
-			ID:          userID,
-			UserName:    username,
-			NickName:    nickName,
-			Password:    input.Password,
-			Email:       encryptedEmail,
-			Phone:       encryptedPhone,
-			Status:      status,
-			IsRandomPwd: false,
-		}
-		row.CreatedBy = input.UserID
-		row.UpdatedBy = input.UserID
-		row.CreatedTime = ts
-		row.UpdatedTime = ts
-		if err := tx.Create(&row).Error; err != nil {
-			return err
-		}
-		workspaceUserID, err := nextPersonalID(tx, "sys_workspace_user", "id")
-		if err != nil {
-			return err
-		}
-		workspaceUser := sysWorkspaceUser{
-			ID:          workspaceUserID,
-			WorkspaceID: 1,
-			UserID:      userID,
-			RoleCode:    role.Code,
-			RoleID:      role.ID,
-		}
-		workspaceUser.CreatedBy = input.UserID
-		workspaceUser.UpdatedBy = input.UserID
-		workspaceUser.CreatedTime = ts
-		workspaceUser.UpdatedTime = ts
-		if err := tx.Create(&workspaceUser).Error; err != nil {
-			return err
-		}
-		homePage, err := roleDefaultHomePage(tx, role)
-		if err != nil {
-			return err
-		}
-		config := UserConfig{
-			UserID:      userID,
-			HomePage:    homePage,
-			CreatedTime: ts,
-			UpdatedTime: ts,
-		}
-		if err := tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "user_id"}},
-			DoUpdates: clause.Assignments(map[string]any{
-				"home_page":    homePage,
-				"updated_time": ts,
-			}),
-		}).Create(&config).Error; err != nil {
-			return err
-		}
-		createdID = userID
-		return nil
+		var err error
+		created, role, err = createUserInTx(tx, input)
+		return err
 	})
 	if err != nil {
 		return nil, normalizeDBError(err)
@@ -356,16 +288,91 @@ func (r *IAMRepo) CreateUser(ctx context.Context, input UserCreate) (map[string]
 		"roleCode": role.Code,
 	}}
 	return map[string]any{
-		"userId":      createdID,
+		"userId":      created.ID,
 		"userName":    username,
 		"nickName":    nickName,
 		"email":       email,
 		"phone":       phone,
-		"status":      status,
+		"status":      created.Status,
 		"lastLogin":   int64(0),
-		"isRandomPwd": false,
+		"isRandomPwd": input.IsRandomPwd,
 		"roleList":    roleList,
 	}, nil
+}
+
+func createUserInTx(tx *gorm.DB, input UserCreate) (User, sysRoleInfo, error) {
+	username := strings.TrimSpace(input.UserName)
+	nickName := strings.TrimSpace(input.NickName)
+	email := strings.TrimSpace(input.Email)
+	phone := strings.TrimSpace(input.Phone)
+	if nickName == "" {
+		nickName = username
+	}
+	if username == "" || strings.TrimSpace(input.Password) == "" || input.RoleID <= 0 {
+		return User{}, sysRoleInfo{}, ErrInvalidArgument
+	}
+	status := int64(0)
+	if input.Status != 0 {
+		status = 1
+	}
+	var role sysRoleInfo
+	if err := tx.Where("id = ? AND deleted_time = 0", input.RoleID).Take(&role).Error; err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	if err := lockUsernameInTx(tx, username); err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	var count int64
+	if err := tx.Model(&sysUserInfo{}).Where("LOWER(user_name) = LOWER(?) AND deleted_time = 0", username).Count(&count).Error; err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	if count > 0 {
+		return User{}, sysRoleInfo{}, ErrUserAccountDuplicate
+	}
+	encryptedEmail, encryptedPhone, err := encryptUserContactPair(email, phone)
+	if err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	now := time.Now().UTC().UnixMilli()
+	ts := repoTimeFromMilli(now)
+	userID, err := nextPersonalID(tx, "sys_user_info", "user_id")
+	if err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	row := sysUserInfo{
+		ID: userID, UserName: username, NickName: nickName, Password: input.Password,
+		Email: encryptedEmail, Phone: encryptedPhone, Status: status, IsRandomPwd: input.IsRandomPwd,
+	}
+	row.CreatedBy, row.UpdatedBy = input.UserID, input.UserID
+	row.CreatedTime, row.UpdatedTime = ts, ts
+	if err := tx.Create(&row).Error; err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	workspaceUserID, err := nextPersonalID(tx, "sys_workspace_user", "id")
+	if err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	workspaceUser := sysWorkspaceUser{ID: workspaceUserID, WorkspaceID: 1, UserID: userID, RoleCode: role.Code, RoleID: role.ID}
+	workspaceUser.CreatedBy, workspaceUser.UpdatedBy = input.UserID, input.UserID
+	workspaceUser.CreatedTime, workspaceUser.UpdatedTime = ts, ts
+	if err := tx.Create(&workspaceUser).Error; err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	homePage, err := roleDefaultHomePage(tx, role)
+	if err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	userConfig := UserConfig{UserID: userID, HomePage: homePage, CreatedTime: ts, UpdatedTime: ts}
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.Assignments(map[string]any{"home_page": homePage, "updated_time": ts}),
+	}).Create(&userConfig).Error; err != nil {
+		return User{}, sysRoleInfo{}, err
+	}
+	return User{
+		ID: userID, UserName: username, NickName: nickName, Email: email, Phone: phone,
+		Password: input.Password, Status: status, IsRandomPwd: input.IsRandomPwd,
+	}, role, nil
 }
 
 func (r *IAMRepo) UpdateUser(ctx context.Context, input UserUpdate) (map[string]any, error) {
@@ -383,9 +390,6 @@ func (r *IAMRepo) UpdateUser(ctx context.Context, input UserUpdate) (map[string]
 	now := time.Now().UTC().UnixMilli()
 	ts := repoTimeFromMilli(now)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockUserEmailWrites(tx); err != nil {
-			return err
-		}
 		var current sysUserInfo
 		if err := tx.Where("user_id = ? AND deleted_time = 0", input.UserID).Take(&current).Error; err != nil {
 			return err
@@ -424,16 +428,14 @@ func (r *IAMRepo) UpdateUser(ctx context.Context, input UserUpdate) (map[string]
 		}
 		var count int64
 		if username != current.UserName {
-			if err := tx.Model(&sysUserInfo{}).Where("user_name = ? AND user_id <> ? AND deleted_time = 0", username, input.UserID).Count(&count).Error; err != nil {
+			if err := lockUsernameInTx(tx, username); err != nil {
+				return err
+			}
+			if err := tx.Model(&sysUserInfo{}).Where("LOWER(user_name) = LOWER(?) AND user_id <> ? AND deleted_time = 0", username, input.UserID).Count(&count).Error; err != nil {
 				return err
 			}
 			if count > 0 {
 				return ErrUserAccountDuplicate
-			}
-		}
-		if email != current.Email {
-			if err := ensureUserEmailAvailable(tx, email, input.UserID); err != nil {
-				return err
 			}
 		}
 		encryptedEmail, encryptedPhone, err := encryptUserContactPair(email, phone)
@@ -451,7 +453,7 @@ func (r *IAMRepo) UpdateUser(ctx context.Context, input UserUpdate) (map[string]
 			return err
 		}
 		if !input.HasRole {
-			return nil
+			return touchFleetAssignmentsForCenterUser(ctx, tx, input.UserID, input.ActorID, now)
 		}
 		if input.RoleID <= 0 {
 			return ErrInvalidArgument
@@ -486,12 +488,116 @@ func (r *IAMRepo) UpdateUser(ctx context.Context, input UserUpdate) (map[string]
 		if err := tx.Create(&workspaceUser).Error; err != nil {
 			return err
 		}
-		return nil
+		return touchFleetAssignmentsForCenterUser(ctx, tx, input.UserID, input.ActorID, now)
 	})
 	if err != nil {
 		return nil, normalizeDBError(err)
 	}
 	return r.GetUserInfoMap(ctx, input.UserID)
+}
+
+func (r *IAMRepo) BatchUpdateUsers(ctx context.Context, input UserBatchUpdate) error {
+	if len(input.UserIDs) == 0 || input.ActorID <= 0 || (!input.HasRole && len(input.HomePages) == 0) {
+		return ErrInvalidArgument
+	}
+	if input.HasRole && input.RoleID <= 0 {
+		return ErrInvalidArgument
+	}
+	userIDSet := make(map[int64]struct{}, len(input.UserIDs))
+	for _, userID := range input.UserIDs {
+		if userID <= 0 {
+			return ErrInvalidArgument
+		}
+		userIDSet[userID] = struct{}{}
+	}
+	if len(userIDSet) != len(input.UserIDs) {
+		return ErrInvalidArgument
+	}
+	for _, update := range input.HomePages {
+		if _, ok := userIDSet[update.UserID]; !ok {
+			return ErrInvalidArgument
+		}
+	}
+
+	now := time.Now().UTC()
+	nowMilli := now.UnixMilli()
+	return normalizeDBError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var users []sysUserInfo
+		if err := tx.Select("user_id", "user_name").
+			Where("user_id IN ? AND deleted_time = 0", input.UserIDs).
+			Find(&users).Error; err != nil {
+			return err
+		}
+		if len(users) != len(input.UserIDs) {
+			return ErrNotFound
+		}
+		for _, user := range users {
+			if strings.EqualFold(strings.TrimSpace(user.UserName), "tier0") && (input.HasRole || user.ID != input.ActorID) {
+				return ErrSystemReadonly
+			}
+		}
+
+		var role sysRoleInfo
+		if input.HasRole {
+			if err := tx.Where("id = ? AND deleted_time = 0", input.RoleID).Take(&role).Error; err != nil {
+				return err
+			}
+			for _, userID := range input.UserIDs {
+				var workspaceRows []sysWorkspaceUser
+				if err := tx.Where("workspace_id = ? AND user_id = ? AND deleted_time = 0", int64(1), userID).
+					Find(&workspaceRows).Error; err != nil {
+					return err
+				}
+				if err := softDeleteWorkspaceUserRows(tx, workspaceRows, input.ActorID, nowMilli); err != nil {
+					return err
+				}
+				workspaceUserID, err := nextPersonalID(tx, "sys_workspace_user", "id")
+				if err != nil {
+					return err
+				}
+				workspaceUser := sysWorkspaceUser{
+					ID:          workspaceUserID,
+					WorkspaceID: 1,
+					UserID:      userID,
+					RoleCode:    role.Code,
+					RoleID:      role.ID,
+				}
+				workspaceUser.CreatedBy = input.ActorID
+				workspaceUser.UpdatedBy = input.ActorID
+				workspaceUser.CreatedTime = now
+				workspaceUser.UpdatedTime = now
+				if err := tx.Create(&workspaceUser).Error; err != nil {
+					return err
+				}
+				if err := touchFleetAssignmentsForCenterUser(ctx, tx, userID, input.ActorID, nowMilli); err != nil {
+					return err
+				}
+			}
+		}
+
+		if len(input.HomePages) > 0 {
+			rows := make([]UserConfig, 0, len(input.HomePages))
+			for _, update := range input.HomePages {
+				rows = append(rows, UserConfig{
+					UserID:      update.UserID,
+					HomePage:    normalizeUserHomePage(update.HomePage),
+					CreatedTime: now,
+					UpdatedTime: now,
+				})
+			}
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "user_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"home_page", "updated_time"}),
+			}).Create(&rows).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+}
+
+func lockUsernameInTx(tx *gorm.DB, username string) error {
+	return tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?), hashtext(LOWER(?)))", "tier0:user_name", strings.TrimSpace(username)).Error
 }
 
 func (r *IAMRepo) DeleteUser(ctx context.Context, userID, actorID int64) error {
@@ -507,6 +613,44 @@ func (r *IAMRepo) DeleteUser(ctx context.Context, userID, actorID int64) error {
 		if strings.EqualFold(strings.TrimSpace(current.UserName), "tier0") {
 			return ErrSystemReadonly
 		}
+		if err := unassignDeletedFleetCenterUser(ctx, tx, userID, actorID, now); err != nil {
+			return err
+		}
+		// Transfer owned projects to the system owner (tier0) before deleting the user.
+		var owner sysUserInfo
+		if err := tx.Where("user_name = ? AND deleted_time = 0", "tier0").
+			First(&owner).Error; err != nil {
+			return ErrSystemOwnerNotFound
+		}
+		if err := tx.Model(&Project{}).
+			Where("owner_user_id = ? AND deleted_time = 0", userID).
+			Updates(map[string]any{
+				"owner_user_id": owner.ID,
+				"updated_by":    actorID,
+				"updated_time":  repoTimeFromMilli(now),
+			}).Error; err != nil {
+			return err
+		}
+		// Clean up the user's project memberships and their role bindings.
+		var memberIDs []int64
+		if err := tx.Model(&projectMember{}).
+			Where("user_id = ?", userID).
+			Pluck("id", &memberIDs).Error; err != nil {
+			return err
+		}
+		if len(memberIDs) > 0 {
+			if err := tx.Where("member_id IN ?", memberIDs).
+				Delete(&projectMemberRole{}).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Where("user_id = ?", userID).
+			Delete(&projectMember{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM sys_user_group_member WHERE user_id = ?", userID).Error; err != nil {
+			return err
+		}
 		if err := tx.Model(&sysUserInfo{}).Where("user_id = ? AND deleted_time = 0", userID).
 			Updates(softDeleteNoDelByValues(actorID, now+1000)).Error; err != nil {
 			return err
@@ -516,6 +660,9 @@ func (r *IAMRepo) DeleteUser(ctx context.Context, userID, actorID int64) error {
 			return err
 		}
 		if err := softDeleteWorkspaceUserRows(tx, workspaceRows, actorID, now+1000); err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&ExternalIdentity{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("user_id = ?", userID).Delete(&UserConfig{}).Error
@@ -637,8 +784,8 @@ func (r *IAMRepo) ResourceKeysForUser(ctx context.Context, userID int64) ([]stri
 		Joins("JOIN sys_role_resource rr ON rr.role_id=wu.role_id AND rr.deleted_time=0").
 		Joins("JOIN sys_resource_info ri ON ri.id=rr.resource_id AND ri.deleted_time=0 AND ri.enabled=1").
 		Where("wu.user_id = ? AND wu.deleted_time = 0", userID).
-		Pluck("ri.resource_key", &out).Error
-	return uniqueStrings(out), err
+		Distinct().Pluck("ri.resource_key", &out).Error
+	return out, err
 }
 
 func (r *IAMRepo) UIActionsForUser(ctx context.Context, userID int64) ([]string, error) {
@@ -647,8 +794,8 @@ func (r *IAMRepo) UIActionsForUser(ctx context.Context, userID int64) ([]string,
 		Joins("JOIN sys_role_resource rr ON rr.role_id=wu.role_id AND rr.deleted_time=0").
 		Joins("JOIN sys_resource_action ra ON ra.resource_id=rr.resource_id AND ra.deleted_time=0 AND ra.enabled=1").
 		Where("wu.user_id = ? AND wu.deleted_time = 0 AND ra.action_type = 'ui'", userID).
-		Pluck("ra.action_value", &out).Error
-	return uniqueStrings(out), err
+		Distinct().Pluck("ra.action_value", &out).Error
+	return out, err
 }
 
 func (r *IAMRepo) UIActionsForResourceKeys(ctx context.Context, resourceKeys []string) ([]string, error) {
@@ -660,8 +807,8 @@ func (r *IAMRepo) UIActionsForResourceKeys(ctx context.Context, resourceKeys []s
 	err := r.db.WithContext(ctx).Table("sys_resource_action ra").
 		Joins("JOIN sys_resource_info ri ON ri.id=ra.resource_id AND ri.deleted_time=0 AND ri.enabled=1").
 		Where("ri.resource_key IN ? AND ra.deleted_time = 0 AND ra.enabled = 1 AND ra.action_type = 'ui'", keys).
-		Pluck("ra.action_value", &out).Error
-	return uniqueStrings(out), err
+		Distinct().Pluck("ra.action_value", &out).Error
+	return out, err
 }
 
 // ---- roles ----
@@ -714,7 +861,7 @@ func (r *IAMRepo) CreateRole(ctx context.Context, name, code string, userID int6
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		return syncRoleResources(tx, row.ID, []int64{mandatoryUNSResourceID}, userID, now)
+		return syncRoleResources(tx, row.ID, []int64{mandatoryLaunchpadResourceID}, userID, now)
 	})
 	if err != nil {
 		return Role{}, normalizeDBError(err)
@@ -792,21 +939,15 @@ func (r *IAMRepo) RoleResourceURIs(ctx context.Context, roleID int64) ([]map[str
 		Select("ri.resource_key, ri.route_path").
 		Joins("JOIN sys_resource_info ri ON ri.id=rr.resource_id AND ri.deleted_time=0 AND ri.enabled=1").
 		Where("rr.role_id = ? AND rr.deleted_time = 0", roleID).
-		Scan(&rows).Error
+		Distinct().Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	out := make([]map[string]string, 0, len(rows))
-	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(row.ResourceKey) == "" {
 			continue
 		}
-		key := row.ResourceKey + "\x00" + row.RoutePath
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
 		out = append(out, map[string]string{
 			"uri":         "resource:" + row.ResourceKey,
 			"resourceKey": row.ResourceKey,
@@ -854,7 +995,7 @@ func roleResourceIDsByURIs(db *gorm.DB, uris []string) ([]int64, error) {
 		var ids []int64
 		if err := db.Model(&sysResourceInfo{}).
 			Where("deleted_time = 0 AND enabled = 1 AND resource_key IN ?", resourceKeys).
-			Pluck("id", &ids).Error; err != nil {
+			Distinct().Pluck("id", &ids).Error; err != nil {
 			return nil, err
 		}
 		addIDs(ids)
@@ -863,7 +1004,7 @@ func roleResourceIDsByURIs(db *gorm.DB, uris []string) ([]int64, error) {
 		var ids []int64
 		if err := db.Model(&sysResourceInfo{}).
 			Where("deleted_time = 0 AND enabled = 1 AND route_path IN ?", routes).
-			Pluck("id", &ids).Error; err != nil {
+			Distinct().Pluck("id", &ids).Error; err != nil {
 			return nil, err
 		}
 		addIDs(ids)
@@ -872,7 +1013,7 @@ func roleResourceIDsByURIs(db *gorm.DB, uris []string) ([]int64, error) {
 		var ids []int64
 		if err := db.Table("sys_resource_action").
 			Where("deleted_time = 0 AND enabled = 1 AND action_type = 'ui' AND action_value IN ?", actions).
-			Pluck("resource_id", &ids).Error; err != nil {
+			Distinct().Pluck("resource_id", &ids).Error; err != nil {
 			return nil, err
 		}
 		addIDs(ids)
@@ -971,12 +1112,14 @@ func (r *IAMRepo) ResourceKeysByURIs(ctx context.Context, uris []string) (map[st
 }
 
 const (
-	mandatoryUNSResourceID int64 = 199
+	mandatoryHomeResourceID      int64 = 197
+	mandatoryLaunchpadResourceID int64 = 620
 )
 
 func withMandatoryRoleResources(resourceIDs []int64) []int64 {
 	idSet := map[int64]struct{}{
-		mandatoryUNSResourceID: {},
+		mandatoryHomeResourceID:      {},
+		mandatoryLaunchpadResourceID: {},
 	}
 	for _, id := range resourceIDs {
 		if id > 0 {
@@ -1084,6 +1227,7 @@ func roleDefaultHomePage(db *gorm.DB, role sysRoleInfo) (string, error) {
 	var ids []int64
 	if err := db.Model(&sysRoleResource{}).
 		Where("role_id = ? AND deleted_time = 0", role.ID).
+		Distinct().
 		Pluck("resource_id", &ids).Error; err != nil {
 		return "", err
 	}
@@ -1481,10 +1625,25 @@ var menuResourceOverrides = map[string]menuResourceOverride{
 	"flow.collection.page": {parentID: 198, name: "Source Flow", typeValue: 2, routePath: "/collection-flow", icon: "SourceFlow", sort: 20, urlType: 1, openType: 0},
 	"flow.event.page":      {parentID: 198, name: "Event Flow", typeValue: 2, routePath: "/event-flow", icon: "EventFlow", sort: 30, urlType: 1, openType: 0},
 	"app":                  {parentID: 0, name: "App", typeValue: 1, icon: "menu.tag.appspace", sort: 20, urlType: 1, openType: 0},
+	"project.view":         {parentID: 200, name: "Project", typeValue: 2, routePath: "/project", icon: "Project", sort: 10, urlType: 1, openType: 0},
+	"launchpad.view":       {parentID: 200, name: "Launchpad", typeValue: 2, routePath: "/launchpad", icon: "Launchpad", sort: 20, urlType: 1, openType: 0},
 	"analysis":             {parentID: 0, name: "Data Analysis", typeValue: 1, icon: "menu.tag.connections", sort: 30, urlType: 1, openType: 0},
+	"cluster.edge.manage":  {parentID: 440, name: "Edge Node", typeValue: 3, icon: "SystemCascade", sort: 30, urlType: 1, openType: 0},
 	"system":               {parentID: 0, name: "System", typeValue: 1, icon: "menu.tag.system", sort: 60, urlType: 1, openType: 0},
+	"gateway.route.manage": {parentID: 100, name: "Routing Management", typeValue: 2, routePath: "/routing-management", icon: "RoutingManagement", sort: 10, urlType: 1, openType: 0},
+	"gateway.route.create": {parentID: 140, name: "Gateway Route Create", typeValue: 3, sort: 10},
+	"gateway.route.update": {parentID: 140, name: "Gateway Route Update", typeValue: 3, sort: 20},
+	"gateway.route.delete": {parentID: 140, name: "Gateway Route Delete", typeValue: 3, sort: 30},
+	"gateway.route.test":   {parentID: 140, name: "Gateway Route Test", typeValue: 3, sort: 40},
 	"iam.user.view":        {parentID: 100, name: "User Management", typeValue: 2, routePath: "/account-management", icon: "UserManagement", sort: 20, urlType: 1, openType: 0},
 	"apikey.manage":        {parentID: 100, name: "API Key", typeValue: 2, routePath: "/OpenData", icon: "OpenData", sort: 30, urlType: 1, openType: 0},
+	"system.menu.config":   {parentID: 100, name: "Menu Config", typeValue: 2, routePath: "/MenuConfiguration", icon: "MenuConfiguration", sort: 40, urlType: 1, openType: 0},
+	"system.audit.log":     {parentID: 100, name: "Audit Log", typeValue: 2, routePath: "/audit-log", icon: "Logs", sort: 50, urlType: 1, openType: 0},
+	"iam.resource.view":    {parentID: 100, name: "Permission Management", typeValue: 2, routePath: "/PermissionManagement", icon: "Authentication", sort: 60, urlType: 1, openType: 0},
+	"oauth.client.manage":  {parentID: 100, name: "OAuth Client", typeValue: 2, routePath: "/oauth-clients", icon: "Authentication", sort: 55, urlType: 1, openType: 0},
+	"mqtt.auth.manage":     {parentID: 198, name: "MQTT Auth", typeValue: 2, routePath: "/mqtt-auth", icon: "MqttBroker", sort: 50, urlType: 1, openType: 0},
+	"mqtt.auth.write":      {parentID: 440, name: "MQTT Auth Write", typeValue: 3, sort: 10, urlType: 1, openType: 0},
+	"mqtt.auth.delete":     {parentID: 440, name: "MQTT Auth Delete", typeValue: 3, sort: 20, urlType: 1, openType: 0},
 }
 
 func (r *IAMRepo) ListResourceActions(ctx context.Context, resourceID int64) ([]ResourceAction, error) {
@@ -1602,6 +1761,10 @@ func (r *IAMRepo) MatchAction(ctx context.Context, actionType, method, path stri
 		Select("ra.id, ra.resource_id, ri.resource_key, ra.action_type, ra.action_value, ra.methods, ra.enabled, ra.system_generated").
 		Joins("JOIN sys_resource_info ri ON ri.id=ra.resource_id AND ri.deleted_time=0 AND ri.enabled=1").
 		Where("ra.action_type = ? AND ra.deleted_time = 0 AND ra.enabled = 1", actionType).
+		// Keep every pattern that pathMatches can accept, including normalized
+		// slash variants, :parameters and /** prefixes. The existing matcher is
+		// still authoritative; unrelated literal routes need not leave the DB.
+		Where("btrim(ra.action_value, '/') = ? OR strpos(ra.action_value, ':') > 0 OR right(ra.action_value, 3) = '/**'", strings.Trim(path, "/")).
 		Scan(&candidates).Error
 	if err != nil {
 		return nil, err
@@ -1641,6 +1804,18 @@ const (
 )
 
 var ErrSystemReadonly = errors.New("system seed data is read-only")
+
+var ErrSystemOwnerNotFound = errors.New("system owner not found")
+
+// projectMember and projectMemberRole are lightweight GORM targets used only for
+// hard-deleting membership rows without exposing full DTOs.
+type projectMember struct{}
+
+func (projectMember) TableName() string { return "project_member" }
+
+type projectMemberRole struct{}
+
+func (projectMemberRole) TableName() string { return "project_member_role" }
 
 func nextPersonalID(db *gorm.DB, tableName, columnName string) (int64, error) {
 	var maxID int64

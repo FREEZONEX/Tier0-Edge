@@ -1,0 +1,94 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core
+    group: core/project
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler ProjectList
+    get /projects (ProjectListReq) returns (Envelope)
+
+    @handler ProjectCreate
+    post /projects (ProjectSaveReq) returns (Envelope)
+
+    @handler ProjectDetail
+    get /projects/:id (IdReq) returns (Envelope)
+
+    @handler ProjectUpdate
+    put /projects/:id (ProjectSaveReq) returns (Envelope)
+
+    @handler ProjectDelete
+    delete /projects/:id (IdReq) returns (Envelope)
+
+    @handler ProjectAppList
+    get /projects/:projectId/apps (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectUnsList
+    get /projects/:projectId/uns (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectFlowList
+    get /projects/:projectId/flows (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectMemberList
+    get /projects/:projectId/members (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectMemberCreate
+    post /projects/:projectId/members (ProjectMemberSaveReq) returns (Envelope)
+
+    @handler ProjectMemberUpdate
+    put /projects/:projectId/members/:memberId (ProjectMemberSaveReq) returns (Envelope)
+
+    @handler ProjectMemberDelete
+    delete /projects/:projectId/members/:memberId (ProjectMemberReq) returns (Envelope)
+
+    @handler ProjectMemberGroupList
+    get /projects/:projectId/member-groups (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectMemberGroupCreate
+    post /projects/:projectId/member-groups (ProjectMemberGroupSaveReq) returns (Envelope)
+
+    @handler ProjectMemberGroupUpdate
+    put /projects/:projectId/member-groups/:projectGroupId (ProjectMemberGroupSaveReq) returns (Envelope)
+
+    @handler ProjectMemberGroupDelete
+    delete /projects/:projectId/member-groups/:projectGroupId (ProjectMemberGroupReq) returns (Envelope)
+
+    @handler ProjectRoleList
+    get /projects/:projectId/roles (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectAppManualCreate
+    post /projects/:projectId/apps/manual (ProjectAppManualSaveReq) returns (Envelope)
+
+    @handler ProjectAppUpdate
+    put /projects/:projectId/apps/:appId (ProjectAppUpdateReq) returns (Envelope)
+
+    @handler ProjectAppStatus
+    put /projects/:projectId/apps/:appId/status (ProjectAppStatusReq) returns (Envelope)
+
+    @handler ProjectAppDetail
+    get /projects/:projectId/apps/:appId (ProjectAppReq) returns (Envelope)
+
+    @handler ProjectAppDelete
+    delete /projects/:projectId/apps/:appId (ProjectAppReq) returns (Envelope)
+}
+
+// ProjectAppImport/ProjectAppReplace 单独分组：导入同步路径需从对象存储整包下载，全局 20s 超时不够用，路由级放宽到 5m
+@server(
+    prefix: /api/core
+    group: core/project
+    middleware: SessionAuth, Permission
+    timeout: 5m
+)
+service backend {
+    @handler ProjectAppImport
+    post /projects/:projectId/apps (ProjectAppImportReq) returns (Envelope)
+
+    @handler ProjectAppReplace
+    post /projects/:projectId/apps/:appId/replace (ProjectAppReplaceReq) returns (Envelope)
+
+    // ProjectAppImportPreview 只读 zip 头部（artifact.toml + meta.json），返回 schema 默认值与包内环境变量，
+    // 供导入弹窗「高级」区预填。要求 project.manage 权限（包内 env 可能含敏感值，不能落到 project.view）。
+    @handler ProjectAppImportPreview
+    post /projects/:projectId/apps/import-preview (ProjectAppImportPreviewReq) returns (Envelope)
+}

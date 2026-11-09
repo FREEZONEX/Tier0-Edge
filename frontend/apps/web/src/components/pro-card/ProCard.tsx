@@ -2,7 +2,8 @@ import { Checkbox, Divider, Flex, Spin, Image, Typography, Dropdown, Button } fr
 import { type FC, useState } from 'react';
 import type { ProCardProps } from '@/components/pro-card/type.ts';
 import cx from 'classnames';
-import { ChevronRight, OverflowMenuVertical, Pin, PinFilled } from '@carbon/icons-react';
+import { ChevronRight, OverflowMenuVertical } from '@carbon/icons-react';
+import { Pin } from '@/components/lucide-icon/carbon';
 import { AuthButton } from '@/components/auth';
 import defaultUrl from '@/assets/home-icons/default.svg';
 import InlineLoading from '@/components/inline-loading';
@@ -153,14 +154,24 @@ const ProCard: FC<ProCardProps> = ({
                   )}
                 </Flex>
                 {(pinOptions || (actions && actionShowType === 'header')) && (
-                  <Flex className="pro-card-header-actions" align="center" gap={8}>
+                  <Flex
+                    className="pro-card-header-actions"
+                    align="center"
+                    gap={8}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     {pinOptions && (
                       <ComButton
                         title={isPin ? formatMessage('common.pin') : formatMessage('common.unPin')}
                         auth={pinOptions?.auth}
                         disabled={pinOptions?.disabled}
                         onClick={() => pinOptions?.onClick?.(item)}
-                        icon={isPin ? <Pin style={{ color: '#525252' }} /> : <PinFilled />}
+                        className={cx(
+                          'ui-pin-button',
+                          isPin && 'ui-pin-button-reveal',
+                          !isPin && 'ui-pin-button-active'
+                        )}
+                        icon={<Pin size={12} />}
                         size="small"
                         type={'text'}
                       />
@@ -190,6 +201,7 @@ const ProCard: FC<ProCardProps> = ({
                 <Checkbox
                   value={value}
                   className="card-title"
+                  onClick={(event) => event.stopPropagation()}
                   onChange={(e) => {
                     setChecked(e.target.checked);
                     onChange?.(e);
@@ -302,7 +314,7 @@ const ProCard: FC<ProCardProps> = ({
             />
           )}
           {actions && actionShowType === 'foot' && (
-            <Flex align="center" justify="space-between">
+            <Flex align="center" justify="space-between" onClick={(event) => event.stopPropagation()}>
               <Flex gap={8} align="center" style={{ flex: 1, overflow: 'hidden' }}>
                 {Array.isArray(actions) &&
                   actions.slice(0, actionNum).map(({ label, key, title, icon, button, onClick, status, disabled }) =>

@@ -16,34 +16,60 @@ import (
 )
 
 type EventHandler func(ctx context.Context, event repo.OutboxEvent) error
+type BatchHandler func(context.Context, []repo.OutboxEvent) map[string]error
 
 type Worker struct {
-	store       *repo.OutboxRepo
-	handlers    map[string]EventHandler
-	workerID    string
-	batchSize   int
-	lockTimeout time.Duration
-	interval    time.Duration
+	store              *repo.OutboxRepo
+	handlers           map[string]EventHandler
+	batchHandlers      map[string]BatchHandler
+	workerID           string
+	batchSize          int
+	lockTimeout        time.Duration
+	interval           time.Duration
+	completedRetention time.Duration
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-func NewWorker(ctx context.Context) *Worker {
+type Option func(*Worker)
+
+// WithBatchSize bounds the number of leased events waiting behind a slow handler.
+func WithStore(store *repo.OutboxRepo) Option { return func(w *Worker) { w.store = store } }
+
+func WithBatchSize(size int) Option {
+	return func(w *Worker) {
+		if size > 0 {
+			w.batchSize = size
+		}
+	}
+}
+
+// 仅对显式启用的消费者清理已完成中转记录；失败和待处理记录不受影响。
+func WithCompletedRetention(retention time.Duration) Option {
+	return func(w *Worker) { w.completedRetention = retention }
+}
+
+func NewWorker(ctx context.Context, options ...Option) *Worker {
 	host, _ := os.Hostname()
 	host = strings.TrimSpace(host)
 	if host == "" {
 		host = "backend"
 	}
-	return &Worker{
-		store:       repo.NewOutboxRepo(ctx),
-		handlers:    map[string]EventHandler{},
-		workerID:    fmt.Sprintf("%s-%d", host, os.Getpid()),
-		batchSize:   10,
-		lockTimeout: 2 * time.Minute,
-		interval:    2 * time.Second,
+	worker := &Worker{
+		store:         repo.NewOutboxRepo(ctx),
+		handlers:      map[string]EventHandler{},
+		batchHandlers: map[string]BatchHandler{},
+		workerID:      fmt.Sprintf("%s-%d", host, os.Getpid()),
+		batchSize:     10,
+		lockTimeout:   2 * time.Minute,
+		interval:      2 * time.Second,
 	}
+	for _, option := range options {
+		option(worker)
+	}
+	return worker
 }
 
 func (w *Worker) Register(eventType string, handler EventHandler) {
@@ -54,6 +80,18 @@ func (w *Worker) Register(eventType string, handler EventHandler) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.handlers[eventType] = handler
+}
+
+// RegisterBatch reuses durable leasing, retry scheduling and completion records.
+// Missing per-event results are failures, never implicit acknowledgements.
+func (w *Worker) RegisterBatch(eventType string, handler BatchHandler) {
+	if w == nil || handler == nil || strings.TrimSpace(eventType) == "" {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.batchHandlers[eventType] = handler
+	w.handlers[eventType] = func(context.Context, repo.OutboxEvent) error { return fmt.Errorf("batch handler required") }
 }
 
 func (w *Worker) Start(ctx context.Context) {
@@ -89,7 +127,21 @@ func (w *Worker) Stop() {
 
 func (w *Worker) loop(ctx context.Context) {
 	defer w.wg.Done()
+	nextCleanup := time.Time{}
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+		if w.completedRetention > 0 && !time.Now().Before(nextCleanup) {
+			// 每批最多 1,000 条，即使持续有待消费事件也按时清理。
+			nextCleanup = time.Now().Add(time.Minute)
+			if count, err := w.pruneCompleted(ctx); err != nil {
+				logx.WithContext(ctx).Errorf("outbox completed cleanup failed: %v", err)
+			} else if count == 1000 {
+				// 满批说明仍可能有积压，下一轮消费后继续清理。
+				nextCleanup = time.Time{}
+			}
+		}
 		claimed, err := w.drain(ctx)
 		if err != nil {
 			logx.WithContext(ctx).Errorf("outbox worker drain failed: %v", err)
@@ -103,6 +155,16 @@ func (w *Worker) loop(ctx context.Context) {
 		case <-time.After(w.interval):
 		}
 	}
+}
+
+func (w *Worker) pruneCompleted(ctx context.Context) (int64, error) {
+	if w.completedRetention <= 0 {
+		return 0, nil
+	}
+	eventTypes, _ := w.snapshotHandlers()
+	cleanupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return w.store.PruneCompletedOutbox(cleanupCtx, eventTypes, time.Now().UTC().Add(-w.completedRetention), 1000)
 }
 
 func (w *Worker) drain(ctx context.Context) (int, error) {
@@ -120,7 +182,27 @@ func (w *Worker) drain(ctx context.Context) (int, error) {
 		}
 		return events[i].CreatedTime.Before(events[j].CreatedTime)
 	})
+	w.mu.Lock()
+	batchHandlers := map[string]BatchHandler{}
+	for k, h := range w.batchHandlers {
+		batchHandlers[k] = h
+	}
+	w.mu.Unlock()
+	for eventType, handler := range batchHandlers {
+		batch := []repo.OutboxEvent{}
+		for _, e := range events {
+			if e.EventType == eventType {
+				batch = append(batch, e)
+			}
+		}
+		if len(batch) > 0 {
+			w.handleBatch(ctx, batch, handler)
+		}
+	}
 	for _, event := range events {
+		if batchHandlers[event.EventType] != nil {
+			continue
+		}
 		handler := handlers[event.EventType]
 		if handler == nil {
 			continue
@@ -170,4 +252,28 @@ func (w *Worker) markRetry(ctx context.Context, event repo.OutboxEvent, err erro
 		logx.WithContext(ctx).Errorf("outbox mark retry failed eventID=%s err=%v", event.EventID, markErr)
 	}
 	logx.WithContext(ctx).Errorf("outbox handler failed eventID=%s eventType=%s attempts=%d err=%v", event.EventID, event.EventType, attempts, err)
+}
+
+func (w *Worker) handleBatch(ctx context.Context, events []repo.OutboxEvent, handler BatchHandler) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			for _, e := range events {
+				w.markRetry(ctx, e, fmt.Errorf("batch handler panic"))
+			}
+		}
+	}()
+	results := handler(ctx, events)
+	for _, e := range events {
+		err, ok := results[e.EventID]
+		if !ok {
+			err = fmt.Errorf("batch receipt missing")
+		}
+		if err != nil {
+			w.markRetry(ctx, e, err)
+			continue
+		}
+		if err := w.store.MarkOutboxDone(ctx, e.EventID); err != nil {
+			logx.WithContext(ctx).Errorf("outbox mark done failed eventID=%s err=%v", e.EventID, err)
+		}
+	}
 }

@@ -1,0 +1,324 @@
+syntax = "v1"
+
+type (
+    UnsV2CatalogReq {}
+    UnsV2ManagedBy {
+        SourceId interface{} `json:"sourceId"`
+        InstanceId string `json:"instanceId"`
+    }
+    UnsV2AppContextReq {
+    }
+    UnsV2AppKeyCreateReq {
+        AppId string `json:"appId"`
+        Name string `json:"name"`
+    }
+    UnsV2AppKeyRevokeReq {
+        AppId string `json:"appId"`
+        KeyId string `json:"keyId"`
+    }
+    UnsV2RecordFilter {
+        Field string `json:"field"`
+        Op string `json:"op"`
+        Value interface{} `json:"value"`
+    }
+    UnsV2RecordOrder {
+        Field string `json:"field"`
+        Direction string `json:"direction"`
+    }
+    UnsV2QueryJoinOn {
+        Left string `json:"left"`
+        Right string `json:"right"`
+    }
+    UnsV2QueryJoin {
+        CollectionId string `json:"collectionId,optional,omitempty"`
+        Subquery string `json:"subquery,optional,omitempty"`
+        Alias string `json:"alias"`
+        Type string `json:"type"`
+        On []UnsV2QueryJoinOn `json:"on"`
+    }
+    UnsV2QuerySelect {
+        Field string `json:"field,optional,omitempty"`
+        Expression *UnsV2QueryExpression `json:"expression,optional,omitempty"`
+        As string `json:"as"`
+        Aggregate string `json:"aggregate,optional,omitempty"`
+        Distinct bool `json:"distinct,optional,omitempty"`
+    }
+    UnsV2QueryExpression {
+        Field string `json:"field,optional,omitempty"`
+        Value interface{} `json:"value,optional,omitempty"`
+        Op string `json:"op,optional,omitempty"`
+        Args []UnsV2QueryExpression `json:"args,optional,omitempty"`
+    }
+    UnsV2QuerySubquery {
+        Name string `json:"name"`
+        CollectionId string `json:"collectionId"`
+        Joins []UnsV2QueryJoin `json:"joins,optional,omitempty"`
+        Select []UnsV2QuerySelect `json:"select"`
+        Where *UnsV2QueryPredicate `json:"where,optional,omitempty"`
+        GroupBy []string `json:"groupBy"`
+        Having []UnsV2RecordFilter `json:"having,optional,omitempty"`
+    }
+    UnsV2QueryPredicate {
+        Field string `json:"field,optional,omitempty"`
+        Op string `json:"op,optional,omitempty"`
+        Value interface{} `json:"value,optional,omitempty"`
+        And []UnsV2QueryPredicate `json:"and,optional,omitempty"`
+        Or []UnsV2QueryPredicate `json:"or,optional,omitempty"`
+        Not *UnsV2QueryPredicate `json:"not,optional,omitempty"`
+    }
+    UnsV2RelationalQuery {
+        Subqueries []UnsV2QuerySubquery `json:"subqueries,optional,omitempty"`
+        Joins []UnsV2QueryJoin `json:"joins,optional,omitempty"`
+        Select []UnsV2QuerySelect `json:"select"`
+        Where *UnsV2QueryPredicate `json:"where,optional,omitempty"`
+        GroupBy []string `json:"groupBy,optional,omitempty"`
+        Having []UnsV2RecordFilter `json:"having,optional,omitempty"`
+        OrderBy []UnsV2RecordOrder `json:"orderBy,optional,omitempty"`
+        Distinct bool `json:"distinct,optional,omitempty"`
+    }
+    UnsV2Change {
+        Update interface{} `json:"update,optional,omitempty"`
+        ArrayFilters []interface{} `json:"arrayFilters,optional,omitempty"`
+        Upsert bool `json:"upsert,optional,omitempty"`
+        OpId string `json:"opId"`
+        Action string `json:"action"`
+        Kind string `json:"kind,optional"`
+        Id interface{} `json:"id,optional"`
+        CollectionId interface{} `json:"collectionId,optional"`
+        RecordId interface{} `json:"recordId,optional"`
+        StreamId interface{} `json:"streamId,optional"`
+        ExpectedRevision int64 `json:"expectedRevision,optional"`
+        Data interface{} `json:"data,optional"`
+        DependsOn []string `json:"dependsOn,optional"`
+        ManagedBy *UnsV2ManagedBy `json:"managedBy,optional"`
+        Time int64 `json:"time,optional"`
+        Quality string `json:"quality,optional"`
+        Exists interface{} `json:"exists,optional,omitempty"`
+        Conditions []UnsV2RecordFilter `json:"conditions,optional,omitempty"`
+        Filter interface{} `json:"filter,optional,omitempty"`
+        Selection string `json:"selection,optional,omitempty"`
+        Sort []interface{} `json:"sort,optional,omitempty"`
+        ReturnDocument string `json:"returnDocument,optional,omitempty"`
+        Operations []UnsV2FieldOperation `json:"operations,optional,omitempty"`
+        Bindings []UnsV2ResultBinding `json:"bindings,optional,omitempty"`
+        Query *UnsV2TransactionQuery `json:"query,optional,omitempty"`
+    }
+    UnsV2TransactionQuery {
+        Filter interface{} `json:"filter,optional,omitempty"`
+        Sort []interface{} `json:"sort,optional,omitempty"`
+        Filters []UnsV2RecordFilter `json:"filters,optional,omitempty"`
+        OrderBy []UnsV2RecordOrder `json:"orderBy,optional,omitempty"`
+        Limit int `json:"limit,optional,omitempty"`
+        ExpectCount *UnsV2QueryCountExpectation `json:"expectCount,optional,omitempty"`
+    }
+    UnsV2QueryCountExpectation {
+        Min *int64 `json:"min,optional,omitempty"`
+        Max *int64 `json:"max,optional,omitempty"`
+    }
+    UnsV2FieldOperation {
+        Op string `json:"op"`
+        Path string `json:"path"`
+        Value interface{} `json:"value,optional,omitempty"`
+    }
+    UnsV2ResultBinding {
+        Path string `json:"path"`
+        Ref string `json:"ref"`
+        ResultPath string `json:"resultPath"`
+    }
+    UnsV2ApplyReq {
+        IdempotencyKey string `json:"idempotencyKey"`
+        Mode string `json:"mode,optional"`
+        Atomic interface{} `json:"atomic,optional"`
+        DryRun bool `json:"dryRun,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2Page {
+        Page int `json:"page,optional"`
+        Size int `json:"size,optional"`
+        Search string `json:"search,optional"`
+    }
+    UnsV2TimeRange {
+        From int64 `json:"from"`
+        To int64 `json:"to"`
+    }
+    UnsV2History {
+        Page int `json:"page,optional"`
+        Size int `json:"size,optional"`
+        TimeRange *UnsV2TimeRange `json:"timeRange,optional"`
+    }
+    UnsV2SelectedRecord {
+        RecordId string `json:"recordId"`
+        History *UnsV2History `json:"history,optional"`
+    }
+    UnsV2ReferenceTarget {
+        Kind string `json:"kind"`
+        Id string `json:"id"`
+    }
+    UnsV2Query {
+        QueryId string `json:"queryId"`
+        PaginationMode string `json:"paginationMode,optional,omitempty"`
+        Cursor string `json:"cursor,optional,omitempty"`
+        AsOf int64 `json:"asOf,optional,omitempty"`
+        IncludeTotal *bool `json:"includeTotal,optional,omitempty"`
+        Page int `json:"page,optional"`
+        Size int `json:"size,optional"`
+        Search string `json:"search,optional"`
+        Mode string `json:"mode,optional"`
+        Kinds []string `json:"kinds,optional"`
+        Ids []string `json:"ids,optional"`
+        IncludeArchived bool `json:"includeArchived,optional"`
+        ParentId interface{} `json:"parentId,optional"`
+        IncludeAncestors bool `json:"includeAncestors,optional"`
+        CollectionId string `json:"collectionId,optional"`
+        RecordIds []string `json:"recordIds,optional"`
+        TopicId string `json:"topicId,optional"`
+        Include []string `json:"include,optional"`
+        Records *UnsV2Page `json:"records,optional"`
+        SelectedRecord *UnsV2SelectedRecord `json:"selectedRecord,optional"`
+        TimeRange *UnsV2TimeRange `json:"timeRange,optional"`
+        FieldPath []string `json:"fieldPath,optional"`
+        MaxPoints int `json:"maxPoints,optional"`
+        IncludeLatestSample bool `json:"includeLatestSample,optional"`
+        Targets []UnsV2ReferenceTarget `json:"targets,optional"`
+        RelationKinds []string `json:"relationKinds,optional"`
+        JobIds []string `json:"jobIds,optional"`
+        Filters []UnsV2RecordFilter `json:"filters,optional"`
+        OrderBy []UnsV2RecordOrder `json:"orderBy,optional"`
+        Relational *UnsV2RelationalQuery `json:"relational,optional,omitempty"`
+    }
+    UnsV2QueryReq {
+        Queries []UnsV2Query `json:"queries"`
+    }
+    UnsV2DataQueryReq {
+        Queries []interface{} `json:"queries"`
+    }
+    UnsV2SampleQueryReq {
+        Queries []interface{} `json:"queries"`
+    }
+    UnsV2SampleQuery {
+        QueryId string `json:"queryId"`
+        CollectionId string `json:"collectionId"`
+        RecordId string `json:"recordId"`
+        Pipeline []interface{} `json:"pipeline"`
+        ResultMode string `json:"resultMode,optional,omitempty"`
+        Page *UnsV2PipelinePage `json:"page,optional,omitempty"`
+    }
+    UnsV2DataQuery {
+        QueryId string `json:"queryId"`
+        CollectionId string `json:"collectionId"`
+        Pipeline []interface{} `json:"pipeline"`
+        ResultMode string `json:"resultMode,optional,omitempty"`
+        Page *UnsV2PipelinePage `json:"page,optional,omitempty"`
+    }
+    UnsV2PipelinePage {
+        Size int `json:"size,optional,omitempty"`
+        Mode string `json:"mode,optional,omitempty"`
+        Page int `json:"page,optional,omitempty"`
+        Cursor string `json:"cursor,optional,omitempty"`
+    }
+    UnsV2Envelope {
+        Code int `json:"code"`
+        Msg string `json:"msg"`
+        RequestId string `json:"requestId"`
+        Data interface{} `json:"data"`
+    }
+    UnsV2DiscoverySearchReq {
+        Search string `json:"search,optional"`
+        Page int `json:"page,optional"`
+        Size int `json:"size,optional"`
+    }
+    UnsV2CollectionDescribeReq {
+        CollectionId string `json:"collectionId"`
+    }
+    UnsV2TransactionStatusReq {
+        Scope string `json:"scope,optional"`
+        IdempotencyKey string `json:"idempotencyKey"`
+    }
+    UnsV2TransactionValidateReq {
+        IdempotencyKey string `json:"idempotencyKey,optional"`
+        Mode string `json:"mode,optional"`
+        Atomic *bool `json:"atomic,optional"`
+        DryRun bool `json:"dryRun,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2RecordSearchReq {
+        CollectionId string `json:"collectionId"`
+        PaginationMode string `json:"paginationMode,optional,omitempty"`
+        Cursor string `json:"cursor,optional,omitempty"`
+        AsOf int64 `json:"asOf,optional,omitempty"`
+        IncludeTotal *bool `json:"includeTotal,optional,omitempty"`
+        Page int `json:"page,optional"`
+        Size int `json:"size,optional"`
+        Search string `json:"search,optional"`
+        RecordIds []string `json:"recordIds,optional"`
+        Filters []UnsV2RecordFilter `json:"filters,optional"`
+        OrderBy []UnsV2RecordOrder `json:"orderBy,optional"`
+        IncludeLatestSample bool `json:"includeLatestSample,optional"`
+    }
+    UnsV2RecordAggregateReq {
+        CollectionId string `json:"collectionId"`
+        Page int `json:"page,optional"`
+        Size int `json:"size,optional"`
+        Subqueries []UnsV2QuerySubquery `json:"subqueries,optional,omitempty"`
+        Joins []UnsV2QueryJoin `json:"joins,optional"`
+        Select []UnsV2QuerySelect `json:"select"`
+        Where *UnsV2QueryPredicate `json:"where,optional"`
+        GroupBy []string `json:"groupBy,optional"`
+        Having []UnsV2RecordFilter `json:"having,optional"`
+        OrderBy []UnsV2RecordOrder `json:"orderBy,optional"`
+        Distinct bool `json:"distinct,optional"`
+    }
+)
+
+type (
+    UnsV2MetaBatchReq {
+        IdempotencyKey string `json:"idempotencyKey,optional"`
+        Mode string `json:"mode,optional"`
+        DryRun bool `json:"dryRun,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2MetaBatchValidateReq {
+        IdempotencyKey string `json:"idempotencyKey,optional"`
+        Mode string `json:"mode,optional"`
+        DryRun bool `json:"dryRun,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2RecordBatchReq {
+        IdempotencyKey string `json:"idempotencyKey"`
+        Mode string `json:"mode,optional"`
+        DryRun bool `json:"dryRun,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2RecordBatchValidateReq {
+        IdempotencyKey string `json:"idempotencyKey,optional"`
+        Mode string `json:"mode,optional"`
+        DryRun bool `json:"dryRun,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2SampleBatchItem {
+        Id string `json:"id,optional"`
+        Time int64 `json:"time"`
+        Quality string `json:"quality,optional"`
+        Data interface{} `json:"data"`
+    }
+    UnsV2SampleAppendBatchReq {
+        CollectionId string `json:"collectionId"`
+        RecordId string `json:"recordId"`
+        IdempotencyKey string `json:"idempotencyKey"`
+        Mode string `json:"mode,optional"`
+        DryRun bool `json:"dryRun"`
+        Samples []UnsV2SampleBatchItem `json:"samples"`
+    }
+)
+
+type (
+    UnsV2RecordTransactionReq {
+        IdempotencyKey string `json:"idempotencyKey,optional"`
+        Mode string `json:"mode,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+    UnsV2RecordTransactionValidateReq {
+        IdempotencyKey string `json:"idempotencyKey,optional"`
+        Items []UnsV2Change `json:"items"`
+    }
+)

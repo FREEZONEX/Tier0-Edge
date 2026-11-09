@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Flex } from 'antd';
 import { ChevronDown, User } from '@/components/lucide-icon/carbon';
-import logoLight from '@/assets/custom-nav/logo-light.svg';
-import logoDark from '@/assets/custom-nav/logo-dark.svg';
+import { productLogo, productName } from '@/utils/product-edition';
 import SideNavList from './components/SideNavList';
 import SideMenuList from './components/SideMenuList';
 import menuChange from '@/assets/icons/menu-change.svg';
@@ -21,6 +20,7 @@ import { useBaseStore } from '@/stores/base';
 import { MenuTypeEnum, setMenuType, ThemeType, useThemeStore } from '@/stores/theme-store';
 
 const Module = () => {
+  const systemInfo = useBaseStore((state) => state.systemInfo);
   const { menuTree, currentMenuInfo } = useBaseStore((state) => ({
     menuTree: state.menuTree,
     currentMenuInfo: state.currentMenuInfo,
@@ -57,7 +57,7 @@ const Module = () => {
                 setSearchOpen(true);
               }}
             >
-              <img src={isDark ? logoDark : logoLight} />
+              <img src={productLogo(systemInfo, isDark)} alt={productName(systemInfo)} />
               <span style={{ margin: '0 5px' }} title={currentMenuName}>
                 {currentMenuName}
               </span>

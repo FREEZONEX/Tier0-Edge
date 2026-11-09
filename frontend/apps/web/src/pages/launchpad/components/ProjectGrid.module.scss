@@ -93,7 +93,7 @@
       }
 
       // 与 Favorited & Recent Apps（AppCard）收藏按钮一致
-      .starButton {
+      .pinButton {
         display: flex;
         flex-shrink: 0;
         align-items: center;
@@ -120,7 +120,7 @@
           display: block;
         }
 
-        &.starActive {
+        &.pinActive {
           color: var(--ui-warning-color);
 
           svg {
@@ -143,7 +143,11 @@
         overflow: hidden;
         width: 100%;
         min-width: 0;
+        padding: 0;
         aspect-ratio: 16 / 9;
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
         font-size: 24px;
         background: var(--ui-bg-color);
         border: 1px solid var(--ui-active-bg-color);
@@ -152,6 +156,7 @@
 
         &.appIconEmpty {
           color: var(--ui-description-card-color);
+          cursor: default;
           background: color-mix(in srgb, var(--ui-bg-color) 55%, var(--ui-card-bg));
           border-style: dashed;
 
@@ -229,9 +234,8 @@
 :global(.chartreuseDark) {
   .projectGrid {
     .projectCard {
-      // 暗色：深橄榄底 + 柔和柠色图标，避免浅色 chartreuse 发灰发刺
-      --launchpad-folder-bg: color-mix(in srgb, var(--ui-t-chartreuse-color-70) 18%, var(--ui-t-chartreuse-color-100));
-      --launchpad-folder-fg: var(--ui-t-chartreuse-color-40);
+      --launchpad-folder-bg: var(--ui-icon-wrapper-group-bg);
+      --launchpad-folder-fg: var(--ui-icon-wrapper-group-color);
 
       background: rgb(255 255 255 / 6%);
 
@@ -257,7 +261,7 @@
           }
         }
 
-        .starButton {
+        .pinButton {
           color: var(--ui-description-card-color);
           background: var(--ui-card-color);
           border-color: var(--ui-control-border);
@@ -267,7 +271,7 @@
             border-color: var(--ui-select-d-color);
           }
 
-          &.starActive {
+          &.pinActive {
             color: var(--ui-warning-color);
 
             svg {

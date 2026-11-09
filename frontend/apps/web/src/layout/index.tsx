@@ -1,4 +1,5 @@
 import CustomMenuHeader from './custom-menu-header';
+import GlobalNoticeAlerts from './components/global-notice-alerts';
 import BusinessSidebar from './BusinessSidebar';
 import TabsLayout from './components/TabsLayout';
 import { useChangeMenuName } from '@/hooks';
@@ -25,6 +26,7 @@ const Module = () => {
         <BusinessSidebar />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <CustomMenuHeader />
+          <GlobalNoticeAlerts />
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>{tabsContent}</div>
         </div>
         <IframeMask />

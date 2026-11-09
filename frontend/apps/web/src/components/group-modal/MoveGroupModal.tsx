@@ -15,10 +15,13 @@ export interface MoveGroupModalProps {
   [key: string]: any;
 }
 
+const ROOT_GROUP_ID = '-9999';
+
 const MoveGroupModal = forwardRef<MoveGroupModalRef, MoveGroupModalProps>(({ refreshRequest }, ref) => {
   const [visible, setVisible] = useState(false);
   const [type, setType] = useState(1);
   const [oldId, setOldId] = useState('0');
+  const [flowName, setFlowName] = useState('');
   const formatMessage = useTranslate();
   const [form] = Form.useForm();
   const { message } = App.useApp();
@@ -27,15 +30,17 @@ const MoveGroupModal = forwardRef<MoveGroupModalRef, MoveGroupModalProps>(({ ref
     const currentGroupId = props?.id ? props.id + '' : '0';
     form.setFieldsValue({
       ...props,
-      id: currentGroupId === '0' ? '-9999' : currentGroupId,
+      id: currentGroupId === '0' ? ROOT_GROUP_ID : currentGroupId,
     });
     setOldId(currentGroupId);
     setType(type);
+    setFlowName(props?.name || '');
     setVisible(true);
   };
 
   const onClose = () => {
     form.resetFields();
+    setFlowName('');
     setVisible(false);
   };
 
@@ -44,8 +49,8 @@ const MoveGroupModal = forwardRef<MoveGroupModalRef, MoveGroupModalProps>(({ ref
     return optGroup({
       type,
       bizId: value?.bizId,
-      id: value?.id === '-9999' ? oldId : value?.id,
-      status: value?.id !== '-9999',
+      id: value?.id === ROOT_GROUP_ID ? oldId : value?.id,
+      status: value?.id !== ROOT_GROUP_ID,
     }).then(() => {
       onClose?.();
       refreshRequest?.();
@@ -63,7 +68,11 @@ const MoveGroupModal = forwardRef<MoveGroupModalRef, MoveGroupModalProps>(({ ref
       destroyOnHidden
       open={visible}
       onCancel={onClose}
-      title={formatMessage('uns.moveToGroup')}
+      title={
+        <span style={{ overflowWrap: 'anywhere' }}>
+          {flowName ? formatMessage('flow.moveNamedToGroup', { name: flowName }) : formatMessage('uns.moveToGroup')}
+        </span>
+      }
       width={500}
       styles={{
         body: {
@@ -99,29 +108,22 @@ const MoveGroupModal = forwardRef<MoveGroupModalRef, MoveGroupModalProps>(({ ref
                 properties: {
                   isRequest: visible,
                   filterOption: false,
+                  // 同步提供根目录标签，避免异步目录加载前直接渲染哨兵值。
+                  otherOptions: [
+                    {
+                      label: formatMessage('uns.rootDirectory'),
+                      value: ROOT_GROUP_ID,
+                    },
+                  ],
                   api: (name?: string) =>
-                    getGroupList({ page: 1, pageSize: 1000, name, type }).then((res) => {
-                      if (name) {
-                        return [
-                          ...(res?.map((item: any) => ({
-                            ...item,
-                            label: item.name,
-                            value: item.id + '',
-                          })) || []),
-                        ];
-                      }
-                      return [
-                        {
-                          label: formatMessage('uns.rootDirectory'),
-                          value: '-9999',
-                        },
-                        ...(res?.map((item: any) => ({
+                    getGroupList({ page: 1, pageSize: 1000, name, type }).then(
+                      (res) =>
+                        res?.map((item: any) => ({
                           ...item,
                           label: item.name,
                           value: item.id + '',
-                        })) || []),
-                      ];
-                    }),
+                        })) || []
+                    ),
                   showSearch: true,
                 },
               },
@@ -129,12 +131,7 @@ const MoveGroupModal = forwardRef<MoveGroupModalRef, MoveGroupModalProps>(({ ref
             style={{ padding: 0 }}
             footer={
               <Flex gap="10px" justify="end">
-                <ComButton
-                  color="default"
-                  variant="filled"
-                  onClick={onClose}
-                  title={formatMessage('common.cancel')}
-                >
+                <ComButton color="default" variant="filled" onClick={onClose} title={formatMessage('common.cancel')}>
                   {formatMessage('common.cancel')}
                 </ComButton>
                 <ComButton type="primary" variant="solid" onClick={onSave} title={formatMessage('common.save')}>

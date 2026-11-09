@@ -1,0 +1,42 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core/oauth
+    group: core/oauth
+    middleware: SessionAuth
+)
+service backend {
+    @handler OAuthAuthorize
+    get /authorize (OAuthAuthorizeReq) returns (Envelope)
+
+    @handler OAuthUserInfo
+    get /userinfo returns (Envelope)
+}
+
+@server(
+    prefix: /api/core/oauth
+    group: core/oauth
+)
+service backend {
+    @handler OAuthToken
+    post /token (OAuthTokenReq) returns (Envelope)
+}
+
+@server(
+    prefix: /api/core/iam
+    group: core/oauth
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler OAuthClientList
+    get /oauth-clients (PageReq) returns (Envelope)
+
+    @handler OAuthClientCreate
+    post /oauth-clients (OAuthClientReq) returns (Envelope)
+
+    @handler OAuthClientUpdate
+    put /oauth-clients/:id (OAuthClientReq) returns (Envelope)
+
+    @handler OAuthClientDelete
+    delete /oauth-clients/:id (IdReq) returns (Envelope)
+}

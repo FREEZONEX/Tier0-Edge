@@ -1,0 +1,162 @@
+syntax = "v1"
+
+type OpenapiAssetUploadResp {
+    uploadUrl string `json:"uploadUrl"`
+    filePath string `json:"filePath"`
+    fileUrl string `json:"fileUrl,optional"`
+}
+
+type OpenapiAssetFileUploadReq {
+    fileName string `json:"fileName"`
+    contentType string `json:"contentType,optional"`
+    size int64 `json:"size,optional"`
+    business string `json:"business,optional"`
+    useBy string `json:"useBy,optional"`
+    visibility string `json:"visibility,optional"`
+    appInstanceId string `json:"appInstanceId,optional"`
+    sessionId string `json:"sessionId,optional"`
+}
+
+type OpenapiAssetFileUploadResp {
+    fileId string `json:"fileId,optional"`
+    filePath string `json:"filePath"`
+    fileUrl string `json:"fileUrl,optional"`
+    postUrl string `json:"postUrl"`
+    postFields map[string]string `json:"postFields,optional"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type OpenapiAssetFileDownloadReq {
+    filePath string `form:"filePath"`
+    responseContentDisposition string `form:"responseContentDisposition,optional"`
+}
+
+type OpenapiAssetFileUrlReq {
+    filePath string `form:"filePath"`
+    expiredSec int64 `form:"expiredSec,optional"`
+}
+
+type OpenapiAssetFileUrlResp {
+    fileUrl string `json:"fileUrl"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type OpenapiAssetFileDeleteReq {
+    filePath string `json:"filePath"`
+}
+
+type OpenapiAssetFileDeleteResp {
+    deleted bool `json:"deleted"`
+}
+
+type OpenapiAssetMultipartInitReq {
+    fileName string `json:"fileName"`
+    contentType string `json:"contentType,optional"`
+    size int64 `json:"size"`
+    partSize int64 `json:"partSize,optional"`
+    business string `json:"business,optional"`
+    useBy string `json:"useBy,optional"`
+    visibility string `json:"visibility,optional"`
+    appInstanceId string `json:"appInstanceId,optional"`
+    sessionId string `json:"sessionId,optional"`
+    bizId string `json:"bizId,optional"`
+}
+
+type OpenapiAssetMultipartInitResp {
+    fileKey string `json:"fileKey"`
+    filePath string `json:"filePath"`
+    uploadId string `json:"uploadId"`
+    partSize int64 `json:"partSize"`
+    partCount int64 `json:"partCount"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type OpenapiAssetMultipartPartUrlsReq {
+    fileKey string `json:"fileKey"`
+    uploadId string `json:"uploadId"`
+    partNumbers []int32 `json:"partNumbers"`
+}
+
+type OpenapiAssetMultipartPartUrl {
+    partNumber int32 `json:"partNumber"`
+    url string `json:"url"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type OpenapiAssetMultipartPartUrlsResp {
+    partUrls []OpenapiAssetMultipartPartUrl `json:"partUrls"`
+}
+
+type OpenapiAssetMultipartCompleteReq {
+    fileKey string `json:"fileKey"`
+    uploadId string `json:"uploadId"`
+    parts []OpenapiAssetMultipartCompletePart `json:"parts"`
+}
+
+type OpenapiAssetMultipartCompletePart {
+    partNumber int32 `json:"partNumber"`
+    etag string `json:"etag"`
+}
+
+type OpenapiAssetMultipartCompleteResp {
+    filePath string `json:"filePath"`
+    fileUrl string `json:"fileUrl"`
+    sizeBytes int64 `json:"sizeBytes"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type OpenapiAssetMultipartAbortReq {
+    fileKey string `json:"fileKey"`
+    uploadId string `json:"uploadId"`
+}
+
+type OpenapiAssetMultipartAbortResp {
+    aborted bool `json:"aborted"`
+}
+
+@server(
+    prefix: /openapi/v1
+    group: openapi/v1/asset
+    middleware: ApiKeyAuth
+)
+service backend {
+    @handler OpenapiAssetUpload
+    post /assets/upload (AssetUploadReq) returns (OpenapiAssetUploadResp)
+
+    @handler OpenapiAssetFileUpload
+    post /assets/files (OpenapiAssetFileUploadReq) returns (OpenapiAssetFileUploadResp)
+
+    @handler OpenapiAssetFileDownload
+    get /assets/files/download (OpenapiAssetFileDownloadReq)
+
+    @handler OpenapiAssetFileUrl
+    get /assets/files/url (OpenapiAssetFileUrlReq) returns (OpenapiAssetFileUrlResp)
+
+    @handler OpenapiAssetFileDelete
+    post /assets/files/delete (OpenapiAssetFileDeleteReq) returns (OpenapiAssetFileDeleteResp)
+
+    @handler OpenapiAssetMultipartInit
+    post /assets/files/multipart/init (OpenapiAssetMultipartInitReq) returns (OpenapiAssetMultipartInitResp)
+
+    @handler OpenapiAssetMultipartPartUrls
+    post /assets/files/multipart/part-urls (OpenapiAssetMultipartPartUrlsReq) returns (OpenapiAssetMultipartPartUrlsResp)
+
+    @handler OpenapiAssetMultipartComplete
+    post /assets/files/multipart/complete (OpenapiAssetMultipartCompleteReq) returns (OpenapiAssetMultipartCompleteResp)
+
+    @handler OpenapiAssetMultipartAbort
+    post /assets/files/multipart/abort (OpenapiAssetMultipartAbortReq) returns (OpenapiAssetMultipartAbortResp)
+}
+
+// Public asset download: no ApiKeyAuth on purpose. Public-visibility files are
+// served as unguessable capability URLs (random storage key) so external
+// consumers such as AI-generated apps can render them without a platform
+// credential. Private files never match this route's visibility check.
+@server(
+    prefix: /openapi/v1
+    group: openapi/v1/assetpublic
+)
+service backend {
+    @handler OpenapiAssetFilePublicDownload
+    get /assets/files/public (OpenapiAssetFileDownloadReq)
+}

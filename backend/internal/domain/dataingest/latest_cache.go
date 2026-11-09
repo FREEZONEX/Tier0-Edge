@@ -8,33 +8,21 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"backend/internal/infra/cache"
 )
 
 const (
 	latestCacheKeyPrefix = "cache:uns:latest"
+	latestCacheBatchSize = 1000
+	latestCacheNoDataTTL = time.Minute
+	latestCacheNoDataKey = "_tier0NoData"
 
 	qualityGood      = "Good"
 	qualityUncertain = "Uncertain"
 	qualityBad       = "Bad"
 )
-
-const latestCacheUpsertScript = `
-local current = redis.call("GET", KEYS[1])
-local incoming = tonumber(ARGV[2]) or 0
-if current and current ~= false then
-  local ok, currentObj = pcall(cjson.decode, current)
-  if ok and currentObj then
-    local currentTs = tonumber(currentObj.timeStamp or currentObj.updateTime) or 0
-    if currentTs > incoming then
-      return 0
-    end
-  end
-end
-redis.call("SET", KEYS[1], ARGV[1])
-return 1
-`
 
 type latestCache struct {
 	redis *cache.Client
@@ -62,11 +50,94 @@ func (c *latestCache) Get(ctx context.Context, nodeID int64) (map[string]any, bo
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		return nil, false, err
 	}
+	if isLatestCacheNoData(payload) {
+		return nil, true, nil
+	}
 	normalizeLatestPayload(payload)
 	if len(payload) == 0 {
 		return nil, false, nil
 	}
 	return payload, true, nil
+}
+
+func (c *latestCache) GetMany(ctx context.Context, nodeIDs []int64) (map[int64]map[string]any, error) {
+	out := make(map[int64]map[string]any, len(nodeIDs))
+	if c == nil || c.redis == nil || len(nodeIDs) == 0 {
+		return out, nil
+	}
+	ids := make([]int64, 0, len(nodeIDs))
+	seen := make(map[int64]struct{}, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		if nodeID <= 0 {
+			continue
+		}
+		if _, ok := seen[nodeID]; ok {
+			continue
+		}
+		seen[nodeID] = struct{}{}
+		ids = append(ids, nodeID)
+	}
+	var firstErr error
+	for start := 0; start < len(ids); start += latestCacheBatchSize {
+		end := start + latestCacheBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		batch := ids[start:end]
+		keys := make([]string, 0, len(batch))
+		for _, nodeID := range batch {
+			keys = append(keys, latestCacheKey(nodeID))
+		}
+		values, err := c.redis.MGetStrings(ctx, keys...)
+		if err != nil {
+			return out, err
+		}
+		for idx, raw := range values {
+			if strings.TrimSpace(raw) == "" {
+				continue
+			}
+			payload := map[string]any{}
+			if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("decode latest cache node %d: %w", batch[idx], err)
+				}
+				continue
+			}
+			if isLatestCacheNoData(payload) {
+				out[batch[idx]] = nil
+				continue
+			}
+			normalizeLatestPayload(payload)
+			if len(payload) > 0 {
+				out[batch[idx]] = payload
+			}
+		}
+	}
+	return out, firstErr
+}
+
+func (c *latestCache) MarkNoData(ctx context.Context, nodeIDs []int64) error {
+	if c == nil || c.redis == nil || len(nodeIDs) == 0 {
+		return nil
+	}
+	body, err := json.Marshal(map[string]any{latestCacheNoDataKey: true})
+	if err != nil {
+		return err
+	}
+	seen := make(map[int64]struct{}, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		if nodeID <= 0 {
+			continue
+		}
+		if _, ok := seen[nodeID]; ok {
+			continue
+		}
+		seen[nodeID] = struct{}{}
+		if _, err := c.redis.SetNX(ctx, latestCacheKey(nodeID), string(body), latestCacheNoDataTTL); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *latestCache) UpsertRecords(ctx context.Context, records []Record) error {
@@ -87,8 +158,35 @@ func (c *latestCache) UpsertRecords(ctx context.Context, records []Record) error
 			latestByID[record.UnsID] = payload
 		}
 	}
-	for nodeID, payload := range latestByID {
-		if err := c.UpsertPayload(ctx, nodeID, payload); err != nil {
+	return c.UpsertPayloads(ctx, latestByID)
+}
+
+func (c *latestCache) UpsertPayloads(ctx context.Context, payloads map[int64]map[string]any) error {
+	if c == nil || c.redis == nil || len(payloads) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(payloads))
+	for nodeID := range payloads {
+		if nodeID > 0 {
+			ids = append(ids, nodeID)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, nodeID := range ids {
+		payload := payloads[nodeID]
+		if len(payload) == 0 {
+			continue
+		}
+		normalizeLatestPayload(payload)
+		ts := latestPayloadTimestamp(payload)
+		if ts <= 0 {
+			continue
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		if _, err := c.redis.UpdateIfNewer(ctx, latestCacheKey(nodeID), string(body), ts); err != nil {
 			return err
 		}
 	}
@@ -108,7 +206,7 @@ func (c *latestCache) UpsertPayload(ctx context.Context, nodeID int64, payload m
 	if err != nil {
 		return err
 	}
-	_, err = c.redis.EvalInt64(ctx, latestCacheUpsertScript, []string{latestCacheKey(nodeID)}, string(body), strconv.FormatInt(ts, 10))
+	_, err = c.redis.UpdateIfNewer(ctx, latestCacheKey(nodeID), string(body), ts)
 	return err
 }
 
@@ -133,6 +231,11 @@ func (c *latestCache) DeleteIDs(ctx context.Context, ids ...int64) error {
 
 func latestCacheKey(nodeID int64) string {
 	return fmt.Sprintf("%s:%d", latestCacheKeyPrefix, nodeID)
+}
+
+func isLatestCacheNoData(payload map[string]any) bool {
+	value, ok := payload[latestCacheNoDataKey]
+	return ok && value == true
 }
 
 func latestPayloadFromRecord(record Record) map[string]any {
@@ -254,12 +357,32 @@ func latestPayloadDT(payload map[string]any) (map[string]int64, bool) {
 }
 
 func qualityFromRecord(record Record) string {
+	quality := qualityFromAny(record.Quality)
 	for _, key := range []string{metricQualityColumn, "quality", "_qos"} {
 		if raw, ok := record.RawValues[key]; ok {
-			return qualityFromAny(raw)
+			quality = qualityFromAny(raw)
+			break
 		}
 	}
-	return qualityFromAny(record.Quality)
+	return worseQuality(quality, qualityFromAny(record.SourceQuality))
+}
+
+func qualityCode(value any) int64 {
+	switch qualityFromAny(value) {
+	case qualityUncertain:
+		return 2
+	case qualityBad:
+		return 3
+	default:
+		return 1
+	}
+}
+
+func worseQuality(left, right string) string {
+	if qualityCode(right) > qualityCode(left) {
+		return qualityFromAny(right)
+	}
+	return qualityFromAny(left)
 }
 
 func qualityFromAny(value any) string {

@@ -1,18 +1,21 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type FC } from 'react';
-import { getInstanceInfo } from '@/apis/core-api/uns';
-import { Collapse, Flex, theme, Typography } from 'antd';
+import { getDataQualityStatus, type DataQualityStatus } from '@/apis/core-api/data-quality';
+import { editModel, getInstanceInfo } from '@/apis/core-api/uns';
+import { Collapse, Flex, Tabs, theme, Typography } from 'antd';
 import { CaretRight, ClipboardList, SendAlt, ChartLine } from '@/components/lucide-icon/carbon';
 import { UNS_TOPIC_ICON_COLORS, UnsTopicTypeIconWrap } from '@/pages/uns/components/uns-tree/tree-icons';
 import { useTranslate } from '@/hooks';
 import type { CSSProperties } from 'react';
 import type { CollapseProps } from 'antd';
 import Details from './Details';
-import TopologyChart from './topology/TopologyChart';
+import TopicStreamRelations from '../source-stream/TopicStreamRelations';
 import Definition from './Definition';
 import Payload from './Payload';
 import Dashboard from './Dashboard';
 import RawData from './RawData';
 import PayloadViewSegmented, { type PayloadViewMode } from './PayloadViewSegmented';
+import DataQualityPanel from './data-quality/DataQualityPanel';
+import type { ValueRangePatch } from './data-quality/ValueRangeSettings';
 // import SqlQuery from './SqlQuery';
 import DocumentList from '@/pages/uns/components/DocumentList.tsx';
 import UploadButton from '@/pages/uns/components/UploadButton.tsx';
@@ -21,10 +24,12 @@ import { useMediaSize } from '@/hooks';
 import EditDetailButton from '@/pages/uns/components/EditDetailButton';
 import type { InitTreeDataFnType, UnsTreeNode, FieldItem } from '@/pages/uns/types';
 import { isJsonString } from '@/utils/common';
+import { hasPermission } from '@/utils/auth';
 import { useBaseStore } from '@/stores/base';
 // import Subscribe from '@/pages/uns/components/subscribe';
 import EditButton from '@/pages/uns/components/EditButton.tsx';
 import useSSE from '@/hooks/useSSE.ts';
+import { useLocation, useNavigate } from 'react-router';
 
 export interface FileDetailProps {
   currentNode: UnsTreeNode;
@@ -40,6 +45,8 @@ interface InstanceInfoType {
 const { Title } = Typography;
 
 const Module: FC<FileDetailProps> = (props) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     currentNode: { id, mount },
     readOnly = false,
@@ -53,15 +60,31 @@ const Module: FC<FileDetailProps> = (props) => {
   const documentListRef = useRef(null);
   const [instanceInfo, setInstanceInfo] = useState<InstanceInfoType>({});
   const [activeList, setActiveList] = useState<string[]>([
-    'topologyChart',
+    'detail',
+    'connections',
     'definition',
     'payload',
     'dashboard',
     // 'sqlQuery',
   ]);
-  const [payloadView, setPayloadView] = useState<PayloadViewMode>('table');
+  const [topicTab, setTopicTab] = useState('payload');
+  useEffect(() => {
+    setTopicTab('payload');
+  }, [id]);
+  const [payloadView, setPayloadView] = useState<PayloadViewMode>('code');
   const [websocketData, setWebsocketData] = useState<any>({});
   const [localSchemaFields, setLocalSchemaFields] = useState<FieldItem[] | null>(null);
+  const schemaFieldsRef = useRef<FieldItem[]>([]);
+  const schemaSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const currentNodeIDRef = useRef(id);
+  currentNodeIDRef.current = id;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const dataQualitySectionRef = useRef<HTMLSpanElement>(null);
+  const handledDataQualityFocusRef = useRef('');
+  const autoExpandedDataQualityNodeRef = useRef('');
+  const [dataQualityProbe, setDataQualityProbe] = useState<{ unsId: string; status: DataQualityStatus }>();
+  const dataQualityStatus = dataQualityProbe?.unsId === String(id) ? dataQualityProbe.status : undefined;
+  const dataQualityAvailable = Boolean(dataQualityStatus?.enabled);
   const { token } = theme.useToken();
 
   const panelStyle: CSSProperties = {
@@ -75,8 +98,7 @@ const Module: FC<FileDetailProps> = (props) => {
     let bigIntValue;
     try {
       bigIntValue = BigInt(value);
-    } catch (e) {
-      console.log(e);
+    } catch {
       bigIntValue = BigInt(JSON.parse(value));
     }
 
@@ -175,6 +197,88 @@ const Module: FC<FileDetailProps> = (props) => {
     }
   }, [id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!id) return;
+
+    void getDataQualityStatus(String(id))
+      .then((status) => {
+        if (cancelled) return;
+        if (!status?.enabled) {
+          setDataQualityProbe(undefined);
+          return;
+        }
+        setDataQualityProbe({ unsId: String(id), status });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDataQualityProbe(undefined);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    const autoExpandedNodeId = autoExpandedDataQualityNodeRef.current;
+    if (!autoExpandedNodeId || autoExpandedNodeId === String(id)) return;
+    autoExpandedDataQualityNodeRef.current = '';
+    setActiveList((keys) => keys.filter((key) => key !== 'dataQuality'));
+  }, [id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const isNotificationFocus =
+      params.get('entry') === 'notification' &&
+      params.get('focus') === 'dataQuality' &&
+      params.get('namespaceId') === String(id);
+    if (!isNotificationFocus || !dataQualityAvailable) return;
+    setTopicTab('details');
+
+    const requestKey = `${location.key}:${id}`;
+    if (handledDataQualityFocusRef.current === requestKey) return;
+    setActiveList((keys) => {
+      if (keys.includes('dataQuality')) return keys;
+      autoExpandedDataQualityNodeRef.current = String(id);
+      return [...keys, 'dataQuality'];
+    });
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const anchor = dataQualitySectionRef.current;
+        const panel = anchor?.closest<HTMLElement>('.ant-collapse-item');
+        const scrollContainer = scrollContainerRef.current;
+        if (panel && scrollContainer) {
+          const panelRect = panel.getBoundingClientRect();
+          const containerRect = scrollContainer.getBoundingClientRect();
+          scrollContainer.scrollTo({
+            top: Math.max(0, scrollContainer.scrollTop + panelRect.top - containerRect.top),
+            behavior: 'smooth',
+          });
+        }
+        handledDataQualityFocusRef.current = requestKey;
+
+        params.delete('entry');
+        params.delete('focus');
+        const search = params.toString();
+        navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [dataQualityAvailable, id, location.key, location.pathname, location.search, navigate]);
+
+  const hideDataQuality = useCallback(() => {
+    setDataQualityProbe(undefined);
+    setActiveList((keys) => keys.filter((key) => key !== 'dataQuality'));
+  }, []);
+
   const schemaFields = useMemo(() => {
     if (localSchemaFields !== null) {
       return localSchemaFields;
@@ -182,9 +286,14 @@ const Module: FC<FileDetailProps> = (props) => {
     return Array.isArray(instanceInfo.fields) ? instanceInfo.fields : [];
   }, [instanceInfo, localSchemaFields]);
 
+  useEffect(() => {
+    schemaFieldsRef.current = schemaFields;
+  }, [schemaFields]);
+
   const getFileDetail = (id: string) => {
     return getInstanceInfo({ id })
       .then(async (data: any) => {
+        if (String(currentNodeIDRef.current) !== String(id)) return;
         if (data?.id) {
           if (data?.dataType === 8) {
             data.fields = data?.jsonFields || [];
@@ -224,6 +333,60 @@ const Module: FC<FileDetailProps> = (props) => {
     [id]
   );
 
+  const saveQualitySchemaRange = useCallback(
+    (patch: ValueRangePatch) => {
+      const saveTask = async () => {
+        if (String(currentNodeIDRef.current) !== String(id) || String(instanceInfo.id) !== String(id)) {
+          throw new Error('UNS selection changed');
+        }
+        const isMountedTopic = Boolean(mount || instanceInfo.mount);
+        const editable =
+          !readOnly &&
+          !isMountedTopic &&
+          [1, 2, 8].includes(instanceInfo.dataType) &&
+          hasPermission(ButtonPermission['uns.fileDetail']);
+        if (!editable) {
+          throw new Error('UNS schema is read-only');
+        }
+
+        const currentFields = schemaFieldsRef.current;
+        if (!currentFields.some((field) => field.name === patch.fieldName)) {
+          throw new Error('UNS schema field no longer exists');
+        }
+        const fields = currentFields.map((field) =>
+          field.name === patch.fieldName
+            ? { ...field, lowerLimit: patch.lowerLimit, upperLimit: patch.upperLimit }
+            : field
+        );
+
+        const updated = await editModel({
+          ...instanceInfo,
+          id,
+          mount: isMountedTopic,
+          fields,
+          extendFieldUsed: instanceInfo.extendFieldUsed || [],
+        });
+        const savedFields = Array.isArray(updated?.fields)
+          ? updated.fields
+          : Array.isArray(updated?.jsonFields)
+            ? updated.jsonFields
+            : fields;
+        if (String(currentNodeIDRef.current) !== String(id)) return savedFields;
+        schemaFieldsRef.current = savedFields;
+        await refreshSchemaModel(savedFields);
+        return savedFields;
+      };
+
+      const result = schemaSaveChainRef.current.then(saveTask, saveTask);
+      schemaSaveChainRef.current = result.then(
+        () => undefined,
+        () => undefined
+      );
+      return result;
+    },
+    [id, instanceInfo, mount, readOnly, refreshSchemaModel]
+  );
+
   const getItems: (panelStyle: CSSProperties, instanceInfo: InstanceInfoType) => CollapseProps['items'] = (
     panelStyle,
     instanceInfo
@@ -232,6 +395,7 @@ const Module: FC<FileDetailProps> = (props) => {
     const schemaModelInfo = { ...instanceInfo, fields: schemaFields, mount: isMountedTopic };
     const topicReadOnly = readOnly || isMountedTopic;
     const schemaEditable = !topicReadOnly && [1, 2, 8].includes(instanceInfo.dataType);
+    const qualitySchemaEditable = schemaEditable && hasPermission(ButtonPermission['uns.fileDetail']);
 
     const items = [
       {
@@ -248,6 +412,12 @@ const Module: FC<FileDetailProps> = (props) => {
             getModel={() => getFileDetail(id as string)}
           />
         ),
+      },
+      {
+        key: window.__TIER0_RUNTIME_CONFIG__?.sourceStreamEnabled ? 'connections' : '',
+        label: formatMessage('SourceStream.connections'),
+        children: <TopicStreamRelations topicId={Number(id)} />,
+        style: panelStyle,
       },
       {
         key: [1, 2, 3, 6, 7, 8].includes(instanceInfo.dataType) ? 'definition' : '',
@@ -292,26 +462,28 @@ const Module: FC<FileDetailProps> = (props) => {
             />
           ),
       },
+      {
+        key: dataQualityAvailable ? 'dataQuality' : '',
+        label: <span ref={dataQualitySectionRef}>{formatMessage('dataQuality.title')}</span>,
+        children: (
+          <DataQualityPanel
+            key={String(id)}
+            unsId={String(id)}
+            schemaFields={schemaFields}
+            schemaEditable={qualitySchemaEditable}
+            onSchemaRangeChange={saveQualitySchemaRange}
+            readOnly={readOnly}
+            onUnavailable={hideDataQuality}
+          />
+        ),
+        style: panelStyle,
+      },
       ...(!isH5
         ? [
             {
               key: instanceInfo.dataType !== 7 ? 'dashboard' : '',
               label: formatMessage('uns.dashboard'),
               children: <Dashboard instanceInfo={instanceInfo} />,
-              style: panelStyle,
-            },
-            {
-              key: [1, 2, 8].includes(instanceInfo.dataType) ? 'topologyChart' : '',
-              label: formatMessage('uns.topology'),
-              children: (
-                <TopologyChart
-                  getFileDetail={getFileDetail}
-                  instanceInfo={instanceInfo}
-                  readOnly={topicReadOnly}
-                  // payload={websocketData?.data}
-                  // dt={websocketData?.dt || {}}
-                />
-              ),
               style: panelStyle,
             },
           ]
@@ -377,6 +549,7 @@ const Module: FC<FileDetailProps> = (props) => {
   return (
     <div className="topicDetailWrap">
       <div
+        ref={scrollContainerRef}
         className="topicDetailContent"
         style={{
           paddingLeft: 5,
@@ -399,17 +572,52 @@ const Module: FC<FileDetailProps> = (props) => {
           {/*  onChange={handleChangeSubscribe}*/}
           {/*/>*/}
         </Flex>
+        <Tabs
+          activeKey={topicTab}
+          onChange={setTopicTab}
+          items={[
+            { key: 'payload', label: formatMessage('SourceStream.payloadSchema') },
+            { key: 'details', label: formatMessage('common.detail') },
+          ]}
+        />
         <div className="tableWrap">
           <Collapse
             bordered={false}
             collapsible="header"
             activeKey={activeList}
-            onChange={(even) => setActiveList(even)}
+            onChange={(keys) =>
+              setActiveList((current) => [
+                ...current.filter((key) =>
+                  topicTab === 'payload'
+                    ? !['payload', 'definition'].includes(key)
+                    : ['payload', 'definition'].includes(key)
+                ),
+                ...keys,
+              ])
+            }
             expandIcon={({ isActive }) => (
               <CaretRight size={20} style={{ rotate: isActive ? '90deg' : '0deg', transition: '200ms' }} />
             )}
             style={{ background: token.colorBgContainer }}
-            items={getItems(panelStyle, instanceInfo)}
+            items={getItems(panelStyle, instanceInfo)
+              ?.filter((item) =>
+                topicTab === 'payload'
+                  ? ['payload', 'definition'].includes(String(item.key))
+                  : !['payload', 'definition'].includes(String(item.key))
+              )
+              ?.sort((a, b) =>
+                topicTab === 'payload'
+                  ? a.key === 'payload'
+                    ? -1
+                    : b.key === 'payload'
+                      ? 1
+                      : 0
+                  : a.key === 'topologyChart'
+                    ? -1
+                    : b.key === 'topologyChart'
+                      ? 1
+                      : 0
+              )}
           />
         </div>
       </div>

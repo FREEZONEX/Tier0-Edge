@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Add App to Home Screen</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <!-- 添加到主屏幕后以独立窗口打开，并用应用名作为图标名称 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- 桌面图标：iOS 在「添加到主屏幕」那一刻自己来抓这张图。必须是 PNG，
+         给 SVG 的话 Safari 用不了，会退化成一张网页截图。默认是 Tier0 标志，
+         下面的脚本再按 iconUrl 换成应用自己的图标。 -->
+    <link rel="apple-touch-icon" id="touch-icon" href="/images/mobile-install/app-logo.png" />
+    <script>
+      // 只认本站地址：这张图会变成用户桌面上的图标，不能让外部链接决定它。
+      // 取图地址由 App 侧带签名的免登录接口签发（/api/core/launchpad/shortcut-icons/*），
+      // Safari 没有本站登录态，鉴权接口在这里必然 401。
+      (function () {
+        var link = document.getElementById("touch-icon");
+        var raw = new URLSearchParams(window.location.search).get("iconUrl");
+        if (!link || !raw) return;
+        var href;
+        try {
+          var url = new URL(decodeURIComponent(raw.trim()), window.location.origin);
+          if (url.origin !== window.location.origin) return;
+          href = url.pathname + url.search;
+        } catch (error) {
+          return; // 地址不合法就留着默认图标
+        }
+        // 先确认这张图真的取得到再换。换上一条取不到的地址（旧版 App 传来的鉴权
+        // 地址会 401，签名过期会 404），iOS 会退化成首字母灰底块，比默认标志更差。
+        var probe = new Image();
+        probe.onload = function () {
+          link.href = href;
+        };
+        probe.src = href;
+      })();
+    </script>
+    <style>
+      /* 配色取平台主题变量的实际值（packages/theme），与 Cloud 版引导页一致 */
+      :root {
+        --text: #050b14;
+        --text-tertiary: #878787;
+        --bg-accent: #f3f3f3;
+        --bg-tertiary: #f9f9f9;
+        --border: #ebebeb;
+        --highlight: #a2d81a;
+        --highlight-deep: #73b200;
+        --blue: #2563eb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        min-height: 100dvh;
+        background: #fff;
+      }
+      section {
+        max-width: 430px;
+        margin: 0 auto;
+        padding: 24px 24px 40px;
+        display: flex;
+        flex-direction: column;
+      }
+      /* 顶部横幅：回 Tier0 打开 */
+      .banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--bg-accent);
+        border-radius: 12px;
+        padding: 12px 16px;
+      }
+      .banner img {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+      }
+      .banner .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .banner .title {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .banner .sub {
+        font-size: 12px;
+        color: var(--text-tertiary);
+        margin: 2px 0 0;
+      }
+      .open-btn {
+        flex: none;
+        border: none;
+        border-radius: 8px;
+        background: var(--highlight);
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 500;
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+      .open-btn:active {
+        background: var(--highlight-deep);
+      }
+      /* 应用名 + 标题 */
+      .app-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 32px;
+      }
+      .app-row .dot {
+        background: var(--bg-accent);
+        border-radius: 999px;
+        padding: 4px;
+        display: inline-flex;
+      }
+      .app-row .name {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 8px 0 0;
+      }
+      .steps {
+        margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .step-label {
+        font-size: 17px;
+        font-weight: 500;
+        margin: 0;
+      }
+      .step-label.first {
+        font-size: 18px;
+      }
+      .steps img {
+        margin-top: 4px;
+        max-width: 100%;
+        border-radius: 8px;
+        display: block;
+      }
+      /* Android：图标卡片 */
+      .card {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-height: 96px;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        border-radius: 16px;
+        padding: 0 20px;
+      }
+      .card .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 999px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(5, 11, 20, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card .label {
+        font-size: 17px;
+        font-weight: 500;
+        margin: 0;
+      }
+      .hint {
+        font-size: 13px;
+        line-height: 20px;
+        color: var(--text-tertiary);
+        margin: 0;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <div class="banner">
+          <img src="/logo-ico.svg" alt="" />
+          <div class="meta">
+            <p class="title">Tier0</p>
+            <p class="sub" id="banner-sub">Open in the Tier0 launchpad!</p>
+          </div>
+          <button class="open-btn" id="open-btn" type="button" hidden>Open</button>
+        </div>
+
+        <div class="app-row">
+          <span class="dot">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M3 8v8l9 5 9-5V8"/></svg>
+          </span>
+          <span class="name" id="app-name"></span>
+        </div>
+        <h1 id="heading">Add App to Home Screen</h1>
+
+        <!-- iOS：四步截图 -->
+        <div class="steps" id="ios-steps">
+          <div>
+            <p class="step-label first" id="ios-step1"></p>
+            <img src="/images/mobile-install/step1.png" alt="Step 1" />
+          </div>
+          <div>
+            <p class="step-label" id="ios-step2"></p>
+            <img src="/images/mobile-install/step2.png" alt="Step 2" />
+          </div>
+          <div>
+            <p class="step-label" id="ios-step3"></p>
+            <img src="/images/mobile-install/step3.png" alt="Step 3" />
+          </div>
+          <div>
+            <p class="step-label" id="ios-step4"></p>
+            <img src="/images/mobile-install/step4.png" alt="Step 4" />
+          </div>
+        </div>
+
+        <!-- Android：三步图标卡片 -->
+        <div class="steps" id="android-steps" hidden>
+          <div>
+            <p class="step-label first" id="and-step1"></p>
+            <div class="card">
+              <span class="icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </span>
+              <p class="label">Menu</p>
+            </div>
+          </div>
+          <div>
+            <p class="step-label" id="and-step2"></p>
+            <div class="card">
+              <span class="icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+              </span>
+              <p class="label">Add to Home Screen</p>
+            </div>
+          </div>
+          <div>
+            <p class="step-label" id="and-step3"></p>
+            <div class="card">
+              <span class="icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#73b200" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </span>
+              <p class="label">Add</p>
+            </div>
+          </div>
+          <p class="hint" id="and-hint"></p>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var query = new URLSearchParams(window.location.search);
+
+        function param(key) {
+          var value = query.get(key);
+          return value ? value.trim() : "";
+        }
+
+        // 只接受 http(s) 与 App 自己的 tier0:// 深链，其余一律丢弃
+        function safeUrl(raw) {
+          if (!raw) return "";
+          try {
+            var decoded = decodeURIComponent(raw);
+            if (/^tier0:\/\//i.test(decoded)) return decoded;
+            var url = new URL(decoded);
+            return url.protocol === "http:" || url.protocol === "https:"
+              ? url.toString()
+              : "";
+          } catch (error) {
+            return "";
+          }
+        }
+
+        var platform = param("platform").toLowerCase() === "android" ? "android" : "ios";
+        var isZh = param("lang").toLowerCase().indexOf("zh") === 0;
+        var appName = param("name");
+        var targetUrl = safeUrl(query.get("nativeUrl")) || safeUrl(query.get("launchUrl"));
+
+        var copy = {
+          ios: {
+            zh: {
+              heading: "添加应用到主屏幕",
+              s1: "1. 用 Safari 打开该应用",
+              s2: "2. 轻触 [分享]",
+              s3: "3. 轻触 [更多]",
+              s4: "4. 轻触 [添加到主屏幕]",
+            },
+            en: {
+              heading: "Add App to Home Screen",
+              s1: "1. Open the app in Safari",
+              s2: "2. Select [Share]",
+              s3: "3. Tap [View More]",
+              s4: "4. Tap [Add to Home Screen]",
+            },
+          },
+          android: {
+            zh: {
+              heading: "添加应用到主屏幕",
+              s1: "1. 轻触右上角的菜单",
+              s2: "2. 选择 [添加到主屏幕]",
+              s3: "3. 确认添加",
+              hint: "不同 Android 浏览器的菜单名称可能略有不同。",
+            },
+            en: {
+              heading: "Add App to Home Screen",
+              s1: "1. Tap the menu in the top right",
+              s2: "2. Select [Add to Home Screen]",
+              s3: "3. Confirm",
+              hint: "Menu names may differ slightly between Android browsers.",
+            },
+          },
+        };
+        var text = copy[platform][isZh ? "zh" : "en"];
+
+        document.documentElement.lang = isZh ? "zh-CN" : "en";
+        document.getElementById("app-name").textContent = appName;
+        document.getElementById("heading").textContent = text.heading;
+        document.getElementById("banner-sub").textContent = isZh
+          ? "在 Tier0 launchpad 中打开!"
+          : "Open in the Tier0 launchpad!";
+        if (appName) document.title = appName;
+
+        if (platform === "android") {
+          document.getElementById("ios-steps").hidden = true;
+          document.getElementById("android-steps").hidden = false;
+          document.getElementById("and-step1").textContent = text.s1;
+          document.getElementById("and-step2").textContent = text.s2;
+          document.getElementById("and-step3").textContent = text.s3;
+          document.getElementById("and-hint").textContent = text.hint;
+        } else {
+          document.getElementById("ios-step1").textContent = text.s1;
+          document.getElementById("ios-step2").textContent = text.s2;
+          document.getElementById("ios-step3").textContent = text.s3;
+          document.getElementById("ios-step4").textContent = text.s4;
+        }
+
+        var openBtn = document.getElementById("open-btn");
+        if (targetUrl) {
+          openBtn.hidden = false;
+          openBtn.textContent = isZh ? "打开" : "Open";
+          openBtn.addEventListener("click", function () {
+            window.location.href = targetUrl;
+          });
+        }
+
+        // 已经从主屏幕图标进来（独立窗口）时不再展示引导，直接回到应用
+        var standalone =
+          window.navigator.standalone === true ||
+          (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+        if (standalone && targetUrl) window.location.replace(targetUrl);
+      })();
+    </script>
+  </body>
+</html>

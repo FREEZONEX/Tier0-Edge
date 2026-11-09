@@ -96,6 +96,7 @@ func AssetUploadHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 				}
 				list = append(list, data)
 			}
+			asset.RecordUploadAudit(r.Context(), svcCtx, list...)
 			gozerohttpx.OkJson(w, respx.Envelope(map[string]any{"list": list, "total": len(list)}))
 			return
 		}

@@ -21,6 +21,18 @@ export type ProjectRoleOption = {
   value: string;
 };
 
+export type ProjectMemberGroup = {
+  projectGroupId: string;
+  projectId: string;
+  groupId: string;
+  groupName: string;
+  description: string;
+  memberCount: number;
+  roles: ProjectRole[];
+  createdTime: number;
+  updatedTime: number;
+};
+
 export interface ProjectRoleListParams {
   pageNo?: number;
   pageSize?: number;
@@ -65,16 +77,76 @@ export const getProjectPermission = async (projectId: number): Promise<ProjectPe
 });
 
 export const getProjectApps = async (projectId: string) => coreApi.get(`/projects/${projectId}/apps`);
-export const getProjectAppDetail = async (projectId: string, appId: string) =>
+export const getProjectAppDetail = async (projectId: string, appId: string): Promise<ProjectAppDetailResp> =>
   coreApi.get(`/projects/${projectId}/apps/${appId}`);
-export const importProjectApp = async (projectId: string, data?: Record<string, unknown>) =>
+
+export interface ImportEnvVar {
+  key: string;
+  value: string;
+}
+
+export type VolumePolicy = 'inherit' | 'replace';
+
+export interface ImportVolume {
+  hostPath: string;
+  containerPath: string;
+  readOnly?: boolean;
+}
+
+export interface ImportPreviewResp {
+  appId?: string;
+  projectId?: string;
+  schemaDefault?: string;
+  envVars?: ImportEnvVar[];
+}
+
+export interface ProjectAppDetailData {
+  networkAlias?: string;
+  internalUrl?: string;
+  appId?: string | number;
+  /** 本地应用授权主体，由服务端分配 */
+  appPrincipalId?: string;
+  name?: string;
+  description?: string;
+  status?: string;
+  deployStatus?: string;
+  deployError?: string;
+  schemaName?: string;
+  envVars?: ImportEnvVar[];
+  volumes?: ImportVolume[];
+}
+
+/** 应用详情：部署轮询读取状态，替换弹窗读取 volumes 预填；部分响应包在 data 内，取值处做降级兼容 */
+export interface ProjectAppDetailResp extends ProjectAppDetailData {
+  data?: ProjectAppDetailData;
+}
+
+/** 导入/替换提交的「高级」区字段：env / volumes 均为整体替换语义，用户未修改时对应 policy 走 inherit */
+export interface ImportAppAdvancedPayload {
+  networkAlias?: string;
+  envPolicy?: VolumePolicy;
+  envVars?: ImportEnvVar[];
+  volumePolicy?: VolumePolicy;
+  volumes?: ImportVolume[];
+}
+
+/** 导入弹窗「高级」区预填：只读 zip 头部返回 schema 默认值与包内环境变量（要求 project.manage 权限） */
+export const getProjectAppImportPreview = async (
+  projectId: string,
+  fileId: number | string
+): Promise<ImportPreviewResp> => coreApi.post(`/projects/${projectId}/apps/import-preview`, { fileId });
+
+export const importProjectApp = async (projectId: string, data?: Record<string, unknown> & ImportAppAdvancedPayload) =>
   coreApi.post(`/projects/${projectId}/apps`, data);
 export const createManualProjectApp = async (projectId: string, data?: Record<string, unknown>) =>
   coreApi.post(`/projects/${projectId}/apps/manual`, data);
 export const updateProjectApp = async (projectId: string, appId: string, data?: Record<string, unknown>) =>
   coreApi.put(`/projects/${projectId}/apps/${appId}`, data);
-export const replaceProjectApp = async (projectId: string, appId: string, data?: Record<string, unknown>) =>
-  coreApi.post(`/projects/${projectId}/apps/${appId}/replace`, data);
+export const replaceProjectApp = async (
+  projectId: string,
+  appId: string,
+  data?: Record<string, unknown> & ImportAppAdvancedPayload
+) => coreApi.post(`/projects/${projectId}/apps/${appId}/replace`, data);
 export const deleteProjectApp = async (projectId: string, appId: string) =>
   coreApi.delete(`/projects/${projectId}/apps/${appId}`);
 export const updateProjectAppStatus = async (projectId: string, appId: string, data?: Record<string, unknown>) =>
@@ -102,6 +174,39 @@ export const updateProjectMember = async (
 ) => coreApi.put(`/projects/${projectId}/members/${memberId}`, data);
 export const deleteProjectMember = async (projectId: number | string, memberId: string) =>
   coreApi.delete(`/projects/${projectId}/members/${memberId}`);
+export const getProjectMemberGroups = async (projectId: number | string): Promise<ProjectMemberGroup[]> => {
+  const response = await coreApi.get(`/projects/${projectId}/member-groups`);
+  return (Array.isArray(response?.list) ? response.list : []).map((item: any) => ({
+    ...item,
+    projectGroupId: String(item?.projectGroupId ?? item?.id ?? ''),
+    projectId: String(item?.projectId ?? projectId),
+    groupId: String(item?.groupId ?? ''),
+    groupName: String(item?.groupName ?? ''),
+    description: String(item?.description ?? ''),
+    memberCount: Number(item?.memberCount ?? 0),
+    roles: Array.isArray(item?.roles) ? item.roles : [],
+    createdTime: Number(item?.createdTime ?? 0),
+    updatedTime: Number(item?.updatedTime ?? 0),
+  }));
+};
+export const addProjectMemberGroup = async (
+  projectId: number | string,
+  data: { groupId: string | number; roleIds?: Array<string | number> }
+) =>
+  coreApi.post(`/projects/${projectId}/member-groups`, {
+    groupId: Number(data.groupId),
+    roleIds: (data.roleIds || []).map(Number),
+  });
+export const updateProjectMemberGroup = async (
+  projectId: number | string,
+  projectGroupId: number | string,
+  data: { roleIds?: Array<string | number> }
+) =>
+  coreApi.put(`/projects/${projectId}/member-groups/${projectGroupId}`, {
+    roleIds: (data.roleIds || []).map(Number),
+  });
+export const deleteProjectMemberGroup = async (projectId: number | string, projectGroupId: number | string) =>
+  coreApi.delete(`/projects/${projectId}/member-groups/${projectGroupId}`);
 export const getProjectRoles = async (projectId: number, _params?: ProjectRoleListParams): Promise<ProjectRole[]> => {
   const resp = await coreApi.get(`/projects/${projectId}/roles`);
   return resp?.list || [];

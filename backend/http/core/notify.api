@@ -1,0 +1,189 @@
+syntax = "v1"
+
+// 消息通知中心管理端/用户端契约（TASK-030 P0）。
+// 返回统一 Envelope；错误经 logicx.Error 映射 HTTP 状态码。
+type (
+	NotificationSaveReq { // 创建/编辑草稿（仅草稿可编辑）
+		Id      int64  `json:"id,optional"`
+		Type    string `json:"type"` // inbox/banner/news
+		Title   string `json:"title"`
+		Content string `json:"content"`
+		Link    string `json:"link,optional"`
+		AsModal int64  `json:"asModal,optional"` // 1=强提醒（Modal 展示）
+	}
+	NotificationSendReq {
+		Id           int64   `json:"id"`
+		AudienceType int64   `json:"audienceType"`        // 1=全部用户 2=指定用户
+		UserIds      []int64 `json:"userIds,optional"`    // audienceType=2 时必填
+		ScheduleTime int64   `json:"scheduleTime,optional"` // 毫秒时间戳，0=立即发送
+	}
+	NotificationRevokeReq { Id int64 `json:"id"` }
+	NotificationCopyReq   { Id int64 `json:"id"` }
+	NotificationDetailReq { Id int64 `form:"id"` }
+
+	NotificationListReq {
+		Page     int64  `form:"page,optional"`
+		PageSize int64  `form:"pageSize,optional"`
+		Type     string `form:"type,optional"`
+		Status   int64  `form:"status,optional"`
+	}
+
+	MessageHistoryListReq {
+		Page            int64  `form:"page,optional"`
+		Size            int64  `form:"size,optional"`
+		Keyword         string `form:"keyword,optional"`
+		SourceType      string `form:"sourceType,optional"` // platform=平台/系统 app=应用
+		SourceId        string `form:"sourceId,optional"`
+		Type            string `form:"type,optional"`
+		Status          string `form:"status,optional"` // sent/revoked
+		RecipientUserId int64  `form:"recipientUserId,optional"`
+		StartTime       int64  `form:"startTime,optional"`
+		EndTime         int64  `form:"endTime,optional"`
+	}
+
+	NotificationEstimateUsersReq {
+		AudienceType int64   `json:"audienceType"`
+		UserIds      []int64 `json:"userIds,optional"`
+	}
+)
+
+type (
+	UserMessageListReq {
+		Page       int64  `form:"page,optional"`
+		PageSize   int64  `form:"pageSize,optional"`
+		Group      string `form:"group,optional"`      // 分组 tab；空=全部
+		UnreadOnly int64  `form:"unreadOnly,optional"`  // 1=仅未读
+		Keyword    string `form:"keyword,optional"`     // 标题/内容模糊搜索
+		StartTime  int64  `form:"startTime,optional"`   // 创建时间起（毫秒）
+		EndTime    int64  `form:"endTime,optional"`     // 创建时间止（毫秒）
+		SourceType string `form:"sourceType,optional"`  // platform=平台来源 app=应用来源
+	}
+	UserMessageDetailReq { Id int64 `form:"id"` }
+	// 发信应用图标：按「这条消息是我的」授权，不要求对该应用有访问权
+	UserMessageSenderIconReq { Id int64 `path:"id"` }
+	UserMessageReadReq   { Ids []int64 `json:"ids,optional"` } // 空=全部已读
+	UserMessageReadAllReq {
+		Group      string `json:"group,optional"`
+		UnreadOnly bool   `json:"unreadOnly,optional"`
+		Keyword    string `json:"keyword,optional"`
+		StartTime  int64  `json:"startTime,optional"`
+		EndTime    int64  `json:"endTime,optional"`
+		SourceType string `json:"sourceType,optional"`
+	}
+	UserMessageHandleReq { Id int64 `json:"id"` }
+	UserMessageDeleteReq { Ids []int64 `json:"ids"` }
+	NotifyBannerItem {
+		Id      int64  `json:"id"`
+		Title   string `json:"title"`
+		Content string `json:"content"`
+		Link    string `json:"link,optional"`
+	}
+)
+
+@server(
+	prefix: /api/core
+	group: core/notify
+	middleware: SessionAuth, Permission
+)
+service backend {
+	@doc(summary: "保存通知草稿")
+	@handler NotificationSave
+	post /notify/notification/save (NotificationSaveReq) returns (Envelope)
+
+	@doc(summary: "发送通知（立即/定时）")
+	@handler NotificationSend
+	post /notify/notification/send (NotificationSendReq) returns (Envelope)
+
+	@doc(summary: "撤回通知")
+	@handler NotificationRevoke
+	post /notify/notification/revoke (NotificationRevokeReq) returns (Envelope)
+
+	@doc(summary: "删除通知")
+	@handler NotificationDelete
+	delete /notify/notification (NotificationDetailReq) returns (Envelope)
+
+	@doc(summary: "复制通知为新草稿")
+	@handler NotificationCopy
+	post /notify/notification/copy (NotificationCopyReq) returns (Envelope)
+
+	@doc(summary: "通知详情")
+	@handler NotificationDetail
+	get /notify/notification/detail (NotificationDetailReq) returns (Envelope)
+
+	@doc(summary: "通知列表（管理端）")
+	@handler NotificationList
+	get /notify/notification/list (NotificationListReq) returns (Envelope)
+
+	@doc(summary: "统一消息历史（管理端）")
+	@handler MessageHistoryList
+	get /notify/message-history/list (MessageHistoryListReq) returns (Envelope)
+
+	@doc(summary: "通知收件人候选（用户与用户组）")
+	@handler NotificationRecipientOptions
+	get /notify/recipient-options returns (Envelope)
+
+	@doc(summary: "受众人数预估")
+	@handler NotificationEstimateUsers
+	post /notify/notification/estimate-users (NotificationEstimateUsersReq) returns (Envelope)
+
+}
+
+// 用户自己的消息与提醒仅要求登录，不能套用管理员通知管理权限。
+@server(
+ prefix: /api/core
+ group: core/notify
+ middleware: SessionAuth
+)
+service backend {
+	@doc(summary: "用户消息列表")
+	@handler UserMessageList
+	get /notify/user-message/list (UserMessageListReq) returns (Envelope)
+
+	@doc(summary: "消息已读（ids 空=全部已读）")
+	@handler UserMessageRead
+	post /notify/user-message/read (UserMessageReadReq) returns (Envelope)
+
+	@doc(summary: "全部已读（可携带筛选，返回影响条数）")
+	@handler UserMessageReadAll
+	post /notify/user-message/read-all (UserMessageReadAllReq) returns (Envelope)
+
+	@doc(summary: "用户消息详情")
+	@handler UserMessageDetail
+	get /notify/user-message/detail (UserMessageDetailReq) returns (Envelope)
+
+	@doc(summary: "发信应用图标")
+	@handler UserMessageSenderIcon
+	get /notify/user-message/:id/sender-icon (UserMessageSenderIconReq) returns (Envelope)
+
+	@doc(summary: "消息已处理（Modal/Banner 关闭）")
+	@handler UserMessageHandle
+	post /notify/user-message/handle (UserMessageHandleReq) returns (Envelope)
+
+	@doc(summary: "删除消息")
+	@handler UserMessageDelete
+	post /notify/user-message/delete (UserMessageDeleteReq) returns (Envelope)
+
+	@doc(summary: "未读消息数")
+	@handler UserMessageUnread
+	get /notify/user-message/unread-count returns (Envelope)
+
+	@doc(summary: "查询待展示横幅和强提醒")
+	@handler PromptList
+	get /notify/prompt/list returns (Envelope)
+
+}
+
+type NotifyPromptItem {
+	LinkId    int64  `json:"linkId"`
+	MessageId int64  `json:"messageId"`
+	Kind      string `json:"kind"` // banner / modal
+	Type      string `json:"type"` // inbox/banner/news
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	Link      string `json:"link,optional"`
+}
+
+type PromptListResp {
+	Banners []NotifyBannerItem    `json:"banners"`
+	Modals  []NotifyPromptItem `json:"modals"`
+}

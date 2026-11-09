@@ -15,6 +15,7 @@ func TestGenerateWorkspaceAPIKeyUsesCloudPrefixes(t *testing.T) {
 		{keyType: "personal", prefix: "sk-per-ws1_"},
 		{keyType: "service", prefix: "sk-svc-ws1_"},
 		{keyType: "agent", prefix: "sk-agent-ws1_"},
+		{keyType: "app", prefix: "sk-app-ws1_"},
 	}
 	for _, test := range tests {
 		t.Run(test.keyType, func(t *testing.T) {

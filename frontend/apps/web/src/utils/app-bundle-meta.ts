@@ -13,8 +13,10 @@ const IMAGE_CONTENT_TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
+  svg: 'image/svg+xml',
   webp: 'image/webp',
 };
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'svg', 'webp'] as const;
 
 export interface AppBundleMeta {
   workspaceId: string;
@@ -108,7 +110,7 @@ const readCentralDirectoryInfo = async (
   };
 };
 
-const findRootEntries = (bytes: Uint8Array) => {
+const findPackageEntries = (bytes: Uint8Array) => {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const decoder = new TextDecoder();
   const entries: ZipEntry[] = [];
@@ -178,7 +180,7 @@ const findRootEntries = (bytes: Uint8Array) => {
     }
 
     const fileName = decoder.decode(bytes.subarray(offset + 46, offset + 46 + fileNameLength)).replace(/^\.\//, '');
-    if (!fileName.includes('/') && !fileName.endsWith('/')) {
+    if (!fileName.endsWith('/')) {
       entries.push({
         fileName,
         compressionMethod,
@@ -226,13 +228,18 @@ const readEntryBytes = async (file: File, entry: ZipEntry, maxSize: number) => {
   const dataOffset = entry.localHeaderOffset + 30 + fileNameLength + extraFieldLength;
   const compressedBytes = new Uint8Array(await file.slice(dataOffset, dataOffset + entry.compressedSize).arrayBuffer());
 
+  let bytes: Uint8Array;
   if (entry.compressionMethod === 0) {
-    return compressedBytes;
+    bytes = compressedBytes;
+  } else if (entry.compressionMethod === 8) {
+    bytes = await inflateRaw(compressedBytes);
+  } else {
+    throw new Error('unsupported-compression');
   }
-  if (entry.compressionMethod === 8) {
-    return inflateRaw(compressedBytes);
+  if (bytes.byteLength !== entry.uncompressedSize) {
+    throw new Error('invalid-entry-size');
   }
-  throw new Error('unsupported-compression');
+  return bytes;
 };
 
 const entryToFile = async (zipFile: File, entry: ZipEntry) => {
@@ -244,15 +251,54 @@ const entryToFile = async (zipFile: File, entry: ZipEntry) => {
   const bytes = await readEntryBytes(zipFile, entry, MAX_IMAGE_SIZE);
   const content = new Uint8Array(bytes.byteLength);
   content.set(bytes);
-  return new File([content.buffer], entry.fileName, { type: contentType });
+  return new File([content.buffer], entry.fileName.split('/').pop() || entry.fileName, { type: contentType });
 };
 
-const findImageEntry = (entries: ZipEntry[], kind: 'icon' | 'cover') => {
-  const pattern =
+const packageEntryDirectory = (fileName: string) => {
+  const slashIndex = fileName.lastIndexOf('/');
+  return slashIndex < 0 ? '' : fileName.slice(0, slashIndex);
+};
+
+const findPackageMetaEntry = (entries: ZipEntry[]) => {
+  let selected: ZipEntry | undefined;
+  let selectedDepth = Number.POSITIVE_INFINITY;
+  for (const entry of entries) {
+    const segments = entry.fileName.split('/');
+    if (segments.at(-1)?.toLowerCase() !== 'meta.json') continue;
+    const depth = segments.length - 1;
+    if (depth < selectedDepth) {
+      selected = entry;
+      selectedDepth = depth;
+    }
+  }
+  return selected;
+};
+
+const findImageEntry = (entries: ZipEntry[], packageRoot: string, kind: 'icon' | 'cover') => {
+  const publicPrefixes =
     kind === 'icon'
-      ? /^(?:app[-_])?icon\.(?:png|jpe?g|webp)$/i
-      : /^(?:app[-_])?cover(?:[-_]?image)?\.(?:png|jpe?g|webp)$/i;
-  return entries.find((entry) => pattern.test(entry.fileName));
+      ? ['app-icon', 'app_icon', 'icon']
+      : ['app-cover', 'app_cover', 'app-cover-image', 'app_cover_image', 'cover'];
+  const rootPrefixes =
+    kind === 'icon'
+      ? ['icon', 'app-icon', 'app_icon']
+      : ['cover', 'app-cover', 'app_cover', 'app-cover-image', 'app_cover_image'];
+  const entriesByName = new Map(entries.map((entry) => [entry.fileName.toLowerCase(), entry]));
+  const rootPrefix = packageRoot ? `${packageRoot.toLowerCase()}/` : '';
+
+  for (const prefix of publicPrefixes) {
+    for (const extension of IMAGE_EXTENSIONS) {
+      const entry = entriesByName.get(`${rootPrefix}public/${prefix}.${extension}`);
+      if (entry && entry.uncompressedSize > 0) return entry;
+    }
+  }
+  for (const prefix of rootPrefixes) {
+    for (const extension of IMAGE_EXTENSIONS) {
+      const entry = entriesByName.get(`${rootPrefix}${prefix}.${extension}`);
+      if (entry && entry.uncompressedSize > 0) return entry;
+    }
+  }
+  return undefined;
 };
 
 const normalizeMeta = (value: unknown): AppBundleMeta => {
@@ -311,11 +357,12 @@ export const readAppBundleContents = async (file: File): Promise<AppBundleConten
   const centralDirectory = new Uint8Array(
     await file.slice(centralDirectoryOffset, centralDirectoryOffset + centralDirectorySize).arrayBuffer()
   );
-  const entries = findRootEntries(centralDirectory);
-  const metaEntry = entries.find((entry) => entry.fileName.toLowerCase() === 'meta.json');
+  const entries = findPackageEntries(centralDirectory);
+  const metaEntry = findPackageMetaEntry(entries);
   if (!metaEntry) {
     throw new Error('meta-missing');
   }
+  const packageRoot = packageEntryDirectory(metaEntry.fileName);
 
   const metaBytes = await readEntryBytes(file, metaEntry, MAX_META_SIZE);
   if (metaBytes.byteLength > MAX_META_SIZE) {
@@ -324,8 +371,8 @@ export const readAppBundleContents = async (file: File): Promise<AppBundleConten
 
   try {
     const meta = normalizeMeta(JSON.parse(new TextDecoder().decode(metaBytes)));
-    const iconEntry = findImageEntry(entries, 'icon');
-    const coverEntry = findImageEntry(entries, 'cover');
+    const iconEntry = findImageEntry(entries, packageRoot, 'icon');
+    const coverEntry = findImageEntry(entries, packageRoot, 'cover');
     const [icon, cover] = await Promise.all([
       iconEntry ? entryToFile(file, iconEntry) : Promise.resolve(undefined),
       coverEntry ? entryToFile(file, coverEntry) : Promise.resolve(undefined),

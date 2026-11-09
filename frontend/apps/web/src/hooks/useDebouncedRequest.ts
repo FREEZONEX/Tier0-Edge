@@ -38,6 +38,28 @@ const useDebouncedRequest = <TArgs extends unknown[], TData>(
     }
   }, []);
 
+  // 静默刷新：不发 loading、失败时静默返回 undefined，用于 tab 重新激活等保留已渲染内容的场景
+  const runRefresh = useCallback(async (...args: TArgs): Promise<TData | undefined> => {
+    const requestId = ++requestIdRef.current;
+    try {
+      const response = await requestFnRef.current(...args);
+      if (requestId === requestIdRef.current) {
+        setData(response);
+        return response;
+      }
+      return undefined;
+    } catch (error) {
+      if (requestId === requestIdRef.current) {
+        console.warn('background refresh failed:', error);
+      }
+      return undefined;
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   const runDebounced = useMemo(() => {
     return debounce((...args: TArgs) => {
       void runImmediate(...args);
@@ -54,6 +76,7 @@ const useDebouncedRequest = <TArgs extends unknown[], TData>(
     loading,
     data,
     runImmediate,
+    runRefresh,
     runDebounced,
   };
 };

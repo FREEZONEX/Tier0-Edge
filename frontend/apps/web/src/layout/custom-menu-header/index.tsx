@@ -6,6 +6,7 @@ import { useLocation } from 'react-router';
 // import HelpNav from '../components/HelpNav';
 import ComGroupButton from '@/components/com-group-button';
 import { MenuLucideIcon } from '@/components/lucide-icon';
+import NotificationCenter from '@/components/notification-center';
 import SearchSelect from '@/components/search-select';
 import { useBaseStore } from '@/stores/base';
 import { useUnsTreeMapContext } from '@/UnsTreeMapContext';
@@ -125,6 +126,11 @@ const CustomMenuHeader = () => {
                   setTreeMapVisible(!isTreeMapVisible);
                 },
               },
+              {
+                label: <NotificationCenter />,
+                title: formatMessage('messageCenter.title', undefined, 'Message Center'),
+                key: 'notifications',
+              },
             ]}
           />
         ) : (
@@ -159,6 +165,11 @@ const CustomMenuHeader = () => {
               //   key: 'todo',
               //   onClick: handleTodoClick,
               // },
+              {
+                label: <NotificationCenter />,
+                title: formatMessage('messageCenter.title', undefined, 'Message Center'),
+                key: 'notifications',
+              },
               {
                 label: <User size={20} style={{ color: 'var(--ui-text-color)' }} />,
                 title: 'user',

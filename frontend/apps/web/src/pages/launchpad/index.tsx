@@ -1,15 +1,18 @@
 import { getLaunchpadProjectsApi, getLaunchpadRecentsApi, recordLaunchpadAppViewApi } from '@/apis/core-api/launchpad';
+import NativeAppPanel from '@/pages/native-app/components/NativeAppPanel';
+import { useBaseStore } from '@/stores/base';
 import empty from '@/assets/common/empty.svg';
 import { useActivate } from '@/contexts/tabs-lifecycle-context';
+import { PageTitleIcon } from '@/components/lucide-icon';
 import { useDebouncedRequest, useTranslate } from '@/hooks';
 import type { App, Project } from '@/pages/launchpad/type';
-import { Run } from '@carbon/icons-react';
 import { Empty, Spin, Typography } from 'antd';
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import AllProjectsSection from './components/AllProjectsSection';
-import FavoriteRecentSection from './components/FavoriteRecentSection';
-import { useLaunchpadFavorites } from './useLaunchpadFavorites';
+import PinnedRecentSection from './components/PinnedRecentSection';
+import { useLaunchpadPinned } from './useLaunchpadPinned';
+import { withLaunchpadStandaloneQuery } from '@/utils/launchpad-site';
 import styles from './index.module.scss';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -23,12 +26,13 @@ const LaunchpadPage: FC = () => {
   const [recentApps, setRecentApps] = useState<App[]>([]);
   const latestSearchValueRef = useRef('');
   const hasSearchKeyword = Boolean(appliedSearchKeyword);
-  const { isAppFavorite, isProjectFavorite, toggleAppFavorite, toggleProjectFavorite } = useLaunchpadFavorites();
+  const { isAppPinned, isProjectPinned, toggleAppPin, toggleProjectPin, refreshPinned } = useLaunchpadPinned();
 
   const {
     loading,
     data: projects,
     runImmediate,
+    runRefresh,
     runDebounced,
   } = useDebouncedRequest(
     async (keyword?: string) => {
@@ -63,8 +67,9 @@ const LaunchpadPage: FC = () => {
 
   useActivate(() => {
     runDebounced.cancel();
-    void runImmediate(appliedSearchKeyword || undefined);
+    void runRefresh(appliedSearchKeyword || undefined);
     void loadRecents();
+    void refreshPinned();
   });
 
   const handleSearchChange = useCallback(
@@ -88,8 +93,11 @@ const LaunchpadPage: FC = () => {
   );
 
   const handleProjectClick = (project: Project) => {
-    navigate(`/launchpad/${encodeURIComponent(project.projectName)}`, {
-      state: { tabName: project.displayName || project.projectName },
+    navigate(withLaunchpadStandaloneQuery(`/launchpad/${encodeURIComponent(project.projectName)}`), {
+      state: {
+        tabName: project.displayName || project.projectName,
+        tabParentPathname: '/launchpad',
+      },
     });
   };
 
@@ -101,31 +109,41 @@ const LaunchpadPage: FC = () => {
       return;
     }
     navigate(
-      `/launchpad/${encodeURIComponent(app.projectName || '')}/${encodeURIComponent(String(app.appId || app.appName))}`,
-      { state: { tabName: app.displayName || app.appName } }
+      withLaunchpadStandaloneQuery(
+        `/launchpad/${encodeURIComponent(app.projectName || '')}/${encodeURIComponent(String(app.appId || app.appName))}`
+      ),
+      {
+        state: {
+          tabName: app.displayName || app.appName,
+          tabContextName: app.projectDisplayName || app.projectName,
+          tabParentPathname: `/launchpad/${encodeURIComponent(app.projectName || '')}`,
+        },
+      }
     );
   };
 
   const isInitialEmpty = !loading && projects.length === 0 && !hasSearchKeyword;
 
-  // 对齐云端：App 数量多的项目排前面；数量相同时按名称升序，保证顺序稳定
+  // 置顶项目排最前；其余对齐云端：App 数量降序，数量相同按名称升序，保证顺序稳定
   const sortedProjects = useMemo(
     () =>
       [...projects].sort((a, b) => {
+        const pinnedDiff = Number(isProjectPinned(b.projectId)) - Number(isProjectPinned(a.projectId));
+        if (pinnedDiff !== 0) return pinnedDiff;
         const countDiff = (b.apps?.length || 0) - (a.apps?.length || 0);
         if (countDiff !== 0) return countDiff;
         const nameA = a.displayName || a.projectName;
         const nameB = b.displayName || b.projectName;
         return nameA.localeCompare(nameB);
       }),
-    [projects]
+    [projects, isProjectPinned]
   );
 
   return (
     <div className={styles.launchpadPage}>
       <div className={styles.pageHeader}>
         <div className={styles.pageTitle}>
-          <Run size={20} />
+          <PageTitleIcon resourceKey="launchpad.view" />
           <h1>{formatMessage('title')}</h1>
         </div>
       </div>
@@ -153,10 +171,10 @@ const LaunchpadPage: FC = () => {
         ) : (
           <>
             {!hasSearchKeyword && (
-              <FavoriteRecentSection
+              <PinnedRecentSection
                 apps={recentApps}
-                isAppFavorite={isAppFavorite}
-                onToggleFavorite={(app) => toggleAppFavorite(app.appId)}
+                isAppPinned={isAppPinned}
+                onTogglePin={(app) => toggleAppPin(app.appId)}
                 onAppClick={handleAppClick}
               />
             )}
@@ -168,9 +186,10 @@ const LaunchpadPage: FC = () => {
               hasSearchKeyword={hasSearchKeyword}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
-              isProjectFavorite={isProjectFavorite}
-              onToggleFavorite={(project) => toggleProjectFavorite(project.projectId)}
+              isProjectPinned={isProjectPinned}
+              onTogglePin={(project) => toggleProjectPin(project.projectId)}
               onProjectClick={handleProjectClick}
+              onAppClick={handleAppClick}
             />
           </>
         )}
@@ -179,4 +198,24 @@ const LaunchpadPage: FC = () => {
   );
 };
 
-export default LaunchpadPage;
+export default function Launchpad() {
+  const t = useTranslate('Launchpad');
+  const nativeApps = useBaseStore(
+    (s) => s.systemInfo?.runtimeMode === 'native' && s.systemInfo?.capabilities?.app?.enabled
+  );
+  return nativeApps ? (
+    <div className={styles.launchpadPage}>
+      <div className={styles.pageHeader}>
+        <div className={styles.pageTitle}>
+          <PageTitleIcon resourceKey="launchpad.view" />
+          <h1>{t('title')}</h1>
+        </div>
+      </div>
+      <div className={styles.mainContent}>
+        <NativeAppPanel launchpad />
+      </div>
+    </div>
+  ) : (
+    <LaunchpadPage />
+  );
+}

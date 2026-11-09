@@ -31,7 +31,7 @@ export interface ProTreeProps extends TreeProps {
   wrapperStyle?: CSSProperties;
   loadingStyle?: CSSProperties;
   wrapperClassName?: string;
-  treeNodeClassName?: string;
+  treeNodeClassName?: string | ((dataNode: DataNodeProps) => string | undefined);
   // 特殊样式
   specialStyle?: boolean;
   // 搜索相关
@@ -41,6 +41,8 @@ export interface ProTreeProps extends TreeProps {
   treeNodeIcon?: ReactNode | ((dataNode: DataNodeProps) => ReactNode);
   // 右侧操作项
   treeNodeExtra?: ReactNode | ((dataNode: DataNodeProps) => ReactNode);
+  // 右侧常驻信息项
+  treeNodePersistentExtra?: ReactNode | ((dataNode: DataNodeProps) => ReactNode);
   // 数量
   treeNodeCount?: ReactNode | ((dataNode: DataNodeProps) => ReactNode);
   // 分页懒加载触发

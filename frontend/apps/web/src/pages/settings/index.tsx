@@ -1,14 +1,19 @@
 import { useMemo, type ReactNode } from 'react';
 import { Api, CloudServices, User } from '@carbon/icons-react';
 import AccountManagement from '@/pages/account-management';
+import AuditLogPage from '@/pages/audit-log';
+import LoginLogPage from '@/pages/login-log';
+import MenuConfiguration from '@/pages/menu-configuration';
+import NotificationManage from '@/pages/notification-manage';
+import OAuthClients from '@/pages/oauth-clients';
 import OpenData from '@/pages/open-data';
-import AIProviderConfigPanel from '@/pages/open-data/AIProviderConfigPanel';
 import SystemConfiguration from '@/pages/system-configuration';
 import { useTranslate } from '@/hooks';
 import { useBaseStore } from '@/stores/base';
-import { isLaunchpadStandalonePort } from '@/utils/launchpad-site';
+import { isLaunchpadStandaloneSite, withLaunchpadStandaloneQuery } from '@/utils/launchpad-site';
 import { useLocation, useNavigate } from 'react-router';
 import AccountSettingsPanel from './AccountSettingsPanel';
+import NoPermission from '@/pages/not-found-Page/NoPermission';
 import styles from './index.module.scss';
 
 type SettingsItem = {
@@ -80,18 +85,6 @@ const SettingsPage = () => {
             accessUris: ['/OpenData'],
             render: () => <OpenData />,
           },
-          {
-            key: 'ai-settings',
-            labelKey: 'settings.aiSettings',
-            path: '/settings/ai-settings',
-            resourceKey: 'ai.gateway.config.manage',
-            accessUris: ['/OpenData'],
-            render: () => (
-              <div className={styles['settings-service-page']}>
-                <AIProviderConfigPanel />
-              </div>
-            ),
-          },
         ] as SettingsItem[],
       },
       {
@@ -114,26 +107,90 @@ const SettingsPage = () => {
             accessUris: ['/account-management'],
             render: (title) => <AccountManagement title={title} />,
           },
+          {
+            key: 'permission',
+            labelKey: 'PermissionManagement.title',
+            path: '/settings/permissions',
+            resourceKey: 'iam.resource.view',
+            accessUris: ['/PermissionManagement'],
+            render: () => null,
+          },
+          {
+            key: 'menu',
+            labelKey: 'MenuConfiguration.menu',
+            path: '/settings/menu',
+            resourceKey: 'system.menu.config',
+            accessUris: ['/MenuConfiguration'],
+            render: (title) => <MenuConfiguration title={title} />,
+          },
+          {
+            key: 'oauth',
+            labelKey: 'menu.oauthClient',
+            path: '/settings/oauth-clients',
+            resourceKey: 'oauth.client.manage',
+            accessUris: ['/oauth-clients'],
+            render: () => <OAuthClients />,
+          },
+          {
+            key: 'audit',
+            labelKey: 'route.auditLog',
+            path: '/settings/audit-log',
+            resourceKey: 'system.audit.log',
+            accessUris: ['/audit-log'],
+            render: () => <AuditLogPage />,
+          },
+          {
+            key: 'notifications',
+            labelKey: 'route.notificationManage',
+            path: '/settings/notifications',
+            resourceKey: 'notify.manage',
+            accessUris: ['/notification-manage'],
+            render: () => (
+              <div className={styles['settings-notifications-page']}>
+                <NotificationManage />
+              </div>
+            ),
+          },
+          {
+            key: 'loginLog',
+            labelKey: 'route.loginLog',
+            path: '/settings/login-log',
+            resourceKey: 'system.login.log',
+            accessUris: ['/login-log'],
+            render: () => <LoginLogPage />,
+          },
+          {
+            key: 'routing',
+            labelKey: 'route.routingManagement',
+            path: '/settings/routing',
+            resourceKey: 'gateway.route.manage',
+            accessUris: ['/routing-management'],
+            render: () => null,
+          },
         ] as SettingsItem[],
       },
     ],
     []
   );
-  const isLaunchpadStandalone = isLaunchpadStandalonePort();
-  const disabledOpenSourceSettings = new Set(['ai-settings']);
-  const sourceGroups = (isLaunchpadStandalone ? groups.filter((group) => group.key === 'user') : groups).map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !disabledOpenSourceSettings.has(item.key)),
-  }));
+  const isLaunchpadStandalone = isLaunchpadStandaloneSite(location.pathname, location.search);
+  const sourceGroups = isLaunchpadStandalone ? groups.filter((group) => group.key === 'user') : groups;
+  const canAccessItem = (item: SettingsItem) =>
+    (!item.superAdminOnly || currentUserInfo?.superAdmin) &&
+    canAccess(item, pageUris, currentUserInfo?.superAdmin, systemInfo?.authEnable);
+  const requestedItem = sourceGroups
+    .flatMap((group) => group.items)
+    .find(
+      (item) =>
+        location.pathname.toLowerCase() === item.path.toLowerCase() ||
+        location.pathname.toLowerCase().startsWith(`${item.path.toLowerCase()}/`)
+    );
+  if (requestedItem && !canAccessItem(requestedItem)) {
+    return <NoPermission />;
+  }
   const visibleGroups = sourceGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) =>
-          !hiddenSettingsItemKeys.has(item.key) &&
-          (!item.superAdminOnly || currentUserInfo?.superAdmin) &&
-          canAccess(item, pageUris, currentUserInfo?.superAdmin, systemInfo?.authEnable)
-      ),
+      items: group.items.filter((item) => !hiddenSettingsItemKeys.has(item.key) && canAccessItem(item)),
     }))
     .filter((group) => group.items.length);
   const allItems = visibleGroups.flatMap((group) => group.items);
@@ -161,7 +218,7 @@ const SettingsPage = () => {
                 type="button"
                 key={item.key}
                 className={item.key === activeItem?.key ? `${styles['nav-item']} ${styles.active}` : styles['nav-item']}
-                onClick={() => navigate(item.path)}
+                onClick={() => navigate(withLaunchpadStandaloneQuery(item.path))}
               >
                 {formatMessage(item.labelKey, {}, item.labelFallback)}
               </button>

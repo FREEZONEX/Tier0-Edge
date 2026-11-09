@@ -76,7 +76,6 @@ const JsonForm = forwardRef<JsonTreeRefProps, JsonTreeProps>(
       form.setFieldsValue({
         currentNode: selectedInfo || undefined,
       });
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!selectedInfo) setSelectedKeys([]);
     }, [selectedInfo]);
 

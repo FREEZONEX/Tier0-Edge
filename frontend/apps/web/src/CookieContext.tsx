@@ -12,8 +12,9 @@ import { APP_USER_GUIDE_ROUTES } from '@/common-types/constans';
 import { storageOpt } from '@/utils/storage';
 import { useBaseStore } from '@/stores/base';
 import Cookies from 'js-cookie';
-import { isPublicAccessPath, replaceWithLicenseActivation, resolveLicenseGate } from '@/utils/license-auth';
+import { isPublicAccessPath } from '@/utils/public-access';
 import { getToken, isDevScopedTokenEnabled } from '@/utils/auth';
+import { getLaunchpadStandaloneLoginPath } from '@/utils/launchpad-site';
 
 let isRedirectingForExpiredCookie = false;
 
@@ -56,19 +57,10 @@ const CookieContext = () => {
         console.warn('omc——cookie失效');
         window.location.replace('/403');
       } else {
-        const handleRedirect = async () => {
-          try {
-            const licenseGate = await resolveLicenseGate();
-            if (licenseGate.status === 'not_activated' || licenseGate.status === 'expired') {
-              replaceWithLicenseActivation(licenseGate.status);
-              return;
-            }
-          } catch (error) {
-            console.error('Failed to check license status:', error);
-          }
+        const handleRedirect = () => {
 
           console.log('登录cookie不存在，要跳转到登录页');
-          window.location.replace(systemInfo?.loginPath || LOGIN_URL);
+          window.location.replace(getLaunchpadStandaloneLoginPath(systemInfo?.loginPath || LOGIN_URL));
         };
 
         handleRedirect();

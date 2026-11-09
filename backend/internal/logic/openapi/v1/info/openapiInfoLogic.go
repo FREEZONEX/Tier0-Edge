@@ -31,7 +31,7 @@ func NewOpenapiInfoLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Opena
 
 func (l *OpenapiInfoLogic) OpenapiInfo() (resp *types.Envelope, err error) {
 	return respx.Envelope(types.InfoResp{
-		Name:    "edge-open-source",
+		Name:    "edge-enterprise",
 		Version: openapiProductVersion(l.svcCtx),
 		Capabilities: []string{
 			"uns.read",
@@ -58,9 +58,12 @@ func openapiProductVersion(svcCtx *svc.ServiceContext) string {
 }
 
 func openapiMqttBrokerHost(svcCtx *svc.ServiceContext) string {
-	_ = svcCtx
-	if broker := strings.TrimSpace(os.Getenv("EMQX_EXTERNAL_BROKER_HOST")); broker != "" {
-		return broker
+	if svcCtx == nil {
+		return "emqx"
 	}
-	return "emqx"
+	broker := strings.TrimSpace(svcCtx.Config.Cluster.ExternalMqttBrokerHost)
+	if broker == "" {
+		return "emqx"
+	}
+	return broker
 }

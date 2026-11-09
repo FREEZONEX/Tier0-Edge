@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 0;
   width: 100%;
+  min-width: 0;
 }
 
 .summaryRow {
@@ -80,6 +81,7 @@
 
 .filterToolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -92,6 +94,7 @@
 
 .toolbarActions {
   display: flex;
+  flex-wrap: wrap;
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
@@ -115,8 +118,35 @@
   font-weight: 400;
   line-height: 24px;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   vertical-align: bottom;
+}
+
+.nodeTable {
+  :global(.custom-operation) {
+    display: block !important;
+  }
+
+  :global(.ant-table-content),
+  :global(.ant-table-body) {
+    overflow-x: auto !important;
+  }
+
+  :global(.ant-table-thead > tr > th) {
+    white-space: normal;
+  }
+
+  :global(.pro-table-row-link-cell) {
+    display: flex;
+    width: 100%;
+  }
+
+  :global(.pro-table-row-link-content) {
+    width: calc(100% - 18px);
+    max-width: none;
+    flex: 1 1 auto;
+  }
 }
 
 .nodeNameLink {
@@ -136,7 +166,7 @@
 }
 
 .nodeIdCell {
-  display: inline-block;
+  display: block;
   max-width: 100%;
   overflow: hidden;
   color: var(--ui-description-card-color, #a8a8a8);

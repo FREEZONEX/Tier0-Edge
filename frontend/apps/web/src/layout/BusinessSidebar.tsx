@@ -4,10 +4,13 @@ import { MenuLucideIcon } from '@/components/lucide-icon';
 import { useMenuNavigate, useTranslate } from '@/hooks';
 import LogoImg from '@/layout/custom-menu-header/components/LogoImg.tsx';
 import { isHiddenSidebarMenuResourceKey } from '@/apis/core-api/core-adapter';
+import { ButtonPermission } from '@/common-types/button-permission';
+import { hasPermission } from '@/utils/auth';
 import { useBaseStore } from '@/stores/base';
+import { useFleetConnectionAccess } from '@/pages/fleet-management/fleet-permission';
 import type { ResourceProps } from '@/stores/types';
 import { ThemeType, useThemeStore } from '@/stores/theme-store.ts';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import styles from './business-sidebar.module.scss';
 
 const sidebarGroups = [
@@ -20,15 +23,19 @@ const sidebarGroups = [
     key: 'uns',
     titleKey: 'sidebar.unifiedNamespace',
     match: (item: ResourceProps) =>
-      ['uns.page', 'flow.collection.page', 'mqtt.auth.manage'].includes(String(item.resourceKey || '')) ||
-      ['/uns', '/flow', '/collection-flow', '/edge-connection', '/mqtt-auth'].includes(String(item.url || '')),
+      ['uns.connect.ui', 'uns.page', 'uns.collections.page', 'mqtt.auth.manage'].includes(
+        String(item.resourceKey || '')
+      ) ||
+      ['/uns', '/connect', '/collections', '/uns/data-quality-alarms', '/edge-connection'].includes(
+        String(item.url || '')
+      ),
   },
   {
     key: 'app',
     titleKey: 'sidebar.app',
     match: (item: ResourceProps) =>
-      ['project.view', 'launchpad.view'].includes(String(item.resourceKey || '')) ||
-      ['/project', '/launchpad'].includes(String(item.url || '')),
+      ['uns.app.read', 'launchpad.view'].includes(String(item.resourceKey || '')) ||
+      ['/app', '/launchpad'].includes(String(item.url || '')),
   },
   {
     key: 'anchor',
@@ -38,15 +45,9 @@ const sidebarGroups = [
       ['/anchor/model', '/anchor/scene'].includes(String(item.url || '')),
   },
   {
-    // Vision 与 Notebook 合并为 Analysis 分组(产品决策 2026-07-30)。
     key: 'analysis',
     titleKey: 'sidebar.analysis',
-    match: (item: ResourceProps) =>
-      item.resourceKey === 'vision.camera.page' ||
-      item.url === '/vision' ||
-      item.resourceKey === 'notebook.view' ||
-      item.url === '/notebook' ||
-      item.code?.toLowerCase() === 'notebook',
+    match: (item: ResourceProps) => item.resourceKey === 'vision.camera.page' || item.url === '/vision',
   },
 ];
 
@@ -85,6 +86,8 @@ const hiddenBusinessResourceKeys = new Set([
 
 const BusinessSidebar = () => {
   const navigate = useNavigate();
+  const { allowed: edgeAllowed } = useFleetConnectionAccess();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { menuTree, currentMenuInfo } = useBaseStore((state) => ({
     menuTree: state.menuTree,
@@ -92,13 +95,46 @@ const BusinessSidebar = () => {
   }));
   const theme = useThemeStore((state) => state.theme);
   const formatMessage = useTranslate();
+  useBaseStore((state) => state.buttonList);
+  useBaseStore((state) => state.currentUserInfo);
   const handleNavigate = useMenuNavigate();
   const menuLabel = (showName?: string) => formatMessage(showName || '', undefined, showName || '');
-  const menuItems = flattenMenuItems(menuTree).filter(
-    (item) =>
-      !hiddenBusinessResourceKeys.has(String(item.resourceKey || '')) &&
-      !isHiddenSidebarMenuResourceKey(item.resourceKey)
-  );
+  const edgeMenu = flattenMenuItems(menuTree).find((item) => item.url === '/edge-connection');
+  const menuItems = flattenMenuItems(menuTree)
+    .map((item) => ({ ...item }))
+    .filter(
+      (item) =>
+        !hiddenBusinessResourceKeys.has(String(item.resourceKey || '')) &&
+        item.url !== '/edge-connection' &&
+        item.url !== '/uns/topology' &&
+        item.resourceKey !== 'uns.topology.ui' &&
+        !isHiddenSidebarMenuResourceKey(item.resourceKey)
+    );
+  // 复用已有 UNS 页面权限；派生视图不创建新的后端授权资源。
+  const namespace = menuItems.find((item) => item.resourceKey === 'uns.page' || item.url === '/uns');
+  if (namespace) namespace.showName = 'UnsMeta.namespace';
+  const connectBase = namespace || (edgeAllowed ? edgeMenu : undefined);
+  if (connectBase) {
+    if (
+      edgeAllowed ||
+      hasPermission(ButtonPermission['uns.sources']) ||
+      hasPermission(ButtonPermission['uns.streams'])
+    ) {
+      const connect: ResourceProps = {
+        ...connectBase,
+        id: `${connectBase.id}:connect`,
+        code: 'connect',
+        resourceKey: 'uns.connect.ui',
+        url: '/connect',
+        showName: 'UnsConnect.connect',
+        icon: undefined,
+        children: [],
+        isFrontend: true,
+        urlType: 1,
+      };
+      menuItems.splice(namespace ? menuItems.indexOf(namespace) : 0, 0, connect);
+    }
+  }
   const groupedItems = sidebarGroups.map((group) => ({
     ...group,
     items: menuItems.filter(group.match),
@@ -107,7 +143,11 @@ const BusinessSidebar = () => {
   const otherItems = menuItems.filter((item) => !groupedKeys.has(menuIdentity(item)));
 
   const isSelected = (item: ResourceProps) =>
-    currentMenuInfo?.code === item.code || item.children?.some((child) => child.code === currentMenuInfo?.code);
+    location.pathname === '/connect'
+      ? item.url === '/connect'
+      : location.pathname === '/uns'
+        ? item.url === '/uns'
+        : currentMenuInfo?.code === item.code || item.children?.some((child) => child.code === currentMenuInfo?.code);
 
   const renderMenuEntry = (item: ResourceProps) => {
     return (
@@ -142,7 +182,7 @@ const BusinessSidebar = () => {
         <LogoImg
           isDark={theme === ThemeType.Dark}
           onClick={() => {
-            navigate('/uns');
+            navigate('/home');
           }}
           width={collapsed ? 28 : undefined}
         />

@@ -169,7 +169,6 @@ const Index: FC<PageProps> = ({ title, location }) => {
     }
   };
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const columns: any = useMemo(() => {
     return [
       {

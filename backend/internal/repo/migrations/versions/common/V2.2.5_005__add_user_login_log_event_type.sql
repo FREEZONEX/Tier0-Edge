@@ -1,0 +1,1 @@
+ALTER TABLE sys_user_login_log ADD COLUMN IF NOT EXISTS event_type VARCHAR(20) NOT NULL DEFAULT 'login';

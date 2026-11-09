@@ -6,11 +6,11 @@ BEGIN
         RETURN;
     END IF;
 
-    qualified_table := to_regclass('uns.uns_timeserial');
+    qualified_table := to_regclass('public.uns_timeserial');
     IF qualified_table IS NULL OR NOT EXISTS (
         SELECT 1
         FROM timescaledb_information.hypertables
-        WHERE hypertable_schema = 'uns'
+        WHERE hypertable_schema = 'public'
           AND hypertable_name = 'uns_timeserial'
     ) THEN
         RETURN;

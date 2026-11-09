@@ -2,22 +2,6 @@ import { useNavigate } from 'react-router';
 import type { ResourceProps } from '@/stores/types';
 import { App } from 'antd';
 
-const isNotebookEntry = (item?: ResourceProps) => {
-  if (!item) return false;
-  const code = item.code?.trim().toLowerCase();
-  const showName = item.showName?.trim().toLowerCase();
-  const url = item.url?.trim().toLowerCase();
-
-  return (
-    code === 'notebook' ||
-    code === 'marimo' ||
-    showName === 'notebook' ||
-    url === '/notebook' ||
-    url?.includes('/notebook') ||
-    url?.includes('marimo')
-  );
-};
-
 const isNamespaceEntry = (item?: ResourceProps) => {
   if (!item) return false;
   const code = item.code?.trim().toLowerCase();
@@ -35,10 +19,6 @@ const useMenuNavigate = (props: { msg?: string } = {}) => {
   const handleNavigate = (item?: ResourceProps) => {
     if (!item) {
       message.warning(msg ?? '菜单不存在');
-      return;
-    }
-    if (isNotebookEntry(item)) {
-      navigate('/notebook');
       return;
     }
     if (isNamespaceEntry(item)) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { App, Button, Form, Input, message, Select, Space, Tag } from 'antd';
+import { App, Button, Checkbox, Form, Input, Select, Space, Tag } from 'antd';
 import { Add, Api, Copy, Edit, TrashCan } from '@carbon/icons-react';
 import { useTranslate } from '@/hooks';
 import { createSecretKey, deleteSecretKey, querySecretKeyList, updateSecretKey } from '@/apis/core-api/open-data';
@@ -11,6 +11,7 @@ import styles from './index.module.scss';
 import { formatTimestamp } from '@/utils';
 import { copyToClipboard } from '@/utils/common';
 import { createDeleteConfirmOptions } from '@/utils/modal-confirm';
+import McpGuide from './mcp-guide';
 const I18N_NAME = 'OpenData';
 
 interface dataItemTypes {
@@ -31,6 +32,7 @@ interface ApiKeyFormValues {
   name: string;
   keyType: string;
   permission: string;
+  mcpScopes?: string[];
 }
 
 const apiKeyTypeOptions = ['personal', 'service'];
@@ -44,6 +46,7 @@ const permissionLabelKeys = {
 const OpenData = () => {
   const formatMessage = useTranslate(I18N_NAME);
   const commonFormatMessage = useTranslate();
+  const mcpT = useTranslate('MCP');
   const permissionOptions = getApiKeyPermissionOptions((permission) => formatMessage(permissionLabelKeys[permission]));
 
   const [dataSource, setDataSource] = useState<dataItemTypes[]>([]);
@@ -53,7 +56,7 @@ const OpenData = () => {
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [form] = Form.useForm<ApiKeyFormValues>();
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
 
   const columns = [
     {
@@ -139,20 +142,29 @@ const OpenData = () => {
     getDataSource(activeKeyType, page, pageSize, keyword);
   }, [activeKeyType, getDataSource, keyword, page, pageSize]);
 
-  const handleAdd = () => {
-    form.setFieldsValue({ name: '', keyType: activeKeyType, permission: 'read' });
+  const handleAdd = (mcp?: { availableScopes: string[] }) => {
+    form.setFieldsValue({
+      name: mcp ? mcpT('keyName') : '',
+      keyType: activeKeyType,
+      permission: 'read',
+      mcpScopes: [],
+    });
     modal.confirm({
       title: formatMessage('newKey'),
       icon: null,
       closable: true,
       width: 520,
       className: styles.apiKeyFormModal,
-      content: renderApiKeyForm(false),
+      content: renderApiKeyForm(false, mcp),
       okText: commonFormatMessage('common.confirm'),
       cancelText: commonFormatMessage('common.cancel'),
       onOk: async () => {
-        const values = await form.validateFields();
-        const result = await createSecretKey({ ...values, usageType: 'external' });
+        const { mcpScopes, ...values } = await form.validateFields();
+        const result = await createSecretKey({
+          ...values,
+          usageType: 'external',
+          ...(mcp ? { resourceKeys: ['uns.read', ...(mcpScopes || [])] } : {}),
+        });
         message.success(formatMessage('newSuccessfullyAdded'));
         showCreatedKey(result.apiKey, values.keyType);
         if (values.keyType !== activeKeyType) {
@@ -206,7 +218,7 @@ const OpenData = () => {
     });
   };
 
-  const renderApiKeyForm = (editing: boolean) => (
+  const renderApiKeyForm = (editing: boolean, mcp?: { availableScopes: string[] }) => (
     <Form form={form} layout="vertical" className={styles.apiKeyForm}>
       <Form.Item name="name" label={formatMessage('name')} rules={[{ required: true }]}>
         <Input maxLength={MAX_LENGTHS.apiKeyName} placeholder={formatMessage('enterName')} />
@@ -221,8 +233,31 @@ const OpenData = () => {
         />
       </Form.Item>
       <Form.Item name="permission" label={formatMessage('permission')} rules={[{ required: true }]}>
-        <Select options={permissionOptions} />
+        <Select options={permissionOptions} disabled={!!mcp} />
       </Form.Item>
+      {mcp && (
+        <Form.Item name="mcpScopes" label={mcpT('extraScopes')} extra={mcpT('scopeHelp')}>
+          <Checkbox.Group
+            options={[
+              {
+                label: mcpT('scopeSource'),
+                value: 'uns.source',
+                disabled: !mcp.availableScopes.includes('uns.source'),
+              },
+              {
+                label: mcpT('scopeStream'),
+                value: 'uns.stream',
+                disabled: !mcp.availableScopes.includes('uns.stream'),
+              },
+              {
+                label: mcpT('scopeApp'),
+                value: 'uns.app.read',
+                disabled: !mcp.availableScopes.includes('uns.app.read'),
+              },
+            ]}
+          />
+        </Form.Item>
+      )}
     </Form>
   );
 
@@ -348,7 +383,7 @@ const OpenData = () => {
             auth={ButtonPermission['OpenData.addKey']}
             type="primary"
             icon={<Add size={16} />}
-            onClick={handleAdd}
+            onClick={() => handleAdd()}
           >
             {formatMessage('newKey')}
           </AuthButton>
@@ -373,7 +408,7 @@ const OpenData = () => {
           />
         </div>
         <ProTable
-          wrapperStyle={{ flexShrink: 0 }}
+          wrapperStyle={{ flex: '0 0 auto', height: 'auto', minHeight: 320 }}
           columns={columns}
           dataSource={dataSource}
           rowKey="id"
@@ -388,6 +423,7 @@ const OpenData = () => {
             },
           }}
         />
+        <McpGuide onCreateKey={(availableScopes) => handleAdd({ availableScopes })} />
         {renderAccessCards()}
       </ComContent>
     </ComLayout>

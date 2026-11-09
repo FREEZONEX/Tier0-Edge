@@ -5,10 +5,9 @@ package auth
 
 import (
 	"context"
-	"strconv"
 
-	"backend/internal/contextx"
 	auditdomain "backend/internal/domain/audit"
+	loginlogdomain "backend/internal/domain/loginlog"
 	respx "backend/internal/httpx"
 	"backend/internal/svc"
 	"backend/internal/types"
@@ -30,32 +29,28 @@ func NewLoginLogic(ctx context.Context, svcCtx *svc.ServiceContext) *LoginLogic 
 	}
 }
 
+// 登录事件只进登录日志（sys_user_login_log，含 IP/浏览器/OS 明细），不写操作审计。
 func (l *LoginLogic) Login(req *types.LoginReq) (resp *types.Envelope, err error) {
 	result, err := l.svcCtx.App.Auth.Login(l.ctx, req.Username, req.Password)
+	ip, userAgent, _ := auditdomain.RequestInfoFrom(l.ctx)
 	if err != nil {
-		l.svcCtx.App.Audit.Record(l.ctx, auditdomain.RecordInput{
-			ScopeType:    auditdomain.ScopeTypePlatform,
-			ResType:      auditdomain.ResTypeAuth,
-			ResName:      req.Username,
-			BusinessType: auditdomain.BizLogin,
-			Detail:       map[string]any{"username": req.Username},
+		l.svcCtx.App.LoginLog.Record(loginlogdomain.RecordInput{
+			EventType: loginlogdomain.EventLogin,
+			UserName:  req.Username,
+			IP:        ip,
+			UserAgent: userAgent,
+			Code:      401,
+			Msg:       "invalid username or password",
 		})
 		return nil, respx.NewHTTPError(401, "invalid username or password")
 	}
-	subject := contextx.Subject{
-		UserID:   result.User.ID,
-		UserName: result.User.UserName,
-		Email:    result.User.Email,
-		AuthType: "session",
-	}
-	l.svcCtx.App.Audit.BindSubject(l.ctx, subject)
-	l.svcCtx.App.Audit.Record(l.ctx, auditdomain.RecordInput{
-		ScopeType:    auditdomain.ScopeTypePlatform,
-		ResType:      auditdomain.ResTypeAuth,
-		ResID:        strconv.FormatInt(result.User.ID, 10),
-		ResName:      result.User.UserName,
-		BusinessType: auditdomain.BizLogin,
-		Detail:       map[string]any{"username": result.User.UserName},
+	l.svcCtx.App.LoginLog.Record(loginlogdomain.RecordInput{
+		EventType: loginlogdomain.EventLogin,
+		UserID:    result.User.ID,
+		UserName:  result.User.UserName,
+		IP:        ip,
+		UserAgent: userAgent,
+		Code:      200,
 	})
 	return respx.Envelope(types.LoginResp{
 		Token:               result.Token,
@@ -69,5 +64,6 @@ func (l *LoginLogic) Login(req *types.LoginReq) (resp *types.Envelope, err error
 		ForceChangePassword: result.ForceChangePassword,
 		ResourceKeys:        result.ResourceKeys,
 		UiActions:           result.UIActions,
+		SessionExpireAt:     result.SessionExpireAt,
 	}), nil
 }

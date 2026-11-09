@@ -1,60 +1,9 @@
 import Cookies from 'js-cookie';
 import { useBaseStore } from '@/stores/base';
 import { APP_COMMUNITY_TOKEN, LOGIN_URL, SYS_COMMUNITY_TOKEN } from '@/common-types/constans.ts';
+import { removeDevScopedToken, setDevScopedToken } from './auth-token';
 
-const isBrowser = () => typeof window !== 'undefined';
-
-export const isDevScopedTokenEnabled = () => {
-  if (!import.meta.env.DEV || !isBrowser()) {
-    return false;
-  }
-  const hostname = window.location.hostname;
-  return (
-    Boolean(window.location.port) || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
-  );
-};
-
-const devScopedTokenKey = () => `${APP_COMMUNITY_TOKEN}:${window.location.host}`;
-
-const getDevScopedToken = () => {
-  if (!isDevScopedTokenEnabled()) {
-    return undefined;
-  }
-  try {
-    return window.sessionStorage.getItem(devScopedTokenKey()) || undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-const setDevScopedToken = (token: string) => {
-  if (!isDevScopedTokenEnabled()) {
-    return;
-  }
-  try {
-    window.sessionStorage.setItem(devScopedTokenKey(), token);
-  } catch {
-    // sessionStorage can be unavailable in strict browser privacy modes.
-  }
-};
-
-const removeDevScopedToken = () => {
-  if (!isDevScopedTokenEnabled()) {
-    return;
-  }
-  try {
-    window.sessionStorage.removeItem(devScopedTokenKey());
-  } catch {
-    // ignore storage cleanup failures
-  }
-};
-
-export function getToken() {
-  if (isDevScopedTokenEnabled()) {
-    return getDevScopedToken();
-  }
-  return Cookies.get(APP_COMMUNITY_TOKEN) || Cookies.get(SYS_COMMUNITY_TOKEN);
-}
+export { getToken, isDevScopedTokenEnabled } from './auth-token';
 
 export function setToken(token: string, options?: any) {
   setDevScopedToken(token);
@@ -126,9 +75,9 @@ export const hasPermission = (auth: string | string[]) => {
   }
   // button: 必须要有
   const perms = state.buttonList;
-  // 重构期存在后端资源树已下发、按钮资源还未完全补齐的情况；没有按钮权限列表时不误隐藏页面操作。
+  // 尚未加载或没有获授按钮权限时默认拒绝，不能把空列表当作全部允许。
   if (!perms?.length) {
-    return true;
+    return false;
   }
   if (perms?.includes('button:*')) {
     return true;

@@ -1,0 +1,6 @@
+[
+  {"name":"postgresql-17.11.tar.bz2","url":"https://ftp.postgresql.org/pub/source/v17.11/postgresql-17.11.tar.bz2","sha256":"dd27f2b3c59e73ed14aa3324901242bf69a032a6347805f274e6260322d42979"},
+  {"name":"timescaledb-2.20.0.tar.gz","url":"https://github.com/timescale/timescaledb/archive/refs/tags/2.20.0.tar.gz","sha256":"b6ac4c29ef29e93249fcc25bf193dab2637422797360b12e00fd73067138a953"},
+  {"name":"node-v22.23.1-linux-x64.tar.xz","url":"https://nodejs.org/dist/v22.23.1/node-v22.23.1-linux-x64.tar.xz","sha256":"9749e988f437343b7fa832c69ded82a312e41a03116d766797ac14f6f9eee578"},
+  {"name":"nats-server-v2.15.2-linux-amd64.tar.gz","url":"https://github.com/nats-io/nats-server/releases/download/v2.15.2/nats-server-v2.15.2-linux-amd64.tar.gz","sha256":"67cb8e10bc6f0c4b47f75a728529a20953dbae2a4f9a4a52ae8517d65ae303ff"}
+]

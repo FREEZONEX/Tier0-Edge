@@ -79,7 +79,7 @@
 }
 
 .tier0-login__card {
-  width: 320px;
+  width: 360px;
   max-width: 100%;
 }
 
@@ -184,6 +184,110 @@
     background: var(--ui-primary-button-bg-hover);
     color: var(--ui-primary-button-text);
   }
+}
+
+.tier0-login__microsoft-button {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-color: #8d8d8d;
+  border-radius: 4px;
+  color: #111;
+  font-size: 15px;
+  font-weight: 500;
+
+  &:hover,
+  &:focus {
+    border-color: #111 !important;
+    color: #111 !important;
+  }
+}
+
+.tier0-login__microsoft-mark {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+
+  i:nth-child(1) {
+    background: #f25022;
+  }
+
+  i:nth-child(2) {
+    background: #7fba00;
+  }
+
+  i:nth-child(3) {
+    background: #00a4ef;
+  }
+
+  i:nth-child(4) {
+    background: #ffb900;
+  }
+}
+
+.tier0-login__sso-note {
+  margin: 12px 0 0;
+  color: #6f6f6f;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.tier0-login__identity {
+  display: flex;
+  margin-bottom: 18px;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tier0-login__identity-name {
+  color: #111;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.tier0-login__identity-email {
+  overflow: hidden;
+  color: #6f6f6f;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tier0-login__mfa {
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.tier0-login__mode-switch {
+  display: grid;
+  margin-bottom: 22px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+
+  .ant-btn {
+    height: 38px;
+    padding-inline: 8px;
+  }
+}
+
+.tier0-login__local-link {
+  margin-top: 12px;
+}
+
+.tier0-login__pending-loading {
+  height: 120px;
+  border: 0;
+}
+
+.tier0-login__sso-error {
+  display: grid;
+  gap: 20px;
 }
 
 @media (width <= 980px) {

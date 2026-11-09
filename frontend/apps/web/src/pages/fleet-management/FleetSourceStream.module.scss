@@ -1,0 +1,37 @@
+.full {
+  width: 100%;
+}
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  :global(.ant-switch) {
+    align-self: flex-start;
+  }
+}
+.selector {
+  min-width: 260px;
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--ui-border-color);
+}
+.result {
+  max-height: 280px;
+  overflow: auto;
+}

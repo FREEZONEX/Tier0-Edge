@@ -33,3 +33,86 @@ service backend {
     @handler AssetUpload
     post /assets (AssetUploadReq) returns (Envelope)
 }
+
+// APP 导入大文件分片上传（core 会话版）：projectId 显式入参，会话用户需具备该
+// project 的管理权限（logic 层校验）。complete 在对象存储侧合并分片，路由级放宽到 5m。
+type AssetMultipartInitReq {
+    projectId int64 `json:"projectId"`
+    fileName string `json:"fileName"`
+    contentType string `json:"contentType,optional"`
+    size int64 `json:"size"`
+    partSize int64 `json:"partSize,optional"`
+}
+
+type AssetMultipartInitResp {
+    fileKey string `json:"fileKey"`
+    filePath string `json:"filePath"`
+    uploadId string `json:"uploadId"`
+    partSize int64 `json:"partSize"`
+    partCount int64 `json:"partCount"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type AssetMultipartPartUrlsReq {
+    fileKey string `json:"fileKey"`
+    uploadId string `json:"uploadId"`
+    partNumbers []int32 `json:"partNumbers"`
+}
+
+type AssetMultipartPartUrl {
+    partNumber int32 `json:"partNumber"`
+    url string `json:"url"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type AssetMultipartPartUrlsResp {
+    partUrls []AssetMultipartPartUrl `json:"partUrls"`
+}
+
+type AssetMultipartCompleteReq {
+    fileKey string `json:"fileKey"`
+    uploadId string `json:"uploadId"`
+    parts []AssetMultipartCompletePart `json:"parts"`
+}
+
+type AssetMultipartCompletePart {
+    partNumber int32 `json:"partNumber"`
+    etag string `json:"etag"`
+}
+
+type AssetMultipartCompleteResp {
+    fileId int64 `json:"fileId"`
+    filePath string `json:"filePath"`
+    fileUrl string `json:"fileUrl"`
+    sizeBytes int64 `json:"sizeBytes"`
+    expiresAt int64 `json:"expiresAt,optional"`
+}
+
+type AssetMultipartAbortReq {
+    fileKey string `json:"fileKey"`
+    uploadId string `json:"uploadId"`
+}
+
+type AssetMultipartAbortResp {
+    aborted bool `json:"aborted"`
+}
+
+@server(
+    prefix: /api/core
+    group: core/asset
+    middleware: SessionAuth, Permission
+    timeout: 5m
+)
+service backend {
+    @handler AssetMultipartInit
+    post /assets/multipart/init (AssetMultipartInitReq) returns (Envelope)
+
+    @handler AssetMultipartPartUrls
+    post /assets/multipart/part-urls (AssetMultipartPartUrlsReq) returns (Envelope)
+
+    @handler AssetMultipartComplete
+    post /assets/multipart/complete (AssetMultipartCompleteReq) returns (Envelope)
+
+    @handler AssetMultipartAbort
+    post /assets/multipart/abort (AssetMultipartAbortReq) returns (Envelope)
+}

@@ -1,23 +1,26 @@
-import { useLocation, useNavigate } from 'react-router';
+import { matchPath, useLocation, useNavigate } from 'react-router';
 import { useEffect } from 'react';
 import { useBaseStore } from '@/stores/base';
 
-const NotPage = () => {
+const matchesKnownPath = (pathname: string, routePath?: string) => {
+  if (!routePath?.startsWith('/')) return false;
+  return Boolean(matchPath({ path: routePath, caseSensitive: false, end: true }, pathname));
+};
+
+const NotPage = ({ knownPaths = [] }: { knownPaths?: string[] }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
     const originMenu = useBaseStore.getState().originMenu;
-    const isAuthRoute = originMenu?.find((f) => '/' + f.code === pathname || f?.url === pathname);
-    if (isAuthRoute?.code || pathname === '/403') {
-      // 如果没权限
-      navigate('/403');
-    } else {
-      // 如果没菜单
-      navigate('/404');
-    }
-  }, [pathname]);
+    const isKnownRoute =
+      knownPaths.some((path) => matchesKnownPath(pathname, path)) ||
+      originMenu?.some((item) =>
+        [item?.url, item?.code ? `/${item.code}` : undefined].some((path) => matchesKnownPath(pathname, path))
+      );
+    navigate(isKnownRoute ? '/403' : '/404', { replace: true });
+  }, [knownPaths, navigate, pathname]);
 
-  return <div></div>;
+  return null;
 };
 
 export default NotPage;

@@ -21,7 +21,7 @@
   "default": {
     "readonly": true,
     "message": "不需要动，默认的内容",
-    "browserTitle": "Tier0 Edge",
+    "browserTitle": "Enterprise",
     "browserIco": "logo-ico.svg",
     "loginPageTheme": "light | dark",
     "logo": "logo-light.svg | logo-dark.svg",

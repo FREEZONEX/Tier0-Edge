@@ -20,9 +20,14 @@
   width: 180px;
 }
 
+.deploymentFilter {
+  width: 220px;
+}
+
 @media (width <= 640px) {
   .search,
-  .stateFilter {
+  .stateFilter,
+  .deploymentFilter {
     width: 100%;
   }
 }

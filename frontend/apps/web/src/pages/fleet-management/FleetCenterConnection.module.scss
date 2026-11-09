@@ -1,0 +1,353 @@
+.branchPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.branchCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--ui-home-border-color, var(--ui-line-color));
+  border-radius: 4px;
+  background: var(--ui-bg-color);
+}
+
+.branchDataSync {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.branchDataSyncTitle {
+  color: var(--ui-text-color);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.16px;
+  line-height: 32px;
+}
+
+.branchConnectionTitle {
+  color: var(--ui-text-color);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.16px;
+  line-height: 18px;
+}
+
+.branchBlockTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ui-text-color);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.branchBlockHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.branchBlockActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+.branchBlockHeader::after,
+.branchSectionDividerLine {
+  width: 100%;
+  height: 16px;
+  border: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--ui-line-color) 0,
+    var(--ui-line-color) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+}
+
+.branchBlockHeader::after {
+  content: '';
+}
+
+.branchConnectionTitle,
+.branchDataSyncTitle,
+.branchBlockTitle {
+  margin: 0;
+}
+
+.branchMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 32px;
+  min-width: 0;
+}
+
+.branchInfoField {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.branchInfoLabel {
+  color: var(--ui-icon-disabled-color);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.branchInfoValue {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-color);
+  font-size: 14px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 32px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+
+  dd {
+    margin: 0;
+  }
+}
+
+.failed {
+  color: var(--ui-error-color);
+  line-height: 24px;
+}
+
+.connectionStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 14px;
+
+  &::before {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentcolor;
+    content: '';
+  }
+}
+
+.branchPrimaryAction {
+  min-width: 96px;
+  height: 32px;
+  padding-inline: 16px;
+  border: none;
+  border-radius: 4px;
+  background: var(--ui-primary-button-bg);
+  color: var(--ui-primary-button-text);
+  font-weight: 500;
+  box-shadow: none;
+
+  &:hover,
+  &:focus {
+    background: var(--ui-primary-button-bg-hover) !important;
+    color: var(--ui-primary-button-text) !important;
+  }
+
+  &:disabled,
+  &:disabled:hover {
+    background: var(--ui-access-gray-bg) !important;
+    color: var(--ui-line-color) !important;
+    border-color: transparent !important;
+    opacity: 1 !important;
+  }
+}
+
+.branchMutedAction {
+  height: 32px;
+  padding-inline: 16px;
+  border: none;
+  border-radius: 4px;
+  background: var(--ui-access-gray-bg);
+  color: var(--ui-text-color);
+  font-weight: 500;
+  box-shadow: none;
+
+  &:hover,
+  &:focus {
+    background: var(--ui-menu-hover-color) !important;
+    color: var(--ui-text-color) !important;
+  }
+}
+
+.branchSecondaryAction {
+  height: 32px;
+  padding-inline: 16px;
+  font-weight: 500;
+  border-color: var(--ui-home-border-color, var(--ui-line-color));
+  color: var(--ui-text-color);
+}
+
+.branchDarkAction {
+  height: 32px;
+  padding-block: 4px;
+  padding-inline: 16px;
+  border: none;
+  border-radius: 4px;
+  background: var(--ui-check-color);
+  color: var(--ui-anti-text-color);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  box-shadow: none;
+
+  :global(.anticon),
+  :global(.ant-btn-icon) {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+  }
+
+  &:hover,
+  &:focus {
+    background: color-mix(in srgb, var(--ui-check-color) 88%, var(--ui-anti-text-color)) !important;
+    color: var(--ui-anti-text-color) !important;
+  }
+
+  &:disabled,
+  &:disabled:hover {
+    background: var(--ui-access-gray-bg) !important;
+    color: var(--ui-line-color) !important;
+    border-color: transparent !important;
+    opacity: 1 !important;
+  }
+}
+
+.connection-steps:global(.ant-steps) {
+  :global(.ant-steps-item-finish) {
+    :global(.ant-steps-item-icon) {
+      background-color: var(--ui-success-color);
+      border-color: var(--ui-success-color);
+
+      :global(.ant-steps-icon) {
+        color: var(--ui-anti-text-color);
+      }
+    }
+
+    > :global(.ant-steps-item-container) > :global(.ant-steps-item-content) > :global(.ant-steps-item-title) {
+      color: var(--ui-status-running-color);
+
+      &::after {
+        background-color: var(--ui-success-color);
+      }
+    }
+
+    > :global(.ant-steps-item-container) > :global(.ant-steps-item-tail)::after {
+      background-color: var(--ui-success-color);
+    }
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(165px, 100%), 1fr));
+  gap: 12px 24px;
+
+  .branchInfoValue {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.drawer-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.detail-group {
+  margin-top: 16px;
+}
+
+.accountDrawer {
+  :global(.ant-drawer-header) {
+    padding: 24px 40px 0;
+    border: 0;
+  }
+
+  :global(.ant-drawer-title) {
+    color: var(--ui-text-color);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 30px;
+  }
+
+  :global(.ant-drawer-body) {
+    padding: 40px;
+  }
+}
+
+@container (max-width: 900px) {
+  .metrics,
+  .branchMetaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 720px) {
+  .metrics,
+  .branchMetaGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .branchBlockActions {
+    justify-content: flex-start;
+    margin-inline-start: 0;
+    width: 100%;
+  }
+}
+
+@media (width <= 720px) {
+  .accountDrawer {
+    :global(.ant-drawer-header) {
+      padding: 16px 16px 0;
+    }
+
+    :global(.ant-drawer-body) {
+      padding: 16px;
+    }
+  }
+}

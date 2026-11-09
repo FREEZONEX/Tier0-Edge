@@ -7,14 +7,15 @@ type openAPIRequestFieldDoc struct {
 }
 
 var (
-	openAPINodeTypeEnum        = []any{"PATH", "TOPIC"}
-	openAPITopicTypeEnum       = []any{"STATE", "ACTION", "METRIC"}
-	openAPIFlowTypeEnum        = []any{"SourceFlow", "EventFlow"}
-	openAPIHistoryFunctionEnum = []any{"avg", "min", "max", "sum", "count", "first", "last"}
-	openAPISchemaFieldEnum     = []any{"INTEGER", "LONG", "DOUBLE", "FLOAT", "STRING", "BOOLEAN", "DATETIME"}
-	openAPIQoSEnum             = []any{0, 1, 2}
-	openAPIFavoriteEnum        = []any{1, 2}
-	openAPIUpdateMaskEnum      = []any{"name", "description", "displayName", "extendProperties", "fields", "alias", "enableHistory"}
+	openAPINodeTypeEnum         = []any{"PATH", "TOPIC"}
+	openAPITopicTypeEnum        = []any{"STATE", "ACTION", "METRIC"}
+	openAPIFlowTypeEnum         = []any{"SourceFlow", "EventFlow"}
+	openAPIHistoryFunctionEnum  = []any{"avg", "min", "max", "sum", "count", "first", "last"}
+	openAPIHistoryCountModeEnum = []any{"exact", "none"}
+	openAPISchemaFieldEnum      = []any{"INTEGER", "LONG", "DOUBLE", "FLOAT", "STRING", "BOOLEAN", "DATETIME"}
+	openAPIQoSEnum              = []any{0, 1, 2}
+	openAPIFavoriteEnum         = []any{1, 2}
+	openAPIUpdateMaskEnum       = []any{"name", "description", "displayName", "extendProperties", "fields", "alias", "enableHistory"}
 )
 
 var openAPIRequestSchemaDocs = map[string]map[string]openAPIRequestFieldDoc{
@@ -65,11 +66,17 @@ var openAPIRequestSchemaDocs = map[string]map[string]openAPIRequestFieldDoc{
 		"aggregation": {Description: "Optional aggregation settings for bucketed history results."},
 		"page":        {Description: "Page number, starting from 1."},
 		"size":        {Description: "Page size."},
+		"countMode":   {Description: "Total count mode. Defaults to exact for backward compatibility; use none to skip COUNT and rely on totalExact and hasMore.", Enum: openAPIHistoryCountModeEnum},
 	},
 	"HistoryAggregation": {
 		"interval": {Description: "Positive aggregation window. Supports Go duration strings such as 1m, 5m, 1h, and day strings such as 1d."},
-		"function": {Description: "Aggregation function. Allowed values: avg, min, max, sum, count, first, last.", Enum: openAPIHistoryFunctionEnum},
-		"field":    {Description: "First-level payload field to aggregate, for example value."},
+		"function": {Description: "Legacy single-field aggregation function. Allowed values: avg, min, max, sum, count, first, last.", Enum: openAPIHistoryFunctionEnum},
+		"field":    {Description: "Legacy single-field payload name to aggregate, for example value."},
+		"fields":   {Description: "Optional multi-field aggregation definitions. Each payload field can appear once per request."},
+	},
+	"HistoryAggregationField": {
+		"name":     {Description: "First-level payload field name to aggregate."},
+		"function": {Description: "Aggregation function. Defaults to avg for numeric fields and last for other fields.", Enum: openAPIHistoryFunctionEnum},
 	},
 	"NodeCreateReq": {
 		"namespace": {Description: "UNS nodes to create. Children can be nested to create a subtree."},
@@ -115,14 +122,14 @@ var openAPIRequestSchemaDocs = map[string]map[string]openAPIRequestFieldDoc{
 	},
 	"OpenapiFlowLegacyListReq": {
 		"keyword":  {Description: "Keyword matched against flow names and descriptions."},
-		"flowType": {Description: "Flow category filter. Canonical values: SourceFlow, EventFlow. Tier0 Edge also accepts source, event, 1, and 2 aliases.", Enum: openAPIFlowTypeEnum},
+		"flowType": {Description: "Flow category filter. Canonical values: SourceFlow, EventFlow. Enterprise also accepts source, event, 1, and 2 aliases.", Enum: openAPIFlowTypeEnum},
 	},
 	"OpenapiFlowLegacyGetReq": {
 		"id": {Description: "Flow ID."},
 	},
 	"OpenapiFlowLegacyCreateReq": {
 		"flowName":    {Description: "Flow name."},
-		"flowType":    {Description: "Flow category. Canonical values: SourceFlow, EventFlow. Tier0 Edge also accepts source, event, 1, and 2 aliases.", Enum: openAPIFlowTypeEnum},
+		"flowType":    {Description: "Flow category. Canonical values: SourceFlow, EventFlow. Enterprise also accepts source, event, 1, and 2 aliases.", Enum: openAPIFlowTypeEnum},
 		"description": {Description: "Flow description."},
 		"template":    {Description: "Optional flow template JSON."},
 	},
@@ -141,7 +148,7 @@ var openAPIRequestSchemaDocs = map[string]map[string]openAPIRequestFieldDoc{
 		"flowsJson": {Description: "Node-RED flows JSON to deploy."},
 	},
 	"OpenapiFlowLegacyNodesReq": {
-		"flowType": {Description: "Flow category whose Node-RED node set should be returned. Canonical values: SourceFlow, EventFlow. Tier0 Edge also accepts source, event, 1, and 2 aliases.", Enum: openAPIFlowTypeEnum},
+		"flowType": {Description: "Flow category whose Node-RED node set should be returned. Canonical values: SourceFlow, EventFlow. Enterprise also accepts source, event, 1, and 2 aliases.", Enum: openAPIFlowTypeEnum},
 	},
 }
 
@@ -158,12 +165,22 @@ func applyOpenAPIRequestDescriptions(spec map[string]any) {
 	components, ok := spec["components"].(map[string]any)
 	if ok {
 		if schemas, ok := components["schemas"].(map[string]any); ok {
-			for schemaName, docs := range openAPIRequestSchemaDocs {
-				applyOpenAPISchemaFieldDocs(schemas[schemaName], docs)
-			}
+			applyOpenAPISchemaDocs(schemas)
 		}
 	}
+	// goctl currently emits Swagger 2 definitions. Keep the OpenAPI 3 path
+	// above for forward compatibility, while documenting the schema shape that
+	// is actually served today.
+	if definitions, ok := spec["definitions"].(map[string]any); ok {
+		applyOpenAPISchemaDocs(definitions)
+	}
 	applyOpenAPIParameterDocs(spec["paths"])
+}
+
+func applyOpenAPISchemaDocs(schemas map[string]any) {
+	for schemaName, docs := range openAPIRequestSchemaDocs {
+		applyOpenAPISchemaFieldDocs(schemas[schemaName], docs)
+	}
 }
 
 func applyOpenAPISchemaFieldDocs(schema any, docs map[string]openAPIRequestFieldDoc) {

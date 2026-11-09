@@ -15,6 +15,7 @@ export const APP_COMMUNITY_TOKEN = 'edge_session';
 export const SYS_COMMUNITY_TOKEN = 'sys_community_token';
 export const OMC_MODEL = 'omc_model';
 export const LOGIN_URL = '/tier0-login';
+export const OPERATOR_ROLE_CODE = 'operator';
 // 默认的title名称
 export const APP_TITLE = 'Tier0';
 // 存储的固定位置 /minio/inter  /files/system/resource

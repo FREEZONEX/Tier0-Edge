@@ -10,7 +10,6 @@ import PackageTop from '@/components/svg-components/PackageTop.tsx';
 import styles from './index.module.scss';
 import Functions from './Functions.tsx';
 import MQTT from './MQTT.tsx';
-import CloudSync from './CloudSync.tsx';
 import useUnsGlobalWs from '@/pages/uns/useUnsGlobalWs.ts';
 
 const UnsDashboard = () => {
@@ -65,9 +64,6 @@ const UnsDashboard = () => {
       <Divider className={styles['dashboard-divider']} />
       <div className={styles['dashboard-content']}>
         <div className={styles['access-column']}>
-          <div className={styles['cloudsync-wrapper']}>
-            <CloudSync />
-          </div>
           <div className={styles['mqtt-wrapper']}>
             <MQTT />
           </div>

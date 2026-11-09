@@ -43,19 +43,24 @@
   }
 }
 
-.starButton {
+.pinButton {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   color: var(--ui-description-card-color);
   cursor: pointer;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  background: var(--ui-bg-color);
+  border: 1px solid var(--ui-active-bg-color);
+  border-radius: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    opacity 0.15s ease;
 
   &:hover {
     color: var(--ui-warning-color);
@@ -67,11 +72,21 @@
   }
 }
 
-.starActive {
+.pinActive {
   color: var(--ui-warning-color);
+  opacity: 1;
+  visibility: visible;
 
   svg {
     fill: var(--ui-warning-color);
+  }
+}
+
+:global(.ant-table-row:hover),
+:global(.ant-table-row:focus-within) {
+  .pinButton {
+    opacity: 1;
+    visibility: visible;
   }
 }
 
@@ -79,8 +94,8 @@
 :global(.chartreuseDark) {
   .nameCell {
     .nameIconFolder {
-      --launchpad-folder-bg: color-mix(in srgb, var(--ui-t-chartreuse-color-70) 18%, var(--ui-t-chartreuse-color-100));
-      --launchpad-folder-fg: var(--ui-t-chartreuse-color-40);
+      --launchpad-folder-bg: var(--ui-icon-wrapper-group-bg);
+      --launchpad-folder-fg: var(--ui-icon-wrapper-group-color);
 
       background: var(--launchpad-folder-bg);
     }

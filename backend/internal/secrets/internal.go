@@ -16,6 +16,12 @@ const (
 // InternalMQTTPassword centralizes the transitional fallback for legacy
 // deployments whose .env.runtime has not been backfilled yet.
 func InternalMQTTPassword(username string) string {
+	// Stream deployments no longer run legacy Node-RED services. Do not keep
+	// their broker identities usable after retiring the corresponding routes.
+	if strings.TrimSpace(os.Getenv("SOURCE_STREAM_NATS_URL")) != "" &&
+		(strings.TrimSpace(username) == "sourceflow" || strings.TrimSpace(username) == "eventflow") {
+		return ""
+	}
 	switch strings.TrimSpace(username) {
 	case "backend":
 		return envOrFallback("MQTT_BACKEND_PASSWORD", legacyMQTTBackendPassword)

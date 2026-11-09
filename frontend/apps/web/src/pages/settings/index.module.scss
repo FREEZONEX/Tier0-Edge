@@ -134,6 +134,11 @@
   overflow: auto;
 }
 
+.settings-notifications-page {
+  height: 100%;
+  overflow: auto;
+}
+
 @media (width <= 900px) {
   .settings-page {
     grid-template-columns: 1fr;

@@ -1,0 +1,145 @@
+.groups-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+
+  > :global(.pro-table-container) {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search {
+  width: min(360px, 42vw);
+}
+
+.result-count {
+  margin-left: auto;
+  color: var(--ui-description-card-color);
+  white-space: nowrap;
+}
+
+.groups-table {
+  :global(.ant-table-tbody > tr > td) {
+    vertical-align: middle;
+  }
+}
+
+.group-name,
+.member-count {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ui-text-color) !important;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--ui-text-color) !important;
+    background: transparent !important;
+  }
+}
+
+.group-name {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+
+  > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.cell-ellipsis {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operation-buttons {
+  :global(.ant-btn) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.member-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.member-search {
+  width: min(360px, 45vw);
+}
+
+.add-member-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  color: var(--ui-text-color);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.selection-hint {
+  color: var(--ui-description-card-color);
+  font-size: 12px;
+}
+
+@media (width <= 900px) {
+  .toolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .search {
+    width: 100%;
+  }
+
+  .result-count {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .member-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-search {
+    width: 100%;
+  }
+}

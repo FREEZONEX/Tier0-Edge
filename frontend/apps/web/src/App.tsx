@@ -20,13 +20,17 @@ import { cleanupI18nSubscriptions, defaultLanguage, I18nEnum, initI18n } from '.
 import Cookies from 'js-cookie';
 import { useI18nStore } from '@/stores/i18n-store';
 import { CookiesProvider } from 'react-cookie';
-import { isPublicAccessPath, replaceWithLicenseActivation, resolveLicenseGate } from '@/utils/license-auth';
+import { isPublicAccessPath } from '@/utils/public-access';
 import { storageOpt } from '@/utils/storage.ts';
 import DefaultPasswordReminder from '@/components/default-password-reminder';
+import GlobalLoading from '@/components/loading/global';
 import {
+  getLaunchpadStandaloneLoginPath,
+  isMiniAppRoutePath,
+  isLaunchpadExplicitLogoutInProgress,
   isLaunchpadSiteRequest,
   isLaunchpadStandaloneAllowedPath,
-  isLaunchpadStandalonePort,
+  isLaunchpadStandaloneListener,
 } from '@/utils/launchpad-site';
 import { isolatePublicPageTheme } from '@/utils/public-page-theme';
 
@@ -94,6 +98,7 @@ const resolvePublicBootstrapLanguage = async (preferredEnvLang?: string) => {
 
 function App() {
   const currentPath = window.location.pathname;
+  const isMiniApp = isMiniAppRoutePath(currentPath);
   const isLaunchpadAllowedPath = isLaunchpadStandaloneAllowedPath(currentPath);
   const isLaunchpadSite = isLaunchpadSiteRequest(currentPath);
   const { systemInfo, loading, routesStatus, currentUserInfo, menuGroup } = useBaseStore((state) => ({
@@ -126,8 +131,9 @@ function App() {
     }
     const init = async () => {
       if (
-        isLaunchpadStandalonePort() &&
+        isLaunchpadStandaloneListener() &&
         currentPath !== '/' &&
+        !isMiniApp &&
         !isLaunchpadAllowedPath &&
         !isPublicAccessPath(currentPath)
       ) {
@@ -149,18 +155,7 @@ function App() {
         }
         return;
       }
-      if (!isOmc) {
-        try {
-          const licenseGate = await resolveLicenseGate();
-          if (licenseGate.status === 'not_activated' || licenseGate.status === 'expired') {
-            replaceWithLicenseActivation(licenseGate.status);
-            return;
-          }
-        } catch (error) {
-          console.error('Failed to check license status on init:', error);
-        }
-      }
-      if (isLaunchpadSite) {
+      if (isLaunchpadSite || isMiniApp) {
         fetchLaunchpadBaseStore();
         return;
       }
@@ -239,12 +234,16 @@ function App() {
     }
     removeToken();
     const loginPath = systemInfo?.loginPath || LOGIN_URL;
+    if (isLaunchpadExplicitLogoutInProgress()) {
+      window.location.replace(loginPath);
+      return;
+    }
     const currentPath = `${window.location.pathname}${window.location.search}`;
     const redirectUri =
       currentPath && currentPath !== '/' && currentPath !== loginPath
         ? `?redirectUri=${encodeURIComponent(currentPath)}`
         : '';
-    window.location.replace(`${loginPath}${redirectUri}`);
+    window.location.replace(getLaunchpadStandaloneLoginPath(`${loginPath}${redirectUri}`));
   }, [routesStatus, systemInfo?.loginPath]);
 
   const routeDom = useMemo(() => {
@@ -252,7 +251,7 @@ function App() {
   }, [menuGroup, systemInfo, currentUserInfo, lang]);
 
   if (loading && !isLaunchpadSite) {
-    return <div>Loading...</div>;
+    return <GlobalLoading />;
   }
 
   if (routesStatus === 401) {
@@ -269,8 +268,9 @@ function App() {
             <BrowserRouter>
               <PublicPageThemeBoundary />
               <RouteModalCleanup />
-              <DefaultPasswordReminder />
-              <RoutesElement routeDom={routeDom} />
+              <DefaultPasswordReminder>
+                <RoutesElement routeDom={routeDom} />
+              </DefaultPasswordReminder>
             </BrowserRouter>
           </AntApp>
         </UnsTreeMapProvider>

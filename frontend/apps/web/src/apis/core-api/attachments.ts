@@ -25,7 +25,7 @@ export const getAttachment = async (params?: Record<string, unknown>) =>
     responseType: 'blob',
     [CustomAxiosConfigEnum.NoCode]: true,
   });
-// 上传
+// 上传（params.signal 可选：透传给 axios，供调用方中止上传）
 export const uploadAttachment = async (data: any, params: any) => {
   const query: Record<string, any> = {};
   if (params?.ownerId) {
@@ -35,6 +35,7 @@ export const uploadAttachment = async (data: any, params: any) => {
   return coreApi.uploads(`/assets`, data, {
     method: 'post',
     params: query,
+    signal: params?.signal,
   });
 };
 

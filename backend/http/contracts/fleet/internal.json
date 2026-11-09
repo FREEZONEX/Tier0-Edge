@@ -1,0 +1,2676 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tier0 internal Fleet contracts",
+    "version": "1.0.0",
+    "description": "Internal platform management and authenticated node protocol. Not a third-party API."
+  },
+  "x-visibility": "internal",
+  "paths": {
+    "/api/core/v2/fleet/connection/collections/save": {
+      "post": {
+        "operationId": "fleetV2ConnectionCollectionsSave",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Select Edge Collections authorized for synchronization. Unselected Collections remain local; queued events keep their original destinations.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2CollectionScopeSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2CollectionScopeResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/connection/access/get": {
+      "post": {
+        "operationId": "fleetV2ConnectionAccessGet",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read Edge-owned remote access policy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2CurrentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2AccessResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/connection/access/save": {
+      "post": {
+        "operationId": "fleetV2ConnectionAccessSave",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Update Edge-owned SSH, metadata and remote Control permissions with revision checking",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2AccessSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2AccessResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/connection/storage/get": {
+      "post": {
+        "operationId": "fleetV2LocalStorageGet",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read or edit local global storage policy with revision checking: get",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2StorageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2CollectionStorageResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/connection/storage/save": {
+      "post": {
+        "operationId": "fleetV2LocalStorageSave",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read or edit local global storage policy with revision checking: save",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2StorageSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2CollectionStorageResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/collection-sync/catalog": {
+      "post": {
+        "operationId": "fleetV2CollectionSyncCatalog",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read native Edge Collections and storage definition status: catalog",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2CollectionSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/control-grants/catalog": {
+      "post": {
+        "operationId": "fleetV2ControlGrantsCatalog",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read local published Controls available for explicit center authorization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2CurrentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/control-grants/get": {
+      "post": {
+        "operationId": "fleetV2ControlGrantsGet",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read local Edge authorization for a published Control",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2ControlGrant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/control-grants/save": {
+      "post": {
+        "operationId": "fleetV2ControlGrantsSave",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Authorize or revoke center Control execution with fixed capability, parameter limits and rate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2ControlGrant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/current/get": {
+      "post": {
+        "operationId": "fleetV2CurrentGet",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read this installation identity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2CurrentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2CurrentResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/connection/users": {
+      "post": {
+        "operationId": "fleetV2ConnectionUsers",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Read users mapped from the connected center without credentials",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2CurrentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FleetV2Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FleetV2SyncedUsersResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/core/v2/fleet/connection/configure": {
+      "post": {
+        "operationId": "fleetV2ConnectionConfigure",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Register this installation with a trusted HTTPS center",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2Configure"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Tier0Session": []
+          }
+        ],
+        "x-audience": "platform-management"
+      }
+    },
+    "/api/node/v1/fleet/execution/infrastructure/snapshot": {
+      "post": {
+        "operationId": "fleetNodeInfrastructureSnapshot",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /infrastructure/snapshot",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/infrastructure/detail": {
+      "post": {
+        "operationId": "fleetNodeInfrastructureDetail",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /infrastructure/detail",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/infrastructure/logs": {
+      "post": {
+        "operationId": "fleetNodeInfrastructureLogs",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /infrastructure/logs",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/infrastructure/restart": {
+      "post": {
+        "operationId": "fleetNodeInfrastructureRestart",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /infrastructure/restart",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/infrastructure/runtime": {
+      "post": {
+        "operationId": "fleetNodeInfrastructureRuntime",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /infrastructure/runtime",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/storage/get": {
+      "post": {
+        "operationId": "fleetNodeStorageGet",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /storage/get",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/storage/save": {
+      "post": {
+        "operationId": "fleetNodeStorageSave",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /storage/save",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/storage/definition": {
+      "post": {
+        "operationId": "fleetNodeStorageDefinition",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /storage/definition",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/storage/target": {
+      "post": {
+        "operationId": "fleetNodeStorageTarget",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /storage/target",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/collections/catalog": {
+      "post": {
+        "operationId": "fleetNodeCollectionsCatalog",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /collections/catalog",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/users/apply": {
+      "post": {
+        "operationId": "fleetNodeUsersApply",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /users/apply",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/runtime/execute": {
+      "post": {
+        "operationId": "fleetNodeRuntimeExecute",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /runtime/execute",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    },
+    "/api/node/v1/fleet/execution/capabilities/get": {
+      "post": {
+        "operationId": "fleetNodeCapabilitiesGet",
+        "tags": [
+          "Fleet"
+        ],
+        "summary": "Target-side Fleet /capabilities/get",
+        "security": [
+          {
+            "FleetTask": []
+          }
+        ],
+        "description": "Requires a scoped node/task token or signed enrollment proof; no user administrator fallback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetV2TransportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetV2Envelope"
+                }
+              }
+            }
+          }
+        },
+        "x-audience": "node-protocol"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FleetV2Envelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "data": {},
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "repair": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "description": "Optional failure details. Known Source failures use HTTP 422 and fixed safe stage/message/repair; path/reason are emitted only for known matching validation categories. No upstream body, credential, SQL or automatic retry guarantee is included."
+          }
+        },
+        "required": [
+          "code",
+          "msg",
+          "requestId",
+          "data"
+        ]
+      },
+      "FleetV2CollectionScopeSave": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "all",
+              "selected"
+            ]
+          },
+          "collectionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 2000,
+            "uniqueItems": true
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "mode",
+          "collectionIds",
+          "expectedRevision"
+        ]
+      },
+      "FleetV2CurrentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "FleetV2AccessSave": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "allowControl": {
+            "type": "boolean",
+            "description": "Optional; omission preserves the saved value. New and legacy installations default to false. Does not cancel admitted actions or block result queries."
+          },
+          "allowSSH": {
+            "type": "boolean"
+          },
+          "allowMetadataWrite": {
+            "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "allowSSH",
+          "allowMetadataWrite",
+          "expectedRevision"
+        ]
+      },
+      "FleetV2AuditRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "auditId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      },
+      "FleetV2RuntimeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "operation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Exact native resource operation name from the shared UNS contract; Fleet does not keep a separate business-resource allowlist."
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "nodeId",
+          "operation",
+          "data"
+        ]
+      },
+      "FleetV2StorageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": []
+      },
+      "FleetV2StorageSaveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "center",
+              "both"
+            ]
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "mode"
+        ]
+      },
+      "FleetV2CollectionSyncRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      },
+      "FleetV2ControlIntent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "controlCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "capabilityVersion": {
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "grantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "grantRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "deviceParameter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deviceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "input": {
+            "type": "object"
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "invocationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "FleetV2ControlGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "allowAutomatic": {
+            "type": "boolean",
+            "default": false
+          },
+          "centerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "controlCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "capabilityVersion": {
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "inputSchema": {
+            "type": "object"
+          },
+          "maxTtlMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000
+          },
+          "minIntervalMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 86400000
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "centerId",
+          "controlCode"
+        ]
+      },
+      "FleetV2TerminalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "containerId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "input": {
+            "type": "string",
+            "maxLength": 16384
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 250
+          },
+          "cols": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 500
+          }
+        },
+        "required": [
+          "nodeId",
+          "sessionId"
+        ]
+      },
+      "FleetV2SSHSetupRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "username": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "connectionMode": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "custom"
+            ]
+          },
+          "authType": {
+            "type": "string",
+            "enum": [
+              "password",
+              "key",
+              "certificate",
+              "ephemeralCertificate"
+            ]
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "credentials": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "password": {
+                "type": "string",
+                "maxLength": 16384,
+                "writeOnly": true
+              },
+              "privateKey": {
+                "type": "string",
+                "maxLength": 65536,
+                "writeOnly": true
+              },
+              "passphrase": {
+                "type": "string",
+                "maxLength": 16384,
+                "writeOnly": true
+              },
+              "certificate": {
+                "type": "string",
+                "maxLength": 32768,
+                "writeOnly": true
+              }
+            },
+            "required": [],
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      },
+      "FleetV2SSHRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "profile": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "nodeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "username": {
+                "type": "string"
+              },
+              "authType": {
+                "type": "string",
+                "enum": [
+                  "key",
+                  "password",
+                  "certificate",
+                  "ephemeralCertificate"
+                ]
+              },
+              "credentialRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "hostKeyFingerprint": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "revision": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "host",
+              "port",
+              "username",
+              "authType",
+              "credentialRef",
+              "hostKeyFingerprint",
+              "enabled"
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "executionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "script": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      },
+      "FleetV2NodeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      },
+      "FleetV2CreateNode": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "FleetV2ListNodes": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "FleetV2Configure": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "centerUrl": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "enrollmentCode": {
+            "type": "string"
+          },
+          "networkNodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "centerUrl",
+          "nodeId",
+          "enrollmentCode"
+        ]
+      },
+      "FleetV2ConnectionBootstrap": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "prepare",
+              "register",
+              "verify"
+            ]
+          },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "proof": {
+            "$ref": "#/components/schemas/FleetV2ConnectionProof"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "clientId",
+          "proof",
+          "signature"
+        ]
+      },
+      "FleetV2ConnectionBootstrapResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "centerType": {
+            "type": "string",
+            "enum": [
+              "enterprise",
+              "cloud"
+            ]
+          },
+          "networkMode": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "tailscale"
+            ]
+          },
+          "centerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "centerPublicKey": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "keyId": {
+            "type": "string"
+          },
+          "registeredAt": {
+            "type": "integer"
+          },
+          "centerUrl": {
+            "type": "string"
+          },
+          "businessEndpoint": {
+            "type": "string"
+          },
+          "centerTlsFingerprint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "centerType",
+          "networkMode",
+          "centerId",
+          "centerPublicKey",
+          "nodeId"
+        ]
+      },
+      "FleetV2NetworkBootstrap": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "inspect": {
+            "type": "boolean"
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "networkNodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "needKey": {
+            "type": "boolean"
+          },
+          "ssh": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "hostPublicKey": {
+                "type": "string",
+                "maxLength": 16384
+              },
+              "username": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "trustedCAFingerprint": {
+                "type": "string"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "nodeId",
+          "clientId",
+          "needKey"
+        ]
+      },
+      "FleetV2NetworkBootstrapResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "centerType": {
+            "type": "string",
+            "enum": [
+              "enterprise",
+              "cloud"
+            ]
+          },
+          "networkMode": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "tailscale"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "loginServer": {
+            "type": "string"
+          },
+          "networkNodeId": {
+            "type": "string"
+          },
+          "authKey": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "ssh": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "caPublicKey": {
+                "type": "string"
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "centerType",
+          "networkMode",
+          "enabled"
+        ]
+      },
+      "FleetV2EnrollRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "proof": {
+            "$ref": "#/components/schemas/FleetV2EnrollmentProof"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proof",
+          "signature"
+        ]
+      },
+      "FleetV2ExchangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "proof": {
+            "$ref": "#/components/schemas/FleetV2ExchangeProof"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proof",
+          "signature"
+        ]
+      },
+      "FleetV2TransportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "resourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "payload": {
+            "type": "object",
+            "description": "Operation-specific body; business data is delivered through Collection storage."
+          }
+        },
+        "required": [
+          "resourceId",
+          "payload"
+        ]
+      },
+      "FleetV2CollectionScopeResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "all",
+              "selected"
+            ]
+          },
+          "collectionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 2000,
+            "uniqueItems": true
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "mode",
+          "collectionIds",
+          "revision"
+        ]
+      },
+      "FleetV2TerminalResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "username": {
+            "type": "string",
+            "description": "Login account captured when this session was created; later profile edits do not change it."
+          },
+          "state": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string",
+            "description": "Stable SSH connection failure code, persisted with the terminal session; empty if no connection failure."
+          },
+          "data": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "integer"
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "remoteTerminationConfirmed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sessionId"
+        ]
+      },
+      "FleetV2SSHSetupResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "hostKeyFingerprint": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "setupState": {
+            "type": "string"
+          },
+          "setupError": {
+            "type": "string",
+            "description": "Stable SSH failure code; includes SSH_PORT_BLOCKED, SSH_POLICY_UNAVAILABLE, SSH_TIMEOUT, SSH_PORT_REFUSED, SSH_AUTH_REJECTED, SSH_HOST_KEY_CHANGED, SSH_CREDENTIAL_INVALID, SSH_HANDSHAKE_FAILED, SSH_PROXY_UNAVAILABLE, SSH_ACCESS_UNAVAILABLE and SSH_CA_PENDING. No credentials or raw transport errors."
+          },
+          "lastCheckedAt": {
+            "type": "integer"
+          },
+          "connectionMode": {
+            "type": "string"
+          },
+          "authType": {
+            "type": "string"
+          },
+          "credentialConfigured": {
+            "type": "boolean"
+          },
+          "defaultUsername": {
+            "type": "string"
+          },
+          "defaultPort": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nodeId",
+          "enabled",
+          "revision",
+          "setupState",
+          "setupError"
+        ]
+      },
+      "FleetV2CapabilitiesResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "protocolVersion": {
+            "type": "integer"
+          },
+          "businessStatus": {
+            "type": "string"
+          },
+          "access": {
+            "$ref": "#/components/schemas/FleetV2AccessResult"
+          }
+        },
+        "required": [
+          "protocolVersion",
+          "businessStatus",
+          "access"
+        ]
+      },
+      "FleetV2AccessResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "allowControl": {
+            "type": "boolean",
+            "description": "Edge-owned remote Control admission switch; defaults to false. Per-Control published capability and grants remain required."
+          },
+          "allowSSH": {
+            "type": "boolean"
+          },
+          "allowMetadataWrite": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "allowSSH",
+          "allowMetadataWrite",
+          "allowControl",
+          "revision"
+        ]
+      },
+      "FleetV2CurrentResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "registrationStatus": {
+            "type": "string"
+          },
+          "installationId": {
+            "type": "string"
+          },
+          "keyId": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "businessStatus": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "description": "Result of a fresh authenticated center probe, independent of persisted registration."
+          },
+          "checkedAt": {
+            "type": "integer"
+          },
+          "connection": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "centerType": {
+                "type": "string",
+                "enum": [
+                  "enterprise",
+                  "cloud"
+                ]
+              },
+              "networkMode": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "tailscale"
+                ]
+              },
+              "businessEndpoint": {
+                "type": "string"
+              },
+              "centerTlsFingerprint": {
+                "type": "string"
+              },
+              "centerId": {
+                "type": "string"
+              },
+              "centerPublicKey": {
+                "type": "string"
+              },
+              "centerUrl": {
+                "type": "string"
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "keyId": {
+                "type": "string"
+              },
+              "registeredAt": {
+                "type": "integer"
+              }
+            },
+            "required": []
+          },
+          "switch": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "network",
+                  "registration",
+                  "verification",
+                  "ready",
+                  "cancelled"
+                ]
+              },
+              "centerUrl": {
+                "type": "string"
+              },
+              "nodeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "errorCode": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "state",
+              "centerUrl",
+              "nodeId",
+              "updatedAt"
+            ]
+          },
+          "network": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "tailscale"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "unavailable",
+                  "unjoined",
+                  "online",
+                  "offline",
+                  "initializing"
+                ]
+              },
+              "nodeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "loginServer": {
+                "type": "string"
+              },
+              "addresses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "errorCode": {
+                "type": "string"
+              },
+              "checkedAt": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "tokenConfigured": {
+            "type": "boolean",
+            "description": "The local Agent retains a configured token. The secret is never returned."
+          },
+          "requestedConnection": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "centerUrl": {
+                "type": "string"
+              },
+              "nodeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "centerUrl",
+              "nodeId",
+              "state"
+            ]
+          },
+          "connectionReason": {
+            "type": "string",
+            "enum": [
+              "BUSINESS_REGISTRATION_PENDING"
+            ],
+            "description": "The requested token target does not match the existing business registration. Do not show the previous center as connected to the new target."
+          },
+          "access": {
+            "$ref": "#/components/schemas/FleetV2AccessResult"
+          },
+          "collectionScope": {
+            "$ref": "#/components/schemas/FleetV2CollectionScopeResult"
+          }
+        },
+        "required": [
+          "enabled",
+          "registrationStatus"
+        ]
+      },
+      "FleetV2SyncedUsersResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "userId": {
+                  "type": "integer"
+                },
+                "userName": {
+                  "type": "string"
+                },
+                "nickName": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "integer"
+                },
+                "isRandomPwd": {
+                  "type": "boolean"
+                },
+                "deletedTime": {
+                  "type": "integer"
+                },
+                "roleList": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "roleId": {
+                        "type": "integer"
+                      },
+                      "roleName": {
+                        "type": "string"
+                      },
+                      "roleCode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": []
+                  }
+                }
+              },
+              "required": []
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "list",
+          "total"
+        ]
+      },
+      "FleetV2CollectionStorageResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "local",
+                  "center",
+                  "both"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "centerId": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "mode",
+              "revision",
+              "centerId",
+              "updatedAt"
+            ]
+          },
+          "effectiveRevision": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "effective"
+            ]
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "A pinned center connection is configured; this does not assert current network availability."
+          },
+          "defaultPending": {
+            "type": "boolean",
+            "description": "First-connection local-and-center default awaits definition synchronization and validation."
+          },
+          "definitions": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "synced": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "synced",
+              "pending",
+              "failed"
+            ]
+          },
+          "deliveryCenterId": {
+            "type": "string",
+            "description": "Identity of the currently saved center binding; empty when none is valid. Delivery counters refer only to this center, not a pending registration candidate."
+          },
+          "historicalDelivery": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "pending": {
+                "type": "integer",
+                "description": "Retained undelivered events for other or no-longer-bound centers, including unknown legacy destinations."
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Historical pending events whose last attempt failed."
+              },
+              "centers": {
+                "type": "integer",
+                "description": "Distinct historical destinations with pending events; an unknown destination counts as one."
+              }
+            },
+            "required": [
+              "pending",
+              "failed",
+              "centers"
+            ]
+          },
+          "delivery": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "received": {
+                "type": "integer",
+                "description": "Accepted events for the saved center binding only, including retained completed events."
+              },
+              "pending": {
+                "type": "integer",
+                "description": "Durable events not yet acknowledged as committed by the center."
+              },
+              "committed": {
+                "type": "integer",
+                "description": "Events acknowledged after the center transaction committed."
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Pending events whose last attempt failed; retained and retried."
+              }
+            },
+            "required": [
+              "received",
+              "pending",
+              "committed",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "policy",
+          "effectiveRevision",
+          "state",
+          "connected",
+          "defaultPending",
+          "definitions",
+          "deliveryCenterId",
+          "delivery",
+          "historicalDelivery"
+        ]
+      },
+      "FleetV2ConnectionProof": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tlsFingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "enrollmentCode": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "networkNodeId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "timestamp": {
+            "type": "integer"
+          },
+          "nonce": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installationId",
+          "nodeId",
+          "publicKey",
+          "timestamp",
+          "nonce"
+        ]
+      },
+      "FleetV2EnrollmentProof": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tlsFingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "enrollmentCode": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "networkNodeId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "timestamp": {
+            "type": "integer"
+          },
+          "nonce": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installationId",
+          "nodeId",
+          "enrollmentCode",
+          "publicKey",
+          "endpoint",
+          "timestamp",
+          "nonce"
+        ]
+      },
+      "FleetV2ExchangeProof": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "consumerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "resourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "timestamp": {
+            "type": "integer"
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "nodeId",
+          "scope",
+          "resourceId",
+          "timestamp",
+          "nonce"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "FleetBootstrap": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "Existing collaboration credential; never a user session."
+      },
+      "FleetTask": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "EdDSA JWT",
+        "description": "Short-lived node/task identity, bound to target, exact operation and resource. Enrollment/exchange instead verify the signed request proof."
+      },
+      "Tier0Session": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Tier0 session with operation-specific platform permission; not an external API key."
+      }
+    }
+  }
+}

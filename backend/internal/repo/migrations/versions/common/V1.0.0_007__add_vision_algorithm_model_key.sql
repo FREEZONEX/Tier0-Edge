@@ -1,0 +1,2 @@
+ALTER TABLE sys_vision_algorithm
+    ADD COLUMN IF NOT EXISTS model_key VARCHAR(512) NOT NULL DEFAULT '';

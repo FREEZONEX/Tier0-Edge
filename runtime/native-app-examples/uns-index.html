@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Tier0 Native App Example</title>
+<style>
+  body { font: 15px system-ui; max-width: 1000px; margin: 32px auto; padding: 16px; }
+  input,select,button,textarea { font: inherit; padding: 8px; margin: 4px 0; }
+  textarea { width: 95%; min-height: 100px; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f4f4f4; padding: 16px; }
+  label { display: block; margin-top: 12px; }
+  [hidden] { display: none; }
+</style>
+<h1 id="title">Tier0 Native App</h1>
+<p>OpenAPI credentials stay in the Node.js server. Data access follows this App's Collection grants.</p>
+<button id="context">Read App context</button>
+<button id="metadata">Read UNS metadata</button>
+<section id="records" hidden>
+  <label>Collection <select id="collection"></select></label>
+  <label>Record ID <input id="record-id" value="example-1"></label>
+  <label>Current revision (required for update/delete) <input id="revision" type="number" min="1" value="1"></label>
+  <label>Business fields as JSON <textarea id="data">{"title":"Native App example","status":"open"}</textarea></label>
+  <button data-action="find">Read records</button>
+  <button data-action="insert">Create record</button>
+  <button data-action="update">Update record</button>
+  <button data-action="delete">Soft-delete record</button>
+</section>
+<pre id="result">Ready</pre>
+<script type="module">
+  const output = document.querySelector('#result');
+  async function request(path, body) {
+    const response = await fetch('./api/' + path, body ? {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    } : {});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || response.statusText);
+    return result;
+  }
+  async function show(action) {
+    try { output.textContent = JSON.stringify(await action(), null, 2); }
+    catch (error) { output.textContent = error.message; }
+  }
+  document.querySelector('#context').onclick = () => show(() => request('context'));
+  document.querySelector('#metadata').onclick = () => show(() => request('metadata'));
+  for (const button of document.querySelectorAll('[data-action]')) {
+    button.onclick = () => show(() => {
+      const action = button.dataset.action;
+      if (action === 'delete' && !confirm('Soft-delete this record?')) return { canceled: true };
+      return request('records', {
+        action, collectionId: document.querySelector('#collection').value,
+        id: document.querySelector('#record-id').value,
+        revision: Number(document.querySelector('#revision').value),
+        data: JSON.parse(document.querySelector('#data').value), idempotencyKey: crypto.randomUUID()
+      });
+    });
+  }
+  try {
+    const config = await request('config');
+    document.title = document.querySelector('#title').textContent = config.title;
+    if (config.mode === 'records') {
+      document.querySelector('#records').hidden = false;
+      const context = await request('context');
+      const select = document.querySelector('#collection');
+      for (const grant of context.collections) select.add(new Option(grant.alias, grant.collectionId));
+      output.textContent = context.collections.length ? 'Choose a granted Collection.' : 'No Collection grants. Add grants when installing this App.';
+    }
+  } catch (error) { output.textContent = error.message; }
+</script>
+</html>

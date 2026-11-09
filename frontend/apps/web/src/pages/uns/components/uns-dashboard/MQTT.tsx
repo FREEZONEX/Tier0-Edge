@@ -12,8 +12,7 @@ import { DataBase } from '@/components/lucide-icon/carbon';
 import styles from './index.module.scss';
 import HelpTooltip from '../../../../components/help-tooltip';
 import useSSE from '@/hooks/useSSE.ts';
-
-const DEFAULT_MQTT_WSS_PORT = '8084';
+import { resolveMqttWebsocketPort, resolveMqttWebsocketUrl } from '@/utils/mqtt';
 
 const Item = ({ item, height = 32, ellipsis = true }: any) => {
   const formatMessage = useTranslate();
@@ -118,17 +117,17 @@ const buildSchemaPayload = (data: any, jsonBFallback: string) => {
 const MQTT = () => {
   const formatMessage = useTranslate();
   const systemInfo = useBaseStore((state) => state.systemInfo);
-  const wsPort = systemInfo?.mqttWebsocketTslPort || DEFAULT_MQTT_WSS_PORT;
+  const mqttUrl = resolveMqttWebsocketUrl(systemInfo);
+  const mqttPort = resolveMqttWebsocketPort(mqttUrl);
   const endpointOptions = useMemo(
     () => [
       {
-        label: `WSS ${wsPort}`,
-        value: 'wss',
-        port: wsPort,
-        url: `wss://${window.location.hostname}:${wsPort}/mqtt`,
+        label: `${mqttUrl.startsWith('wss:') ? 'WSS' : 'WS'} ${mqttPort}`,
+        value: 'websocket',
+        url: mqttUrl,
       },
     ],
-    [wsPort]
+    [mqttPort, mqttUrl]
   );
   const [endpointType, setEndpointType] = useState(endpointOptions[0].value);
   const currentEndpoint = endpointOptions.find((item) => item.value === endpointType) || endpointOptions[0];
@@ -145,10 +144,6 @@ const MQTT = () => {
   const [schemaPayload, setSchemaPayload] = useState('');
   const [realtimePayload, setRealtimePayload] = useState('');
   const selectedTopicId = topicInfo?.id;
-
-  useEffect(() => {
-    setEndpointType(endpointOptions[0].value);
-  }, [endpointOptions]);
 
   useEffect(() => {
     setRealtimePayload('');

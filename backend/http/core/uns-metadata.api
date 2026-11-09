@@ -1,0 +1,75 @@
+// Legacy DTOs retained for the OpenAPI v1 adapter. Internal pages use UNS v2.
+syntax = "v1"
+
+type UnsMetaEnvelope {
+    code int `json:"code"`
+    msg string `json:"msg"`
+    data interface{} `json:"data,optional"`
+}
+type UnsMetaListReq {
+    kind string `form:"kind,optional"`
+    deleted bool `form:"deleted,optional"`
+    page int `form:"page,optional"`
+    size int `form:"size,optional"`
+}
+type UnsMetaSaveReq {
+    id string `json:"id,optional"`
+    kind string `json:"kind"`
+    expectedRevision int64 `json:"expectedRevision"`
+    document interface{} `json:"document"`
+}
+type UnsMetaCopyReq {
+    id string `path:"id"`
+    expectedRevision int64 `json:"expectedRevision"`
+    parentId string `json:"parentId,optional"`
+    name string `json:"name,optional"`
+    description *string `json:"description,optional"`
+}
+
+type UnsMetaStateReq {
+    id string `path:"id"`
+    expectedRevision int64 `json:"expectedRevision"`
+    restore bool `json:"restore"`
+}
+type UnsMetaViewReq { id string `path:"id"` }
+
+type UnsCollectionCreateReq {
+    parentId string `json:"parentId,optional"`
+    document interface{} `json:"document"`
+}
+type UnsRecordListReq {
+    collectionId string `path:"collectionId"`
+    search string `form:"search,optional"`
+    page int `form:"page,optional"`
+    size int `form:"size,optional"`
+}
+type UnsRecordSaveReq {
+    collectionId string `path:"collectionId"`
+    id string `json:"id"`
+    expectedRevision int64 `json:"expectedRevision"`
+    data interface{} `json:"data"`
+}
+type UnsRecordDeleteReq {
+    collectionId string `path:"collectionId"`
+    recordId string `path:"recordId"`
+    expectedRevision int64 `json:"expectedRevision"`
+}
+type UnsSampleListReq {
+    collectionId string `path:"collectionId"`
+    recordId string `form:"recordId"`
+    startTime int64 `form:"startTime,optional"`
+    endTime int64 `form:"endTime,optional"`
+    page int `form:"page,optional"`
+    size int `form:"size,optional"`
+}
+type UnsSampleAppendReq {
+    collectionId string `path:"collectionId"`
+    samples interface{} `json:"samples"`
+}
+
+
+type UnsTopicValidateReq {
+ id string `json:"id,optional"`
+ expectedRevision int64 `json:"expectedRevision"`
+ document interface{} `json:"document"`
+}

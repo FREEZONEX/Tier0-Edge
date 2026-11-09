@@ -1,5 +1,0 @@
-node-red-contrib-modbus@5.43.0
-node-red-contrib-opcua@0.2.339
-@tier0/node-red-contrib-opcda-client@1.0.9
-node-red-contrib-buffer-parser@3.2.2
-node-red-contrib-postgresql@0.14.2

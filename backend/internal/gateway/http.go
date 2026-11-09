@@ -10,52 +10,111 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
+	"backend/internal/appgateway"
 	"backend/internal/config"
 	"backend/internal/contextx"
 	"backend/internal/domain/auth"
-	flowdomain "backend/internal/domain/flow"
+	"backend/internal/domain/fleettunnel"
+	"backend/internal/httpx"
 	"backend/internal/permission"
 	"backend/internal/repo"
 	"backend/internal/secrets"
 )
 
 type HTTPGateway struct {
-	config     config.GatewayConf
-	auth       *auth.Service
-	permission *permission.Evaluator
-	routes     *repo.GatewayRepo
-	flow       *flowdomain.Service
+	nativeApps          NativeAppResolver
+	config              config.GatewayConf
+	auth                *auth.Service
+	permission          *permission.Evaluator
+	routes              *repo.GatewayRepo
+	fleetTunnel         *fleettunnel.Service
+	s3Proxy             *S3Proxy
+	aiProxy             *AIProxy
+	legacyFlowsDisabled bool
 }
 
-type runtimeConfig struct{}
+func (g *HTTPGateway) BindFleetTunnel(tunnel *fleettunnel.Service) {
+	if g != nil {
+		g.fleetTunnel = tunnel
+	}
+}
+
+type runtimeConfig struct {
+	LaunchpadPort       string `json:"launchpadPort"`
+	LaunchpadStandalone bool   `json:"launchpadStandalone"`
+	SourceStreamEnabled bool   `json:"sourceStreamEnabled"`
+}
 
 const internalProxyTokenHeader = "X-Tier0-Internal-Token"
 
-func NewHTTPGateway(ctx context.Context, c config.GatewayConf, authSvc *auth.Service, perm *permission.Evaluator, flowSvc *flowdomain.Service) *HTTPGateway {
+// DisableLegacyFlows blocks both generated API routes and old proxy routes.
+// Hiding a menu alone would still allow Node-RED requests from saved URLs.
+func (g *HTTPGateway) DisableLegacyFlows() { g.legacyFlowsDisabled = true }
+
+func legacyFlowPath(path string) bool {
+	path = strings.ToLower(strings.TrimRight(path, "/"))
+	for _, prefix := range []string{"/marimo", "/api/core/notebooks", "/api/core/notebook-folders", "/api/core/notebook-import", "/flow", "/sourceflow", "/eventflow", "/nodered", "/api/core/flows", "/openapi/v1/flow", "/openapi/v1/flows"} {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return path == "/openapi/v1/uns/unsbindflow"
+}
+
+func NewHTTPGateway(ctx context.Context, c config.GatewayConf, authSvc *auth.Service, perm *permission.Evaluator, s3Proxy *S3Proxy, aiProxy *AIProxy) *HTTPGateway {
 	return &HTTPGateway{
 		config:     c,
 		auth:       authSvc,
 		permission: perm,
 		routes:     repo.NewGatewayRepo(ctx),
-		flow:       flowSvc,
+		s3Proxy:    s3Proxy,
+		aiProxy:    aiProxy,
 	}
 }
 
 func (g *HTTPGateway) Handle(w http.ResponseWriter, r *http.Request) bool {
-	return g.handle(w, r)
+	return g.handle(w, r, false)
 }
 
-func (g *HTTPGateway) handle(w http.ResponseWriter, r *http.Request) bool {
+func (g *HTTPGateway) HandleLaunchpad(w http.ResponseWriter, r *http.Request) bool {
+	return g.handle(w, r, true)
+}
+
+func (g *HTTPGateway) handle(w http.ResponseWriter, r *http.Request, launchpadStandalone bool) bool {
+	if g.handleNativeApp(w, r) {
+		return true
+	}
+	if r.URL.Path == "/mcp-authorize" {
+		// 用户授权页不允许嵌入 iframe，避免点击劫持；不影响其它平台页面。
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	if legacyFlowPath(r.URL.Path) || retiredComponentPath(r.URL.Path) {
+		http.Error(w, "This component has been retired", http.StatusGone)
+		return true
+	}
 	if r.URL.Path == "/runtime-env.js" {
-		g.serveRuntimeEnv(w, r)
+		g.serveRuntimeEnv(w, r, launchpadStandalone)
 		return true
 	}
 	if r.Method == http.MethodGet && (r.URL.Path == "/api/health" || r.URL.Path == "/api/health/") {
 		g.serveHealth(w)
+		return true
+	}
+	if !launchpadStandalone && g.fleetTunnel != nil && g.fleetTunnel.TryHandleConnect(w, r) {
+		return true
+	}
+
+	if g.aiProxy != nil && g.aiProxy.TryProxy(w, r) {
+		return true
+	}
+	// /mqtt 浏览器 WebSocket 入口：先于 SPA fallback 等通用路由拦截，代理到 EMQX。
+	if g.tryMQTTWebSocket(w, r) {
 		return true
 	}
 	if isInternalPath(r.URL.Path) {
@@ -68,18 +127,25 @@ func (g *HTTPGateway) handle(w http.ResponseWriter, r *http.Request) bool {
 	// S3 object-storage prefixes are proxied before the configured gateway
 	// routes: presigned URLs rewritten to the platform entrance must reach the
 	// object store with the signing host/path intact for SigV4 verification.
+	if g.s3Proxy != nil && g.s3Proxy.TryProxy(w, r) {
+		return true
+	}
 	if g.tryGatewayRoute(w, r) {
 		return true
 	}
 	return false
 }
 
-func (g *HTTPGateway) serveRuntimeEnv(w http.ResponseWriter, r *http.Request) {
+func (g *HTTPGateway) serveRuntimeEnv(w http.ResponseWriter, r *http.Request, launchpadStandalone bool) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	payload, err := json.Marshal(runtimeConfig{})
+	payload, err := json.Marshal(runtimeConfig{
+		LaunchpadPort:       strings.TrimSpace(g.config.LaunchpadPort),
+		LaunchpadStandalone: launchpadStandalone,
+		SourceStreamEnabled: g.legacyFlowsDisabled,
+	})
 	if err != nil {
 		http.Error(w, "runtime config unavailable", http.StatusInternalServerError)
 		return
@@ -92,103 +158,6 @@ func (g *HTTPGateway) serveRuntimeEnv(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("window.__TIER0_RUNTIME_CONFIG__ = "))
 	_, _ = w.Write(payload)
 	_, _ = w.Write([]byte(";\n"))
-}
-
-func (g *HTTPGateway) serveNodeRedFlowPayload(w http.ResponseWriter, r *http.Request, route repo.GatewayRoute) bool {
-	flowType, idParam, cookieName, ok := nodeRedFlowPayloadRoute(r.URL.Path)
-	if !ok {
-		http.Error(w, "unsupported flow payload route", http.StatusBadGateway)
-		return true
-	}
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return true
-	}
-	if !g.authorizeRoute(w, r, route) {
-		return true
-	}
-
-	flowID := strings.TrimSpace(r.URL.Query().Get(idParam))
-	if flowID == "" {
-		flowID = flowIDFromReferer(r.Referer(), idParam)
-	}
-	if flowID == "" {
-		if c, err := r.Cookie(cookieName); err == nil {
-			flowID = strings.TrimSpace(c.Value)
-		}
-	}
-	if flowID == "" {
-		writeNodeRedPayload(w, flowdomain.EmptyEditorPayload())
-		return true
-	}
-
-	id, err := strconv.ParseInt(flowID, 10, 64)
-	if err != nil || id <= 0 {
-		http.Error(w, "invalid flow id", http.StatusBadRequest)
-		return true
-	}
-	if g.flow == nil {
-		http.Error(w, "flow service unavailable", http.StatusServiceUnavailable)
-		return true
-	}
-	payload, err := g.flow.EditorPayload(r.Context(), int64(flowType), id)
-	if err != nil {
-		if errors.Is(err, flowdomain.ErrNotFound) {
-			http.Error(w, "flow not found", http.StatusNotFound)
-			return true
-		}
-		if errors.Is(err, flowdomain.ErrInvalid) {
-			http.Error(w, "invalid flow", http.StatusBadRequest)
-			return true
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return true
-	}
-	writeNodeRedPayload(w, payload)
-	return true
-}
-
-func nodeRedFlowPayloadRoute(path string) (int, string, string, bool) {
-	parts := splitPathSegments(path)
-	if len(parts) != 2 && len(parts) != 3 {
-		return 0, "", "", false
-	}
-	if len(parts) == 2 && parts[1] != "flows" {
-		return 0, "", "", false
-	}
-	if len(parts) == 3 && (parts[1] != "home" || parts[2] != "flows") {
-		return 0, "", "", false
-	}
-	switch parts[0] {
-	case "nodered":
-		return 1, "flowId", "flowId", true
-	case "eventflow":
-		return 2, "flowId", "flowId", true
-	default:
-		return 0, "", "", false
-	}
-}
-
-func flowIDFromReferer(referer, param string) string {
-	if strings.TrimSpace(referer) == "" {
-		return ""
-	}
-	u, err := url.Parse(referer)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(u.Query().Get(param))
-}
-
-func writeNodeRedPayload(w http.ResponseWriter, payload flowdomain.EditorPayload) {
-	if payload.Flows == nil {
-		payload.Flows = []map[string]any{}
-	}
-	if payload.Credentials == nil {
-		payload.Credentials = map[string]map[string]string{}
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"flows": payload.Flows, "rev": payload.Rev, "credentials": payload.Credentials})
 }
 
 func (g *HTTPGateway) tryGatewayRoute(w http.ResponseWriter, r *http.Request) bool {
@@ -211,8 +180,6 @@ func (g *HTTPGateway) tryGatewayRoute(w http.ResponseWriter, r *http.Request) bo
 			}
 			g.proxy(w, r, route)
 			return true
-		case "flowPayload":
-			return g.serveNodeRedFlowPayload(w, r, route)
 		case "static":
 			if !g.authorizeRoute(w, r, route) {
 				return true
@@ -325,6 +292,10 @@ func (g *HTTPGateway) authorizeRoute(w http.ResponseWriter, r *http.Request, rou
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return false
 		}
+		if subject.APIKeyUsageType == repo.APIKeyUsageAppData {
+			http.Error(w, "App data keys require OpenAPI v2", http.StatusForbidden)
+			return false
+		}
 		// 收窄策略：/flow/{source|event}/** 只放开 http in 节点接口，
 		// 拦截 Node-RED Admin API 固定路径（/flows /flow /nodes /settings /comms 等）。
 		if isFlowAPIProxyRoute(route) && isNodeRedAdminPath(r.URL.Path) {
@@ -375,8 +346,8 @@ func (g *HTTPGateway) proxy(w http.ResponseWriter, r *http.Request, route repo.G
 		req.URL.Path = rewriteProxyPath(r.URL.Path, route)
 		req.URL.RawPath = ""
 		req.Host = target.Host
-		req.Header.Set("X-Forwarded-Host", r.Host)
-		req.Header.Set("X-Forwarded-Proto", forwardedProto(r))
+		req.Header.Set("X-Forwarded-Host", httpx.ForwardedHost(r, g.config.TrustProxyHeaders))
+		req.Header.Set("X-Forwarded-Proto", httpx.ForwardedProto(r, g.config.TrustProxyHeaders))
 		injectInternalProxyAuth(req, route)
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -416,21 +387,36 @@ func rewriteProxyLocation(resp *http.Response, route repo.GatewayRoute, target *
 }
 
 func relaxEmbeddedProxyHeaders(resp *http.Response, route repo.GatewayRoute) {
-	if strings.HasPrefix(route.PathPattern, "/emqx/") {
+	if strings.HasPrefix(route.PathPattern, "/marimo/") ||
+		strings.HasPrefix(route.PathPattern, "/emqx/") {
 		resp.Header.Del("Content-Security-Policy")
 		resp.Header.Del("X-Frame-Options")
 	}
 }
 
 func injectInternalProxyAuth(req *http.Request, route repo.GatewayRoute) {
-	if strings.HasPrefix(route.PathPattern, "/nodered/") || strings.HasPrefix(route.PathPattern, "/eventflow/") {
+	switch {
+	case strings.HasPrefix(route.PathPattern, "/nodered/"),
+		strings.HasPrefix(route.PathPattern, "/eventflow/"),
+		strings.HasPrefix(route.PathPattern, "/flow/source/"),
+		strings.HasPrefix(route.PathPattern, "/flow/event/"):
 		if token := secrets.InternalToken("NODERED_INTERNAL_TOKEN"); token != "" {
 			req.Header.Set(internalProxyTokenHeader, token)
+		}
+	case strings.HasPrefix(route.PathPattern, "/marimo/"):
+		if token := secrets.InternalToken("MARIMO_INTERNAL_TOKEN"); token != "" {
+			req.Header.Set(internalProxyTokenHeader, token)
+			req.SetBasicAuth("tier0", token)
+			req.Header.Set("Marimo-Server-Token", token)
 		}
 	}
 }
 
 // 独立打包的子应用（同源 iframe 承载），目录位于 WebDir/<name>，需要各自的 SPA index 回退
+var subAppPrefixes = []string{"anchor"}
+
+// SPA 的 index.html 不能被浏览器启发式缓存（否则发版后用户拿到旧 HTML → 旧 JS）；
+// Vite 产物 assets/ 下的文件名带内容 hash，可长期 immutable 缓存。
 func serveSPAFile(w http.ResponseWriter, r *http.Request, filePath string) {
 	if strings.HasSuffix(filePath, "index.html") {
 		w.Header().Set("Cache-Control", "no-cache")
@@ -440,7 +426,46 @@ func serveSPAFile(w http.ResponseWriter, r *http.Request, filePath string) {
 	http.ServeFile(w, r, filePath)
 }
 
+func (g *HTTPGateway) serveSubApp(w http.ResponseWriter, r *http.Request) bool {
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	name := ""
+	for _, prefix := range subAppPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			name = prefix
+			break
+		}
+	}
+	if name == "" {
+		return false
+	}
+	// 开发代理（显式设置 ANCHOR_DEV_PROXY_URL 才生效）：/anchor/* 同源转发到本机 Vite dev server，
+	// HMR 的 WebSocket upgrade 由 ReverseProxy 原生透传
+	if name == "anchor" && strings.TrimSpace(g.config.AnchorDevProxyUrl) != "" {
+		g.proxyDevUpstream(w, r, g.config.AnchorDevProxyUrl)
+		return true
+	}
+	webDir := g.config.WebDir
+	if webDir == "" {
+		webDir = "./web"
+	}
+	indexPath := filepath.Join(webDir, name, "index.html")
+	if _, err := os.Stat(indexPath); err != nil {
+		// 子应用未随镜像打包时退回默认行为（本地前端 dev 代理或主应用 index）
+		return false
+	}
+	filePath := filepath.Join(webDir, filepath.FromSlash(path))
+	if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+		serveSPAFile(w, r, filePath)
+		return true
+	}
+	serveSPAFile(w, r, indexPath)
+	return true
+}
+
 func (g *HTTPGateway) serveStatic(w http.ResponseWriter, r *http.Request) {
+	if g.serveSubApp(w, r) {
+		return
+	}
 	if g.config.LocalFrontendDev && strings.TrimSpace(g.config.FrontendDevUrl) != "" {
 		g.proxyFrontendDev(w, r)
 		return
@@ -496,8 +521,8 @@ func (g *HTTPGateway) proxyDevUpstream(w http.ResponseWriter, r *http.Request, u
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
 		req.Host = r.Host
-		req.Header.Set("X-Forwarded-Host", r.Host)
-		req.Header.Set("X-Forwarded-Proto", forwardedProto(r))
+		req.Header.Set("X-Forwarded-Host", httpx.ForwardedHost(r, g.config.TrustProxyHeaders))
+		req.Header.Set("X-Forwarded-Proto", httpx.ForwardedProto(r, g.config.TrustProxyHeaders))
 		// Vite dev server rejects oversized Cookie headers with 431; static/HMR assets do not need them.
 		req.Header.Del("Cookie")
 	}
@@ -508,8 +533,17 @@ func (g *HTTPGateway) proxyDevUpstream(w http.ResponseWriter, r *http.Request, u
 }
 
 func isInternalPath(path string) bool {
+	// 原生 MCP/OAuth 交给 Backend 的协议鉴权，不能被 GET SPA fallback 当作 HTML。
+	if path == "/mcp" || strings.HasPrefix(path, "/mcp/oauth/") ||
+		path == "/.well-known/oauth-protected-resource" || path == "/.well-known/oauth-protected-resource/mcp" ||
+		path == "/.well-known/oauth-authorization-server" || path == "/.well-known/openid-configuration" {
+		return true
+	}
 	return strings.HasPrefix(path, "/api/core/") ||
+		strings.HasPrefix(path, "/api/fleet/") ||
+		strings.HasPrefix(path, "/api/node/v1/fleet/") ||
 		strings.HasPrefix(path, "/openapi/v1/") ||
+		strings.HasPrefix(path, "/openapi/v2/") ||
 		path == "/healthz" ||
 		path == "/readyz" ||
 		path == "/metrics"
@@ -599,11 +633,47 @@ func isDeniedTarget(target *url.URL) bool {
 	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate()
 }
 
-func forwardedProto(r *http.Request) string {
-	if r.TLS != nil {
-		return "https"
+// matchesLaunchpadDomain 判断请求 Host（剥端口后）是否等于 Launchpad 独立站点域名。
+// launchpadDomain 为空（未配置）时返回 false。
+func matchesLaunchpadDomain(host, launchpadDomain string) bool {
+	lp := strings.TrimSpace(launchpadDomain)
+	if lp == "" {
+		return false
 	}
-	return "http"
+	h := host
+	if strings.Contains(h, ":") {
+		if hh, _, err := net.SplitHostPort(h); err == nil {
+			h = hh
+		}
+	}
+	return strings.EqualFold(h, lp)
+}
+
+// HandleDispatch 主入口统一分流（HTTP 与 HTTPS listener 共用）：
+//  1. Launchpad 域名（config.Gateway.LaunchpadDomain）→ HandleLaunchpad（独立站点模式）
+//  2. 持久化 App 域名或通配域名（*.<AppGateway.SubdomainSuffix>）→ AppGateway
+//  3. 其他 → 主站 HTTPGateway.Handle；未处理则交给 next（go-zero 路由）
+func (g *HTTPGateway) HandleDispatch(w http.ResponseWriter, r *http.Request, next http.Handler) {
+	if matchesLaunchpadDomain(r.Host, g.config.LaunchpadDomain) {
+		if g.HandleLaunchpad(w, r) {
+			return
+		}
+		// HandleLaunchpad 未处理（非 Launchpad 路径）→ 交给 go-zero
+		next.ServeHTTP(w, r)
+		return
+	}
+
+	// 持久化精确域名必须独立于当前默认 access mode/suffix 保持可访问；
+	// 当前通配 suffix 下的未知域名也交给 AppGateway 返回明确的 App 404。
+	if appgateway.MatchesDomainHost(r.Host) {
+		appgateway.HandleHTTP(w, r)
+		return
+	}
+
+	if g.Handle(w, r) {
+		return
+	}
+	next.ServeHTTP(w, r)
 }
 
 func WithHTTPGateway(gateway *HTTPGateway) func(*http.Server) {
@@ -613,7 +683,19 @@ func WithHTTPGateway(gateway *HTTPGateway) func(*http.Server) {
 		}
 		next := svr.Handler
 		svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if gateway.Handle(w, r) {
+			gateway.HandleDispatch(w, r, next)
+		})
+	}
+}
+
+func WithLaunchpadHTTPGateway(gateway *HTTPGateway) func(*http.Server) {
+	return func(svr *http.Server) {
+		if svr == nil || svr.Handler == nil || gateway == nil {
+			return
+		}
+		next := svr.Handler
+		svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if gateway.HandleLaunchpad(w, r) {
 				return
 			}
 			next.ServeHTTP(w, r)

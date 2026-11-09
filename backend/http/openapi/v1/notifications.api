@@ -1,0 +1,67 @@
+syntax = "v1"
+
+// 消息通知 OpenAPI（TASK-030）：兼容云端字段与响应，企业内网部署额外支持 HTTP 通知链接。
+// 已接入云端的应用仅改 base URL 即可使用。
+// 校验规则修改必须三处同步：本文件注释、domain/notify/validate.go、公开 swagger。
+type (
+	// NotificationSender 发送方标识：自报值，仅展示/导航提示，不可作安全判断依据
+	NotificationSender {
+		Type string            `json:"type,optional"` // 枚举 app/other，缺省 other
+		Id   string            `json:"id,optional"`   // app 必填；字符集 [0-9a-zA-Z-]{1,128}
+		Name string            `json:"name,optional"` // ≤100；接替废弃的 source
+		Meta map[string]string `json:"meta,optional"` // 序列化后 ≤500 字节
+	}
+	SendNotificationReq {
+		RecipientUserId string              `json:"recipientUserId"` // 大整数按 string 承载，避免 JS 精度丢失
+		Type            string              `json:"type"`            // 本期仅 inbox
+		Title           string              `json:"title"`           // ≤50
+		Content         string              `json:"content"`         // ≤800
+		IdempotencyKey  string              `json:"idempotencyKey"`  // ≤128，幂等键
+		Source          string              `json:"source,optional"` // 已废弃：过渡期作 sender.name 别名（sender.name 优先）
+		Mode            string              `json:"mode,optional"`   // test/live，缺省 live；test 标题加 [Test] 前缀
+		Channels        []string            `json:"channels,optional"` // 元素 web/mobile；不传或空=静默消息（仅站内信）
+		Sender          *NotificationSender `json:"sender,optional"`
+		Link            string              `json:"link,optional"` // 企业内网支持 http://、https:// 或 / 开头；≤500 字节，禁止凭据、空白、控制/不可见字符、反斜杠及 //host
+	}
+)
+
+type SendNotificationResp {
+	MessageId string `json:"messageId"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type GetNotificationReq {
+	MessageId string `json:"messageId"`
+}
+
+type GetNotificationResp {
+	MessageId   string `json:"messageId"`
+	Type        string `json:"type"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
+	CompletedAt string `json:"completedAt,optional"`
+	ErrorCode   string `json:"errorCode,optional"`
+	Message     string `json:"message,optional"`
+}
+
+@server(
+	group: openapi/v1/notifications
+	prefix: /openapi/v1
+	middleware: ApiKeyAuth
+)
+service backend {
+	@doc(
+		summary: "发送消息通知"
+		description: "发送消息通知：向平台内用户发送站内信；错误体为 {errorCode,message} + 真实 HTTP 状态码（与云端一致）"
+	)
+	@handler sendNotification
+	post /notifications/send (SendNotificationReq) returns (SendNotificationResp)
+
+	@doc(
+		summary: "查询消息通知发送状态"
+		description: "按 messageId 查询，归属校验锚定发起请求的 API Key；非本 Key 消息按 404 处理"
+	)
+	@handler getNotification
+	post /notifications/get (GetNotificationReq) returns (GetNotificationResp)
+}

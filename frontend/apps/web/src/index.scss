@@ -56,6 +56,47 @@
     sans-serif !important ;
 }
 
+// 全局置顶按钮：Lucide Pin + 统一点击区与状态语言
+.ui-pin-button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  color: var(--ui-description-card-color) !important;
+  cursor: pointer;
+  background: var(--ui-bg-color) !important;
+  border: 1px solid var(--ui-active-bg-color) !important;
+  border-radius: 4px !important;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--ui-warning-color) !important;
+    border-color: var(--ui-select-d-color) !important;
+  }
+
+  svg {
+    display: block;
+    width: 12px !important;
+    height: 12px !important;
+    fill: none;
+  }
+}
+
+.ui-pin-button-active {
+  color: var(--ui-warning-color) !important;
+
+  svg {
+    fill: currentColor;
+  }
+}
+
 .cm-editor,
 .cm-editor .cm-scroller,
 .cm-editor .cm-content,
@@ -92,10 +133,24 @@ iframe {
 
 /* 默认主题（明亮主题） */
 :root {
+  /* Kind colors are independent of health, permission and severity. */
+  --ui-graph-directory: #5b7fb3;
+  --ui-graph-topic: #247c91;
+  --ui-graph-collection: #917235;
+  --ui-graph-source: #6e69b4;
+  --ui-graph-stream: #8f5e98;
+  --ui-graph-source-state: #39797d;
+  --ui-graph-app: #ad6c55;
+  --ui-graph-task: #707c8e;
+  --ui-graph-source-plan: #927f9f;
+  --ui-graph-source-version: #637da0;
+  --ui-graph-subscription: #7b8450;
+  --ui-graph-record: #82939f;
   --ui-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --ui-text-color: var(--ui-t-gray-color-100);
   --ui-anti-text-color: var(--ui-t-white-color);
   --ui-bg-color: var(--ui-t-white-color);
+  --ui-loading-color: var(--ui-t-chartreuse-color-60);
   --ui-header-bg-color: var(--ui-t-white-color);
   --ui-color-fill: rgb(0 0 0 / 15%);
   --ui-check-color: #050b14;
@@ -158,6 +213,7 @@ iframe {
   // 任务状态胶囊(设计稿 Secondary/Blue、Secondary/Warning、Secondary/Error、Primary/Grey)
   --ui-status-running-bg: #a7f0ba;
   --ui-status-running-color: #0e6027;
+  --ui-success-color: #24a148;
   --ui-status-starting-bg: #b0dfff;
   --ui-status-starting-color: #00548c;
   --ui-status-warning-bg: #fff2cb;
@@ -278,6 +334,18 @@ iframe {
 
 /* dark Theme */
 .dark {
+  --ui-graph-directory: #96b4da;
+  --ui-graph-topic: #73b9c7;
+  --ui-graph-collection: #c7ab6f;
+  --ui-graph-source: #aaa6db;
+  --ui-graph-stream: #c79cce;
+  --ui-graph-source-state: #85babc;
+  --ui-graph-app: #d8a591;
+  --ui-graph-task: #a7b3c5;
+  --ui-graph-source-plan: #c3b2d1;
+  --ui-graph-source-version: #a0b8d9;
+  --ui-graph-subscription: #b7c38b;
+  --ui-graph-record: #a4bac6;
   --ui-codemirror-gutter-border: rgb(255 255 255 / 30%);
   --ui-craft-bg-color: var(--ui-t-gray-color-90);
   --ui-line-color: var(--ui-t-gray-color-80);
@@ -344,6 +412,7 @@ iframe {
   // 暗色下状态胶囊压深底色、提亮文字
   --ui-status-running-bg: #0e6027;
   --ui-status-running-color: #a7f0ba;
+  --ui-success-color: #42be65;
   --ui-status-starting-bg: #00548c;
   --ui-status-starting-color: #b0dfff;
   --ui-status-warning-bg: #5c4b12;
@@ -477,6 +546,18 @@ iframe {
 }
 // chartreuseDark 用来覆盖亮绿色主题和其它暗主题保持一致
 .chartreuseDark {
+  --ui-graph-directory: #96b4da;
+  --ui-graph-topic: #73b9c7;
+  --ui-graph-collection: #c7ab6f;
+  --ui-graph-source: #aaa6db;
+  --ui-graph-stream: #c79cce;
+  --ui-graph-source-state: #85babc;
+  --ui-graph-app: #d8a591;
+  --ui-graph-task: #a7b3c5;
+  --ui-graph-source-plan: #c3b2d1;
+  --ui-graph-source-version: #a0b8d9;
+  --ui-graph-subscription: #b7c38b;
+  --ui-graph-record: #a4bac6;
   --ui-card-hover-color: var(--ui-t-gray-color-80);
   --ui-select-active-color: var(--ui-t-chartreuse-color-100);
   --ui-menu-active-color: var(--ui-t-chartreuse-color-100);
@@ -1088,6 +1169,28 @@ input::placeholder {
 }
 
 // 全局分页样式
+.ant-table-wrapper .ant-table-pagination {
+  width: 100%;
+  margin: auto 0 0 !important;
+  padding: 12px 0;
+  border-top: 1px solid var(--ui-border-color);
+  justify-content: flex-end;
+
+  .ant-pagination-total-text {
+    display: none;
+  }
+}
+
+.ant-pagination .ant-pagination-item-active {
+  border-color: transparent !important;
+  background: transparent !important;
+
+  a {
+    color: var(--ui-text-color) !important;
+    font-weight: 400;
+  }
+}
+
 .custom-pagination {
   .ant-pagination-item,
   .ant-pagination-options-quick-jumper,
@@ -1095,13 +1198,18 @@ input::placeholder {
     background-color: var(--ui-header-bg-color) !important;
   }
 
-  .ant-pagination-item-active,
   .ant-pagination-options-quick-jumper input:focus-within {
     border-color: var(--ui-theme-color) !important;
   }
 
+  .ant-pagination-item-active {
+    border-color: transparent !important;
+    background: transparent !important;
+  }
+
   .ant-pagination-item-active a {
-    color: var(--ui-theme-color) !important;
+    color: var(--ui-text-color) !important;
+    font-weight: 400;
   }
 }
 

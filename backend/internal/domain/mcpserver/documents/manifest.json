@@ -1,0 +1,114 @@
+[
+  {
+    "id": "connect.zh-CN",
+    "title": "MCP 连接、认证与排障",
+    "language": "zh-CN",
+    "file": "connect.zh-CN.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "connect.en-US",
+    "title": "MCP connection, authentication and troubleshooting",
+    "language": "en-US",
+    "file": "connect.en-US.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "uns.zh-CN",
+    "title": "UNS Collection、Record、Sample 与显式关联",
+    "language": "zh-CN",
+    "file": "uns.zh-CN.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "uns.en-US",
+    "title": "UNS Collection, Record, Sample and explicit relations",
+    "language": "en-US",
+    "file": "uns.en-US.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "clients.zh-CN",
+    "title": "OpenAPI 读写、SDK 和 CLI 调用",
+    "language": "zh-CN",
+    "file": "clients.zh-CN.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "clients.en-US",
+    "title": "OpenAPI read/write, SDK and CLI calls",
+    "language": "en-US",
+    "file": "clients.en-US.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "mapping.zh-CN",
+    "title": "Source/Stream 脱敏映射及状态",
+    "language": "zh-CN",
+    "file": "mapping.zh-CN.md",
+    "permissions": [
+      "uns.read",
+      "uns.source",
+      "uns.stream"
+    ]
+  },
+  {
+    "id": "mapping.en-US",
+    "title": "Redacted Source/Stream mappings and state",
+    "language": "en-US",
+    "file": "mapping.en-US.md",
+    "permissions": [
+      "uns.read",
+      "uns.source",
+      "uns.stream"
+    ]
+  },
+  {
+    "id": "mcp-write-zh-CN",
+    "title": "MCP 显式写入与批量预览",
+    "language": "zh-CN",
+    "file": "write.zh-CN.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "mcp-write-en-US",
+    "title": "Explicit MCP writes and batch previews",
+    "language": "en-US",
+    "file": "write.en-US.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "discovery.zh-CN",
+    "title": "UNS 对象发现、完整契约与安全更新",
+    "language": "zh-CN",
+    "file": "discovery.zh-CN.md",
+    "permissions": [
+      "uns.read"
+    ]
+  },
+  {
+    "id": "discovery.en-US",
+    "title": "UNS discovery, complete contracts and safe updates",
+    "language": "en-US",
+    "file": "discovery.en-US.md",
+    "permissions": [
+      "uns.read"
+    ]
+  }
+]

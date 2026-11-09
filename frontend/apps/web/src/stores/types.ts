@@ -29,6 +29,7 @@ export interface UserInfoProps {
    * */
   roleList?: { roleDescription: string; roleId: string; roleName: string }[];
   roleString?: string;
+  roleCode?: string;
   /**
    * @description 页面 /xxx   用户资源组
    * */
@@ -37,6 +38,8 @@ export interface UserInfoProps {
   homePage?: string;
   // 是否是超管
   superAdmin?: boolean;
+  // 后端返回的资源权限，用于与 API 的对象读取范围保持一致。
+  resourceKeys?: string[];
   // 用户有的权限
   buttonGroup?: any[];
   /**
@@ -63,6 +66,26 @@ export interface ContainerItemProps {
   };
 }
 export interface SystemInfoProps {
+  edition?: 'edge' | 'enterprise';
+  platform?: string;
+  deployment?: 'native' | 'docker';
+  capabilities?: Record<
+    string,
+    {
+      productAllowed: boolean;
+      licenseAllowed: boolean;
+      installationSupported: boolean;
+      enabled: boolean;
+      reasonCode?: string;
+      pages: string[];
+    }
+  >;
+  // Build edition, independent of native/docker installation and license tier.
+  productEdition?: 'edge' | 'enterprise';
+  isEdge?: boolean;
+  licenseActivationRequired?: boolean;
+  // Installation mode, independent of OS and license tier.
+  runtimeMode?: 'native' | 'docker';
   // 为false的话不进行鉴权
   authEnable?: boolean;
   // 语言
@@ -76,8 +99,11 @@ export interface SystemInfoProps {
   mqttWebsocketPort?: string;
   // MQTT WebSocket TLS 端口号
   mqttWebsocketTslPort?: string;
+  // 当前部署模式下浏览器应连接的完整 MQTT WebSocket URL
+  mqttWebsocketUrl?: string;
   // 登录地址
   loginPath?: string;
+  externalLoginProviders?: { id: string; name: string }[];
   // title
   appTitle?: string;
   lazyTree?: boolean;
@@ -101,6 +127,7 @@ export interface SystemInfoProps {
 
   // 是否开启文件分类配置
   enableAutoCategorization?: boolean;
+  dataQualityEnabled?: boolean;
   cluster?: {
     enabled?: boolean;
     isHost?: boolean;

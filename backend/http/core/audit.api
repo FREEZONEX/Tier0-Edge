@@ -1,0 +1,20 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core
+    group: core/audit
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler AuditLogPage
+    post /audit-logs/page (AuditLogPageReq) returns (Envelope)
+
+    @handler AuditLogOptions
+    post /audit-logs/filter-options (AuditLogPageReq) returns (Envelope)
+
+    @handler AuditLogExport
+    post /audit-logs/export (AuditLogPageReq) returns (Envelope)
+
+    @handler AuditLogDetail
+    get /audit-logs/:id (IdReq) returns (Envelope)
+}

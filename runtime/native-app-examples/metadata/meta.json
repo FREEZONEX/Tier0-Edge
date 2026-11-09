@@ -1,0 +1,6 @@
+{
+  "name": "UNS Metadata Browser",
+  "version": "1.0.0",
+  "description": "Read granted UNS metadata through OpenAPI v2 using a server-side App credential.",
+  "runtime": { "entry": "server.mjs", "healthPath": "/healthz" }
+}

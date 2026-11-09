@@ -286,13 +286,13 @@ const EditDetailButton = ({ auth, type = 'file', modelInfo, getModel }: any) => 
           <Button
             style={{
               height: '40px',
-              minWidth: '96px',
               backgroundColor: 'var(--ui-uns-button-color)',
               color: 'var(--ui-text-color)',
             }}
             color="default"
             variant="filled"
             onClick={onClose}
+            block
           >
             {formatMessage('common.cancel')}
           </Button>
@@ -300,7 +300,6 @@ const EditDetailButton = ({ auth, type = 'file', modelInfo, getModel }: any) => 
           <Button
             style={{
               height: '40px',
-              minWidth: '96px',
               backgroundColor: 'var(--ui-uns-button-color)',
               color: 'var(--ui-text-color)',
             }}
@@ -308,27 +307,17 @@ const EditDetailButton = ({ auth, type = 'file', modelInfo, getModel }: any) => 
             variant="filled"
             onClick={() => setStep?.(step - 1)}
             disabled={loading}
+            block
           >
             {formatMessage('common.prev')}
           </Button>
         )}
         {!isMountedTopic && type === 'file' && modelInfo.dataType === 3 && step === 1 ? (
-          <Button
-            style={{ height: '40px', minWidth: '96px' }}
-            type="primary"
-            variant="solid"
-            onClick={() => setStep?.(step + 1)}
-          >
+          <Button style={{ height: '40px' }} type="primary" variant="solid" onClick={() => setStep?.(step + 1)} block>
             {formatMessage('common.next')}
           </Button>
         ) : (
-          <Button
-            style={{ height: '40px', minWidth: '96px' }}
-            type="primary"
-            variant="solid"
-            onClick={onSave}
-            loading={loading}
-          >
+          <Button style={{ height: '40px' }} type="primary" variant="solid" onClick={onSave} loading={loading} block>
             {formatMessage('common.save')}
           </Button>
         )}

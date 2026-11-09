@@ -5,10 +5,19 @@
  *  **/
 
 export const ButtonPermission = {
+  'StreamRequests.manage': 'StreamRequests.manage',
+  'Control.read': 'Control.read',
+  'Control.execute': 'Control.execute',
+  'Control.write': 'Control.write',
+  'Control.automate': 'Control.automate',
+  'Control.manage': 'Control.manage',
+  'AuditLog.export': 'AuditLog.export',
   // Home
   'Home.import': 'Home.import',
   'Home.export': 'Home.export',
   // UNS
+  'uns.metadataWrite': 'Namespace.metadataWrite',
+  'uns.metadataDelete': 'Namespace.metadataDelete',
   'uns.import': 'Namespace.uns_import',
   'uns.export': 'Namespace.uns_export',
   'uns.batchGeneration': 'Namespace.uns_batch_generation',
@@ -23,6 +32,15 @@ export const ButtonPermission = {
   'uns.filePaste': 'Namespace.file_paste',
   'uns.fileAdd': 'Namespace.file_add',
   'uns.agentView': 'Namespace.uns_agent_view',
+  'uns.sources': 'Namespace.sources',
+  'uns.sourceManage': 'Namespace.sourceManage',
+  'uns.sourceCredentials': 'Namespace.sourceCredentials',
+  'uns.streams': 'Namespace.streams',
+  'uns.streamManage': 'Namespace.streamManage',
+  'uns.appManage': 'Namespace.appManage',
+  'uns.appCredentials': 'Namespace.appCredentials',
+  'uns.streamDeploy': 'Namespace.streamDeploy',
+  'uns.streamExecute': 'Namespace.streamExecute',
   // 数据连接 - nodered
   'SourceFlow.add': 'SourceFlow.add',
   'SourceFlow.edit': 'SourceFlow.edit',
@@ -57,6 +75,10 @@ export const ButtonPermission = {
   'UserManagement.resetPassword': 'UserManagement.resetPassword',
   'UserManagement.delete': 'UserManagement.delete',
   'UserManagement.roleSettings': 'UserManagement.role_setting',
+  'UserManagement.import': 'UserManagement.import',
+  'UserManagement.export': 'UserManagement.export',
+  'UserManagement.exportSensitive': 'UserManagement.exportSensitive',
+  'UserManagement.userGroups': 'UserManagement.userGroups',
   // 插件管理
   'PluginManagement.install': 'PluginManagement.install',
   'PluginManagement.unInstall': 'PluginManagement.unInstall',
@@ -95,7 +117,10 @@ export const ButtonPermission = {
   'MqttAuth.disable': 'MqttAuth.disable',
   'MqttAuth.delete': 'MqttAuth.delete',
   // Fleet Management
+  'FleetConnection.configure': 'FleetConnection.configure',
+  'FleetNode.ssh': 'FleetNode.ssh',
   'FleetNode.add': 'FleetNode.add',
+  'FleetNode.reissueToken': 'FleetNode.reissueToken',
   'FleetNode.edit': 'FleetNode.edit',
   'FleetNode.delete': 'FleetNode.delete',
   'FleetNode.restore': 'FleetNode.restore',
@@ -117,6 +142,7 @@ export const ButtonPermission = {
   'Vision.task.add': 'Vision.task.add',
   'Vision.task.delete': 'Vision.task.delete',
   'Vision.task.run': 'Vision.task.run',
+  'Vision.results.review': 'Vision.results.review',
   // 数据开放
   'OpenData.addKey': 'dataopen.addKey',
   'OpenData.enable': 'dataopen.enable',
@@ -125,6 +151,7 @@ export const ButtonPermission = {
   'OpenData.aiConfigAdd': 'OpenData.aiConfigAdd',
   'OpenData.aiConfigEdit': 'OpenData.aiConfigEdit',
   'OpenData.aiConfigDelete': 'OpenData.aiConfigDelete',
+  'OpenData.aiTrustedHostsManage': 'OpenData.aiTrustedHostsManage',
   // 项目
   'Project.add': 'Project.add',
   'Project.edit': 'Project.edit',

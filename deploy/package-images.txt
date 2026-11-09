@@ -1,6 +1,0 @@
-# Runtime images required by the edge-open-source profile.
-include ${BACKEND_IMAGE}
-include timescale/timescaledb:2.20.0-pg17
-include redis:7-alpine
-include emqx/emqx:5.8
-include nodered/node-red:4.1.10

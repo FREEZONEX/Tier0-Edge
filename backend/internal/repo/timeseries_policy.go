@@ -8,9 +8,25 @@ import (
 )
 
 const (
-	timeseriesHypertable       = "uns.uns_timeserial"
+	timeseriesHypertable       = "public.uns_timeserial"
 	timeseriesRetentionLockKey = "tier0.uns.timeseries.retention-policy"
 )
+
+func (s *Store) syncSampleTimeseriesPolicy(ctx context.Context) error {
+	return s.UnsDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Multiple backend processes share policy initialization. This is separate
+		// from the data/metadata locks acquired only when conversion is needed.
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(hashtext(?))`,
+			"tier0.uns.sample.storage-policy").Error; err != nil {
+			return fmt.Errorf("lock sample storage policy: %w", err)
+		}
+		if err := tx.Exec(`SELECT public.configure_sample_timeseries(?, ?)`,
+			s.timeseriesRetentionYears, s.sampleCompressionAfterDays).Error; err != nil {
+			return fmt.Errorf("configure sample storage policy: %w", err)
+		}
+		return nil
+	})
+}
 
 func (s *Store) syncTimeseriesRetentionPolicy(ctx context.Context) error {
 	db := s.UnsDB()
@@ -36,7 +52,7 @@ SELECT EXISTS (
 SELECT EXISTS (
     SELECT 1
     FROM timescaledb_information.hypertables
-    WHERE hypertable_schema = 'uns'
+    WHERE hypertable_schema = 'public'
       AND hypertable_name = 'uns_timeserial'
 )`).Scan(&hypertableExists).Error; err != nil {
 		return fmt.Errorf("check timeseries hypertable: %w", err)
@@ -58,7 +74,7 @@ SELECT EXISTS (
 SELECT EXISTS (
     SELECT 1
     FROM timescaledb_information.jobs
-    WHERE hypertable_schema = 'uns'
+    WHERE hypertable_schema = 'public'
       AND hypertable_name = 'uns_timeserial'
       AND proc_name = 'policy_retention'
       AND (config ->> 'drop_after')::interval = make_interval(years => ?)

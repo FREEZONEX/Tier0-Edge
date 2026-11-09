@@ -22,6 +22,8 @@ export type AlgorithmModelRef = {
   version: string;
   status: AlgorithmModelStatus;
   modelType: string;
+  inputWidth?: number;
+  inputHeight?: number;
 };
 
 export type VisionAlgorithm = {

@@ -2,10 +2,12 @@ import { Button, Result } from 'antd';
 import { useTranslate } from '@/hooks';
 import useNavigateForIframe from '@/hooks/useNavigateForIframe';
 import { useBaseStore } from '@/stores/base';
+import { getUserDefaultHomePath } from '@/utils/launchpad-site';
 
 const NotFoundPage = () => {
   const formatMessage = useTranslate();
-  const homePage = useBaseStore((state) => state.currentUserInfo?.homePage) || '/uns';
+  const currentUserInfo = useBaseStore((state) => state.currentUserInfo);
+  const homePage = getUserDefaultHomePath(currentUserInfo);
   const { security, onClick } = useNavigateForIframe({ path: homePage, replaceCurrent: true });
 
   return (

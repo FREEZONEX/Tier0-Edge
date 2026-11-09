@@ -42,6 +42,7 @@ type HistoryReq {
     aggregation *HistoryAggregation `json:"aggregation,optional"`
     page int64 `json:"page,optional"`
     size int64 `json:"size,optional"`
+    countMode string `json:"countMode,optional"`
 }
 
 type HistoryAggregation {
@@ -87,9 +88,12 @@ type NodeUpdateReq {
 
 type NodeDeleteReq {
     topics []string `json:"topics"`
+    hardDelete bool `json:"hard_delete,optional"`
 }
 
-
+type NodeRestoreReq {
+    path string `json:"path"`
+}
 
 type SchemaField {
     name string `json:"name"`
@@ -121,7 +125,8 @@ type OpenapiNodeInfo {
     children []OpenapiNodeInfo `json:"children,optional"`
     alias string `json:"alias,optional"`
     enableHistory bool `json:"enableHistory,optional"`
-    bindFlowID int64 `json:"bindFlowID,optional"`
+    bindFlowID int64 `json:"bindFlowID,optional"` // 绑定的 source flow id，0 表示未绑定
+    bindEventFlowID int64 `json:"bindEventFlowID,optional"` // 绑定的 event flow id，0 表示未绑定
     payload OpenapiVQT `json:"payload,optional"`
 }
 
@@ -179,6 +184,8 @@ type HistoryQueryMeta {
     requestedIntervalMs int64 `json:"requestedIntervalMs,optional"`
     actualIntervalMs int64 `json:"actualIntervalMs,optional"`
     strategy string `json:"strategy,optional"`
+    totalExact bool `json:"totalExact"`
+    hasMore bool `json:"hasMore"`
 }
 
 type OpenapiHistoryItem {
@@ -194,6 +201,7 @@ type HistoryResp {
     page int64 `json:"page"`
     size int64 `json:"size"`
     total int64 `json:"total"`
+    totalExact bool `json:"totalExact"`
 }
 
 type OpenapiCreateResult {
@@ -249,11 +257,6 @@ type UnsAttachmentListResp {
     size int64 `json:"size"`
 }
 
-type UnsBindFlowResp {
-    success bool `json:"success"`
-    unsId int64 `json:"unsId"`
-    flowId int64 `json:"flowId"`
-}
 
 type OpenapiUnsNodeSaveReq {
     nodeId int64 `path:"nodeId,optional"`
@@ -305,12 +308,13 @@ service backend {
     @handler OpenapiUnsDelete
     post /uns/delete (NodeDeleteReq) returns (OpenapiEmptyResp)
 
+    @handler OpenapiUnsRestore
+    post /uns/restore (NodeRestoreReq) returns (OpenapiEmptyResp)
+
     @handler OpenapiUnsAttachmentUpload
     post /uns/attachments (UnsAttachmentUploadReq) returns (UnsAttachmentUploadResp)
 
     @handler OpenapiUnsAttachmentList
     post /uns/attachments/list (UnsAttachmentListReq) returns (UnsAttachmentListResp)
 
-    @handler OpenapiUnsBindFlow
-    post /uns/unsBindFlow (UnsBindFlowReq) returns (UnsBindFlowResp)
 }

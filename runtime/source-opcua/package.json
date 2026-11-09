@@ -1,0 +1,18 @@
+{
+  "name": "@tier0/enterprise-source-opcua",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "node-opcua": "2.186.17",
+    "node-opcua-crypto": "6.1.4"
+  }
+}

@@ -27,6 +27,37 @@ export interface FormStepProps {
   addModalType: string;
 }
 
+interface DataQualityRangeDraft {
+  fieldName?: string;
+  lowerLimit?: number;
+  upperLimit?: number;
+  unit?: string;
+}
+
+const nonZeroNumber = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) && value !== 0 ? value : undefined;
+
+const millisecondsFromSeconds = (value: unknown) => {
+  const seconds = Number(value || 0);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 1000) : 0;
+};
+
+const applyDataQualityRanges = (fields: FieldItem[], ranges?: DataQualityRangeDraft[]) => {
+  const rangeByField = new Map(
+    (ranges || []).filter((range) => range?.fieldName).map((range) => [String(range.fieldName), range] as const)
+  );
+  return fields.map((field) => {
+    const range = rangeByField.get(field.name);
+    if (!range) return field;
+    return {
+      ...field,
+      unit: range.unit?.trim() || field.unit,
+      lowerLimit: nonZeroNumber(range.lowerLimit),
+      upperLimit: nonZeroNumber(range.upperLimit),
+    };
+  });
+};
+
 const FormStep: FC<FormStepProps> = ({
   step,
   setStep,
@@ -81,6 +112,8 @@ const FormStep: FC<FormStepProps> = ({
     type: field.type,
     unit: field.unit,
     unique: field.unique,
+    lowerLimit: nonZeroNumber(field.lowerLimit),
+    upperLimit: nonZeroNumber(field.upperLimit),
   });
 
   const normalizeSchemaFields = (fieldItems?: FieldItem[]) =>
@@ -127,7 +160,11 @@ const FormStep: FC<FormStepProps> = ({
           pasteInfo,
           parentDataType,
           pasteNode,
+          dataQualityRanges,
+          dataQualityExpectedSeconds,
+          dataQualityGraceSeconds,
         } = cloneDeep(form.getFieldsValue(true));
+        const fieldsWithQualityRanges = applyDataQualityRanges(fields || [], dataQualityRanges);
         const derivedParentDataType = isStandardCreateFile ? deriveParentDataTypeFromName(name) : undefined;
         const isAbsoluteNamespacePath = !isFormTopic && isMultiSegmentName(name);
         // 表单验证通过后的操作
@@ -152,7 +189,7 @@ const FormStep: FC<FormStepProps> = ({
               persistence,
               pathType: 2,
               extend: extendToObj(extend),
-              fields: [1, 2, 3, 8].includes(dataType) ? fields : undefined,
+              fields: [1, 2, 3, 8].includes(dataType) ? fieldsWithQualityRanges : undefined,
               parentDataType: derivedParentDataType || parentDataType,
             };
 
@@ -161,10 +198,10 @@ const FormStep: FC<FormStepProps> = ({
             case 1:
             case 2:
               if (dataType === 1) {
-                data.fields = normalizeSchemaFields(fields.filter((e: FieldItem) => !e.systemField));
+                data.fields = normalizeSchemaFields(fieldsWithQualityRanges.filter((e: FieldItem) => !e.systemField));
               } else {
-                if (mainKey > -1) fields[mainKey].unique = true;
-                data.fields = normalizeSchemaFields(fields);
+                if (mainKey > -1) fieldsWithQualityRanges[mainKey].unique = true;
+                data.fields = normalizeSchemaFields(fieldsWithQualityRanges);
               }
               data.addFlow = addFlow;
               if (table?.value) {
@@ -178,7 +215,7 @@ const FormStep: FC<FormStepProps> = ({
               break;
             case 3:
               if (calculationType === 3) {
-                data.fields = normalizeSchemaFields(fields.filter((e: FieldItem) => !e.systemField));
+                data.fields = normalizeSchemaFields(fieldsWithQualityRanges.filter((e: FieldItem) => !e.systemField));
 
                 type ReferItemType = {
                   refer: {
@@ -242,11 +279,26 @@ const FormStep: FC<FormStepProps> = ({
               break;
             case 8:
               Object.assign(data, {
-                fields: normalizeSchemaFields(fields),
+                fields: normalizeSchemaFields(fieldsWithQualityRanges),
               });
               break;
             default:
               break;
+          }
+        }
+
+        if (!isCreateFolder) {
+          const expectedIntervalMs = millisecondsFromSeconds(dataQualityExpectedSeconds);
+          const missingGraceMs = millisecondsFromSeconds(dataQualityGraceSeconds);
+          const hasValueRange = fieldsWithQualityRanges.some(
+            (field) => nonZeroNumber(field.lowerLimit) !== undefined || nonZeroNumber(field.upperLimit) !== undefined
+          );
+          if (expectedIntervalMs > 0 || missingGraceMs > 0 || hasValueRange) {
+            data.dataQualityPolicy = {
+              notifyOnIssue: false,
+              expectedIntervalMs,
+              missingGraceMs,
+            };
           }
         }
 
@@ -407,13 +459,7 @@ const FormStep: FC<FormStepProps> = ({
               });
           }}
         >
-          <Button
-            color="default"
-            variant="filled"
-            icon={<ChevronRight />}
-            iconPosition="end"
-            onClick={handleStep}
-          >
+          <Button color="default" variant="filled" icon={<ChevronRight />} iconPosition="end" onClick={handleStep}>
             {formatMessage('common.next')}
           </Button>
         </ComPopupGuide>

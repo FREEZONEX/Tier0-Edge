@@ -7,6 +7,7 @@ import { App, Drawer } from 'antd';
 import { type CSSProperties, type FC, type ReactNode, useEffect, useState } from 'react';
 // import { ChevronDown, ChevronUp } from '@/components/lucide-icon/carbon';
 import ComLeft from '@/components/com-layout/ComLeft';
+import RecycleTree from '@/pages/uns/components/uns-tree/RecycleTree';
 import { getTreeStoreSnapshot, useTreeStore, useTreeStoreRef } from '@/pages/uns/store/treeStore.tsx';
 import type { UnsTreeNode } from '@/pages/uns/types';
 // import Loading from '@/components/loading';
@@ -151,6 +152,13 @@ const LeftDom: FC<{
       {/*    </Splitter.Panel>*/}
       {/*  )}*/}
       {/*</Splitter>*/}
+      {treeType === 'uns' && (
+        <RecycleTree
+          open={recycleOpen}
+          onOpenChange={setRecycleOpen}
+          onRecycleChanged={() => loadData({ reset: true })}
+        />
+      )}
     </div>
   );
 
@@ -166,7 +174,12 @@ const LeftDom: FC<{
   };
 
   return !isH5 ? (
-    <ComLeft className={className} style={{ overflow: 'hidden', ...style }} resize defaultWidth={360}>
+    <ComLeft
+      className={className}
+      style={{ overflow: 'hidden', ...style }}
+      resize
+      defaultWidth={customTitle ? 280 : 360}
+    >
       {customTitle ? (
         customTitle
       ) : (

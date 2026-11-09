@@ -12,6 +12,9 @@ service backend {
     @handler UserCreate
     post /users (UserSaveReq) returns (Envelope)
 
+    @handler UserBatchUpdate
+    put /users/batch (UserBatchUpdateReq) returns (Envelope)
+
     @handler UserUpdate
     put /users/:id (UserUpdateReq) returns (Envelope)
 
@@ -20,6 +23,39 @@ service backend {
 
     @handler UserDelete
     delete /users/:id (IdReq) returns (Envelope)
+
+    @handler UserGroupList
+    get /user-groups (PageReq) returns (Envelope)
+
+    @handler UserGroupCreate
+    post /user-groups (UserGroupSaveReq) returns (Envelope)
+
+    @handler UserGroupUpdate
+    put /user-groups/:groupId (UserGroupSaveReq) returns (Envelope)
+
+    @handler UserGroupDelete
+    delete /user-groups/:groupId (UserGroupIdReq) returns (Envelope)
+
+    @handler UserGroupMemberList
+    get /user-groups/:groupId/members (UserGroupIdReq) returns (Envelope)
+
+    @handler UserGroupMemberReplace
+    put /user-groups/:groupId/members (UserGroupMembersSaveReq) returns (Envelope)
+
+    @handler UserImport
+    post /users/import (UserImportReq) returns (Envelope)
+
+    @handler UserImportTemplate
+    post /users/import-template returns (Envelope)
+
+    @handler UserExportPreview
+    post /users/export/preview (UserExportReq) returns (Envelope)
+
+    @handler UserExport
+    post /users/export (UserExportReq) returns (Envelope)
+
+    @handler UserJobDetail
+    get /user-jobs/:jobKey (UserJobReq) returns (Envelope)
 
     @handler RoleList
     get /roles (PageReq) returns (Envelope)
@@ -31,5 +67,29 @@ service backend {
     put /roles/:id (RoleSaveReq) returns (Envelope)
 
     @handler RoleDelete
-    delete /roles/:id (IdReq) returns (Envelope)
+    delete /roles/:id (RoleSaveReq) returns (Envelope)
+
+    @handler ResourceTree
+    get /resources returns (Envelope)
+
+    @handler ResourceCreate
+    post /resources (ResourceSaveReq) returns (Envelope)
+
+    @handler ResourceUpdate
+    put /resources/:resourceId (ResourceSaveReq) returns (Envelope)
+
+    @handler ResourceActionList
+    get /resources/:resourceId/actions (ResourceIdReq) returns (Envelope)
+
+    @handler ResourceActionCreate
+    post /resources/:resourceId/actions (ResourceActionSaveReq) returns (Envelope)
+
+    @handler ResourceActionUpdate
+    put /resources/:resourceId/actions/:actionId (ResourceActionSaveReq) returns (Envelope)
+
+    @handler ResourceActionDelete
+    delete /resources/:resourceId/actions/:actionId (ResourceActionIdReq) returns (Envelope)
+
+    @handler MenuTree
+    get /menus returns (Envelope)
 }

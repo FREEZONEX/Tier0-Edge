@@ -1,9 +1,10 @@
-import { type FC, useRef, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { type FC, useRef, useState, useCallback, useEffect, useContext, type ReactNode } from 'react';
 import Draggable from 'react-draggable';
 import { Modal, Tooltip, type ModalProps, Button } from 'antd';
 import { ExpandOutlined, CompressOutlined, CloseOutlined } from '@ant-design/icons';
 import classNames from 'classnames';
 import { useTranslate } from '@/hooks';
+import { ForegroundDialogContext } from '@/contexts/foreground-dialog-context';
 import './index.scss';
 
 const { confirm } = Modal;
@@ -44,6 +45,7 @@ const ProModal: FC<ProModalProps> & { confirm: typeof confirm } = ({
   centered = true,
   ...restProps
 }) => {
+  const suspended = useContext(ForegroundDialogContext);
   const formatMessage = useTranslate();
   const [bounds, setBounds] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
   const [isFullscreen, setIsFullscreen] = useState(defaultFull);
@@ -136,6 +138,17 @@ const ProModal: FC<ProModalProps> & { confirm: typeof confirm } = ({
       footer={null}
       closable={false}
       {...restProps}
+      styles={
+        suspended
+          ? {
+              ...restProps.styles,
+              // rc-dialog owns wrapper.display; visibility also preserves the open lifecycle.
+              wrapper: { ...restProps.styles?.wrapper, visibility: 'hidden' },
+              mask: { ...restProps.styles?.mask, display: 'none' },
+            }
+          : restProps.styles
+      }
+      wrapProps={suspended ? { ...restProps.wrapProps, inert: '', 'aria-hidden': true } : restProps.wrapProps}
       centered={centered}
       className={classNames('pro-modal', className, { 'fullscreen-mode': isFullscreen })}
       width={isFullscreen ? '100%' : width ? width : sizeMap[restProps?.size || 'sm']}

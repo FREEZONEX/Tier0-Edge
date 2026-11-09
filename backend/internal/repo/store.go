@@ -9,12 +9,10 @@ import (
 
 	"backend/internal/config"
 
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-//go:embed migrations/schema.sql migrations/sink_schema.sql migrations/versions/common/*.sql migrations/versions/sink/*.sql
+//go:embed migrations/schema.sql migrations/app_gateway_routes.sql migrations/app_api_keys.sql migrations/sink_schema.sql migrations/versions/common/*.sql migrations/versions/sink/*.sql
 var migrationFS embed.FS
 
 // ErrNotFound is returned when a single-row lookup or a conditional
@@ -37,18 +35,21 @@ var (
 // Store owns the gorm connection lifecycle and schema bootstrap only.
 // Business data access is done through explicit NewXxxRepo(ctx) instances.
 type Store struct {
-	commonDB                 *gorm.DB
-	unsDB                    *gorm.DB
-	timeseriesRetentionYears int
-	userContactCipher        *userContactCipher
+	commonDB                   *gorm.DB
+	unsDB                      *gorm.DB
+	timeseriesRetentionYears   int
+	sampleCompressionAfterDays int
+	userContactCipher          *userContactCipher
 }
 
 func Open(ctx context.Context, c config.DatabaseConf) (*Store, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresStartupTimeout)
+	defer cancel()
 	contactCipher, err := newUserContactCipher()
 	if err != nil {
 		return nil, err
 	}
-	commonDB, err := openPostgres(c.UnsDbUrl)
+	commonDB, err := openPostgres(ctx, c.UnsDbUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func Open(ctx context.Context, c config.DatabaseConf) (*Store, error) {
 	}
 	unsDB := commonDB
 	if strings.TrimSpace(unsDSN) != strings.TrimSpace(c.UnsDbUrl) {
-		unsDB, err = openPostgres(unsDSN)
+		unsDB, err = openPostgres(ctx, unsDSN)
 		if err != nil {
 			closeDB(commonDB)
 			return nil, err
@@ -68,27 +69,12 @@ func Open(ctx context.Context, c config.DatabaseConf) (*Store, error) {
 	unsConn = unsDB
 	activeUserContactCipher = contactCipher
 	return &Store{
-		commonDB:                 commonDB,
-		unsDB:                    unsDB,
-		timeseriesRetentionYears: config.NormalizeTimeseriesRetentionYears(c.TimeseriesRetentionYears),
-		userContactCipher:        contactCipher,
+		commonDB:                   commonDB,
+		unsDB:                      unsDB,
+		timeseriesRetentionYears:   config.NormalizeTimeseriesRetentionYears(c.TimeseriesRetentionYears),
+		sampleCompressionAfterDays: config.SampleCompressionAfterDays(),
+		userContactCipher:          contactCipher,
 	}, nil
-}
-
-func openPostgres(dsn string) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger:                 logger.Default.LogMode(logger.Silent),
-		SkipDefaultTransaction: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, err
-	}
-	sqlDB.SetMaxOpenConns(10)
-	return db, nil
 }
 
 // SetStoreForTest 覆盖包级连接 fallback（GetCommonConn/GetUnsConn 的后备连接），
@@ -107,6 +93,11 @@ func GetCommonConn(in any) *gorm.DB {
 }
 
 func GetUnsConn(in any) *gorm.DB {
+	if ctx, ok := in.(context.Context); ok {
+		if tx, ok := ctx.Value(unsTransactionKey{}).(*gorm.DB); ok {
+			return tx.WithContext(ctx)
+		}
+	}
 	if store, ok := in.(*Store); ok {
 		return store.UnsDB()
 	}
@@ -137,6 +128,18 @@ func getConn(in any, fallback *gorm.DB) *gorm.DB {
 
 func (s *Store) DB() *gorm.DB {
 	return s.CommonDB()
+}
+
+type unsTransactionKey struct{}
+
+// WithUnsTransaction shares an UNS transaction without rebinding platform data.
+func WithUnsTransaction(ctx context.Context, tx *gorm.DB) context.Context {
+	if tx != nil && tx.Statement != nil && tx.Statement.Context != nil {
+		if pending, ok := tx.Statement.Context.Value(resourceNotificationsKey{}).(*resourceNotifications); ok {
+			ctx = context.WithValue(ctx, resourceNotificationsKey{}, pending)
+		}
+	}
+	return context.WithValue(ctx, unsTransactionKey{}, tx)
 }
 
 func (s *Store) CommonDB() *gorm.DB {
@@ -193,11 +196,28 @@ func (s *Store) Ping(ctx context.Context) error {
 }
 
 func (s *Store) Migrate(ctx context.Context) error {
+	if err := s.preflightMigrations(ctx); err != nil {
+		return err
+	}
 	sqlBytes, err := migrationFS.ReadFile("migrations/schema.sql")
 	if err != nil {
 		return err
 	}
 	if err := s.commonDB.WithContext(ctx).Exec(string(sqlBytes)).Error; err != nil {
+		return err
+	}
+	appGatewaySQLBytes, err := migrationFS.ReadFile("migrations/app_gateway_routes.sql")
+	if err != nil {
+		return err
+	}
+	if err := s.commonDB.WithContext(ctx).Exec(string(appGatewaySQLBytes)).Error; err != nil {
+		return err
+	}
+	appApiKeySQLBytes, err := migrationFS.ReadFile("migrations/app_api_keys.sql")
+	if err != nil {
+		return err
+	}
+	if err := s.commonDB.WithContext(ctx).Exec(string(appApiKeySQLBytes)).Error; err != nil {
 		return err
 	}
 	sinkSQLBytes, err := migrationFS.ReadFile("migrations/sink_schema.sql")
@@ -213,7 +233,15 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if err := s.runVersionedMigrations(ctx, "sink", s.UnsDB(), "migrations/versions/sink"); err != nil {
 		return err
 	}
+	// The baseline also creates Fleet runtime tables. On a fresh database the
+	// ACL helper only exists after V3.0.0_016; converge permissions afterwards.
+	if err := s.UnsDB().WithContext(ctx).Exec("SELECT public.protect_stream_runtime_storage()").Error; err != nil {
+		return err
+	}
 	if err := s.migrateUserContacts(ctx); err != nil {
+		return err
+	}
+	if err := s.syncSampleTimeseriesPolicy(ctx); err != nil {
 		return err
 	}
 	return s.syncTimeseriesRetentionPolicy(ctx)

@@ -1,0 +1,55 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core
+    group: core/launchpad
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler LaunchpadProjectList
+    get /launchpad/projects (LaunchpadListReq) returns (Envelope)
+
+    @handler LaunchpadProjectDetail
+    get /launchpad/projects/:projectId (LaunchpadProjectReq) returns (Envelope)
+
+    @handler LaunchpadAppDetail
+    get /launchpad/projects/:projectId/apps/:appId (LaunchpadAppReq) returns (Envelope)
+
+    @handler LaunchpadGetMembers
+    post /launchpad/:projectName/getMembers (LaunchpadGetMembersReq) returns (LaunchpadMembersResp)
+
+    @handler LaunchpadFavoriteList
+    get /launchpad/favorites (LaunchpadFavoriteListReq) returns (Envelope)
+
+    @handler LaunchpadFavoriteCreate
+    post /launchpad/favorites (LaunchpadFavoriteBatchReq) returns (Envelope)
+
+    @handler LaunchpadFavoriteDelete
+    delete /launchpad/favorites (LaunchpadFavoriteBatchReq) returns (Envelope)
+
+    @handler LaunchpadRecentList
+    get /launchpad/recents returns (Envelope)
+
+    @handler LaunchpadAppView
+    post /launchpad/apps/:appId/view (LaunchpadAppViewReq) returns (Envelope)
+
+    @handler LaunchpadAppIcon
+    get /launchpad/apps/:appId/icon (LaunchpadAppViewReq) returns (Envelope)
+
+    @handler LaunchpadAppCover
+    get /launchpad/apps/:appId/cover (LaunchpadAppViewReq) returns (Envelope)
+
+    @handler LaunchpadShortcutIconLink
+    get /launchpad/apps/:appId/shortcut-icon-link (LaunchpadAppViewReq) returns (Envelope)
+}
+
+// 免登录取图：移动端"添加到主屏幕"后，桌面图标由 iOS Safari 自己抓取，
+// Safari 里没有站点登录态，所以这条路径靠上面签发的短期签名授权，不看会话。
+@server(
+    prefix: /api/core
+    group: core/launchpad
+)
+service backend {
+    @handler LaunchpadShortcutIcon
+    get /launchpad/shortcut-icons/:appId (LaunchpadShortcutIconReq) returns (Envelope)
+}

@@ -1,0 +1,80 @@
+.notification-content {
+  min-width: 0;
+  background: var(--ui-bg-color);
+}
+
+.notification-tabs {
+  padding: 0 24px 24px;
+
+  :global(.ant-tabs-nav) {
+    margin-bottom: 16px;
+  }
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+
+  h3 {
+    margin: 0 0 20px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+.content-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.send-settings {
+  border-left: 1px solid var(--ui-border-color);
+  padding-left: 24px;
+}
+
+.audience-warning,
+.send-error {
+  margin-bottom: 16px;
+}
+
+.recipient-estimate {
+  margin-bottom: 24px;
+}
+
+.schedule-picker {
+  width: 100%;
+}
+
+.notification-summary {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ui-border-color);
+  overflow-wrap: anywhere;
+
+  p {
+    max-height: 120px;
+    margin: 8px 0 0;
+    overflow: auto;
+    white-space: pre-wrap;
+  }
+}
+
+@media (width <= 640px) {
+  .editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .send-settings {
+    border-left: 0;
+    border-top: 1px solid var(--ui-border-color);
+    padding: 20px 0 0;
+  }
+
+  .notification-tabs {
+    padding: 0 12px 12px;
+  }
+}

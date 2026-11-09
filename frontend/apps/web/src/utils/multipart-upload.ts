@@ -1,9 +1,9 @@
 // 分片直传 + 断点续传上传工具
 //
-// 大文件（>100MB）走后端 core multipart 端点（POST /api/core/assets/multipart/{init,part-urls,complete,abort}）：
+// 大文件（>20MB）走后端 core multipart 端点（POST /api/core/assets/multipart/{init,part-urls,complete,abort}）：
 // 先在服务端初始化上传会话，拿到各分片的预签名 URL 后由浏览器并发直传，全部完成后调用 complete 合并并返回 fileId。
 // 上传会话（ResumeSession）由调用方持久化（如 sessionStorage），页面刷新后可跳过已完成分片继续上传。
-// 小于等于 100MB 的小文件沿用原 uploadAttachment 单发上传，保持兼容。
+// 小于等于 20MB 的小文件沿用原 uploadAttachment 单发上传，保持兼容。
 
 import {
   abortMultipartUpload,
@@ -16,7 +16,7 @@ import {
 /** 单个分片的最小大小（服务端分片下限） */
 export const MIN_PART_SIZE = 5 * 1024 * 1024;
 /** 超过该大小自动切换分片直传；小于等于该大小沿用原单发上传接口 */
-export const MULTIPART_THRESHOLD = 100 * 1024 * 1024;
+export const MULTIPART_THRESHOLD = 20 * 1024 * 1024;
 /** 默认分片大小 */
 export const DEFAULT_PART_SIZE = 10 * 1024 * 1024;
 /** 单片直传停滞判定（毫秒）：超过该时长没有任何传输进展才中止重试。
@@ -58,6 +58,8 @@ export interface ResumeSession {
   /** 已成功上传的分片（从 1 开始，含 ETag；complete 需要提交全部分片的 (partNumber, etag)） */
   completedParts: { partNumber: number; etag: string }[];
   updatedAt: number;
+  /** 文件内容指纹（SHA-256 hex）。续传前必须校验，避免同名同大小的不同文件拼出混合分片 */
+  fingerprint?: string;
 }
 
 export interface UploadProgress {
@@ -84,7 +86,15 @@ export interface MultipartUploadOptions {
   signal?: AbortSignal;
   /** 断点续传会话（存在时跳过已完成分片直接续传，失败时保留会话不中止服务端资源） */
   resumeSession?: ResumeSession | null;
+  /** 文件内容指纹（SHA-256 hex，见 calcFileFingerprint）。新建会话时写入会话，供下次续传前校验 */
+  fingerprint?: string;
 }
+
+/** 计算文件 SHA-256 指纹（hex）。大文件可能耗时 1-3 秒，仅分片上传场景需要 */
+export const calcFileFingerprint = async (file: File): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+};
 
 /** 计算分片总数 */
 export const calcPartCount = (size: number, partSize: number) => Math.max(1, Math.ceil(size / partSize));
@@ -205,14 +215,20 @@ const uploadPartWithRetry = async (
   throw lastError;
 };
 
-/** 小文件（<=100MB）沿用原单发上传接口，返回与分片 complete 一致的统一结构 */
-const uploadSingle = async (file: File, projectId: string): Promise<MultipartCompleteResult> => {
+/** 小文件（<=20MB）沿用原单发上传接口，返回与分片 complete 一致的统一结构 */
+const uploadSingle = async (file: File, projectId: string, signal?: AbortSignal): Promise<MultipartCompleteResult> => {
   const res = await uploadAttachment([{ value: file, name: 'files', fileName: file.name }], {
     alias: '__templates__',
     ownerType: 'projectApp',
     ownerId: projectId,
     source: 'project',
+    // 透传取消信号：弹窗关闭/移除文件时中止仍在进行的单发上传
+    signal,
   });
+  // 请求在中止前一刻完成的竞态兜底：结果作废，避免调用方把旧结果写进已重置的弹窗
+  if (signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
   const list = res?.list ?? res?.data?.list;
   const item = (Array.isArray(list) ? list[0] : null) ?? res;
   const fileId = item?.fileId ?? item?.id ?? item?.objectName ?? item?.assetId;
@@ -310,33 +326,20 @@ const uploadMissingParts = async (
 };
 
 /**
- * 分片直传主入口。
+ * 使用指定分片大小执行一次完整的分片上传（init 或续传 → 直传缺失分片 → complete）。
  *
- * - 无 resumeSession 且文件 <= 100MB：沿用原 uploadAttachment 单发上传；
- * - 否则先 init 初始化（或复用 resumeSession 续传），并发直传缺失分片，最后 complete 合并。
- *
- * 失败语义：续传模式（传入了 resumeSession）失败时保留服务端会话，调用方可再次续传；
- * 全新上传失败时自动调用 abort 释放服务端资源。
+ * 成功返回 complete 结果；失败抛出错误。失败时：
+ * - 续传模式（传入了 resumeSession）保留服务端会话，调用方可再次续传；
+ * - 全新上传失败时自动调用 abort 释放服务端资源。
  */
-export const uploadWithMultipart = async (
+const uploadWithSession = async (
   file: File,
-  options: MultipartUploadOptions
+  options: MultipartUploadOptions,
+  resumeSession?: ResumeSession | null,
+  partSize?: number
 ): Promise<MultipartCompleteResult> => {
-  const {
-    projectId,
-    partSize: requestedPartSize,
-    concurrency: requestedConcurrency = DEFAULT_CONCURRENCY,
-    onProgress,
-    onSessionChange,
-    signal,
-    resumeSession,
-  } = options;
-  const concurrency = Math.max(1, Math.floor(requestedConcurrency || DEFAULT_CONCURRENCY));
-
-  // 无残留会话且文件 <= 100MB：沿用原单发上传，保持兼容
-  if (!resumeSession && file.size <= MULTIPART_THRESHOLD) {
-    return uploadSingle(file, projectId);
-  }
+  const { projectId, onProgress, onSessionChange, signal } = options;
+  const concurrency = Math.max(1, Math.floor(options.concurrency || DEFAULT_CONCURRENCY));
 
   if (signal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError');
@@ -352,7 +355,7 @@ export const uploadWithMultipart = async (
       fileName: file.name,
       contentType: file.type || 'application/octet-stream',
       size: file.size,
-      partSize: clampPartSize(requestedPartSize),
+      partSize: clampPartSize(partSize),
     });
     session = {
       projectId,
@@ -360,14 +363,15 @@ export const uploadWithMultipart = async (
       size: file.size,
       fileKey: initResult.fileKey,
       uploadId: initResult.uploadId,
-      partSize: Number(initResult.partSize) || clampPartSize(requestedPartSize),
+      partSize: Number(initResult.partSize) || clampPartSize(partSize),
       completedParts: [],
       updatedAt: Date.now(),
+      fingerprint: options.fingerprint,
     };
   }
 
-  const partSize = Math.max(MIN_PART_SIZE, Number(session.partSize) || DEFAULT_PART_SIZE);
-  const totalParts = calcPartCount(file.size, partSize);
+  const effectivePartSize = Math.max(MIN_PART_SIZE, Number(session.partSize) || DEFAULT_PART_SIZE);
+  const totalParts = calcPartCount(file.size, effectivePartSize);
   // 会话可能来自旧文件或服务端已重置，过滤非法分片号；缺 ETag 的分片视为未完成重新上传
   const completed = new Map<number, string>();
   for (const item of session.completedParts || []) {
@@ -388,7 +392,7 @@ export const uploadWithMultipart = async (
   {
     let resumedBytes = 0;
     for (const partNumber of completed.keys()) {
-      resumedBytes += Math.min(partSize, file.size - (partNumber - 1) * partSize);
+      resumedBytes += Math.min(effectivePartSize, file.size - (partNumber - 1) * effectivePartSize);
     }
     onProgress?.({
       doneParts: completed.size,
@@ -403,7 +407,7 @@ export const uploadWithMultipart = async (
     await uploadMissingParts(
       file,
       session,
-      partSize,
+      effectivePartSize,
       totalParts,
       completed,
       concurrency,
@@ -433,4 +437,71 @@ export const uploadWithMultipart = async (
     }
     throw error;
   }
+};
+
+/** 按当前分片大小生成后续可用的降级分片大小梯度（逐级减半，下限 MIN_PART_SIZE） */
+const buildPartSizeFallbacks = (fromPartSize: number): number[] => {
+  const sizes: number[] = [];
+  let size = fromPartSize;
+  while (size > MIN_PART_SIZE) {
+    size = Math.max(MIN_PART_SIZE, Math.floor(size / 2));
+    sizes.push(size);
+  }
+  return sizes;
+};
+
+/**
+ * 分片直传主入口。
+ *
+ * - 无 resumeSession 且文件 <= 20MB：沿用原 uploadAttachment 单发上传；
+ * - 否则先 init 初始化（或复用 resumeSession 续传），并发直传缺失分片，最后 complete 合并。
+ *
+ * 失败语义：续传模式（传入了 resumeSession）失败时保留服务端会话，调用方可再次续传；
+ * 全新上传失败时自动调用 abort 释放服务端资源。
+ *
+ * 弱网降级：某级分片上传失败（停滞/重试耗尽）且非用户取消、当前分片大小仍大于下限时，
+ * 自动 abort 当前会话并用更小的分片大小重新 init 上传（S3 multipart 边界由 partSize 决定，
+ * 无法在会话内动态改单片大小）。降级后的新会话按新 partSize 持久化，续传沿用该大小。
+ */
+export const uploadWithMultipart = async (
+  file: File,
+  options: MultipartUploadOptions
+): Promise<MultipartCompleteResult> => {
+  const { projectId, partSize: requestedPartSize, signal, resumeSession } = options;
+
+  // 无残留会话且文件 <= 20MB：沿用原单发上传，保持兼容
+  if (!resumeSession && file.size <= MULTIPART_THRESHOLD) {
+    return uploadSingle(file, projectId, signal);
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
+
+  // 第一级：优先复用调用方传入的续传会话（沿用其 partSize）；否则按请求分片大小新建
+  const basePartSize = resumeSession
+    ? Math.max(MIN_PART_SIZE, Number(resumeSession.partSize) || DEFAULT_PART_SIZE)
+    : clampPartSize(requestedPartSize);
+  const fallbackSizes = buildPartSizeFallbacks(basePartSize);
+
+  // 依次尝试：原始分片大小（可续传）→ 降级后的更小分片（全新上传）
+  for (let index = 0; index <= fallbackSizes.length; index += 1) {
+    if (signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    }
+    const attemptPartSize = index === 0 ? basePartSize : fallbackSizes[index - 1];
+    const useResume = index === 0 ? resumeSession : null;
+    try {
+      return await uploadWithSession(file, options, useResume, attemptPartSize);
+    } catch (error) {
+      // 用户取消或已是最后一级（最小分片）：不再降级，抛出错误
+      if (signal?.aborted || index === fallbackSizes.length) {
+        throw error;
+      }
+      // 弱网降级：当前会话失败且分片仍可再缩小 → 用更小分片重试。
+      // uploadWithSession 已对全新上传执行 abort；降级后的级次不沿用旧 ETag（边界不同），
+      // 由下一次 init 通过 onSessionChange 持久化新会话，这里不做覆盖。
+    }
+  }
+  throw new DOMException('The operation was aborted.', 'AbortError');
 };

@@ -21,12 +21,7 @@ const ComBackButton: FC<ComBackButtonProps> = ({ onClick, className, title }) =>
 
   return (
     <Tooltip title={tip}>
-      <Button
-        type="text"
-        onClick={onClick}
-        className={classNames('com-back-button', className)}
-        aria-label={tip}
-      >
+      <Button type="text" onClick={onClick} className={classNames('com-back-button', className)} aria-label={tip}>
         <ChevronLeft size={20} />
       </Button>
     </Tooltip>

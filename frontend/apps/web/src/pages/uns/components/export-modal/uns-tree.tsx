@@ -277,7 +277,7 @@ export const UnsTree: FC<{ open: boolean }> = ({ open }) => {
               });
           }}
         >
-          {formatMessage('uns.generate')}
+          {formatMessage('appSpace.newgenerate')}
         </ComButton>
       </Flex>
     </>

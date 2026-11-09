@@ -81,6 +81,13 @@
           font-weight: bold;
         }
 
+        .custom-tree-node-persistent-extra {
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+          height: 32px;
+        }
+
         .custom-tree-node-extra {
           display: none;
           height: 32px;

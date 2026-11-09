@@ -6,13 +6,13 @@ import styles from './AppGrid.module.scss';
 interface AppGridProps {
   apps: App[];
   onAppClick: (app: App) => void | Promise<void>;
-  isAppFavorite: (id: string | number) => boolean;
-  onToggleFavorite: (app: App) => void;
+  isAppPinned: (id: string | number) => boolean;
+  onTogglePin: (app: App) => void;
   /** 搜索关键词，用于应用名命中高亮 */
   keyword?: string;
 }
 
-const AppGrid: FC<AppGridProps> = ({ apps, onAppClick, isAppFavorite, onToggleFavorite, keyword }) => {
+const AppGrid: FC<AppGridProps> = ({ apps, onAppClick, isAppPinned, onTogglePin, keyword }) => {
   return (
     <div className={styles.appGrid}>
       {apps.map((app) => (
@@ -20,8 +20,8 @@ const AppGrid: FC<AppGridProps> = ({ apps, onAppClick, isAppFavorite, onToggleFa
           key={app.appId}
           className={styles.appCard}
           app={app}
-          isFavorite={isAppFavorite(app.appId)}
-          onToggleFavorite={onToggleFavorite}
+          isPinned={isAppPinned(app.appId)}
+          onTogglePin={onTogglePin}
           onAppClick={onAppClick}
           showUpdatedAt
           keyword={keyword}

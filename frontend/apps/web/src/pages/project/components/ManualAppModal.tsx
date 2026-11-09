@@ -2,7 +2,18 @@ import { createManualProjectApp, uploadAttachment } from '@/apis/core-api';
 import ProModal from '@/components/pro-modal';
 import { useTranslate } from '@/hooks';
 import { Box } from '@/components/lucide-icon/carbon';
-import { App, Button, Form, Input, InputNumber, Segmented, Switch, Upload, type UploadFile, type UploadProps } from 'antd';
+import {
+  App,
+  Button,
+  Form,
+  Input,
+  InputNumber,
+  Segmented,
+  Switch,
+  Upload,
+  type UploadFile,
+  type UploadProps,
+} from 'antd';
 import type { RcFile } from 'antd/es/upload';
 import { forwardRef, useImperativeHandle, useMemo, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router';
@@ -156,6 +167,7 @@ const ManualAppModal = forwardRef<ManualAppModalRef, ManualAppModalProps>(({ ref
       onCancel={onClose}
       title={formatMessage('project.addApp')}
       width={640}
+      maskClosable={false}
       fullScreenable={false}
     >
       <Form

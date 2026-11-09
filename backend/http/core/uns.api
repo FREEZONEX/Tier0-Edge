@@ -21,6 +21,15 @@ service backend {
     @handler UnsNodeDelete
     delete /nodes/:nodeId (NodeIdReq) returns (Envelope)
 
+    @handler UnsNodeRestore
+    post /nodes/:nodeId/restore (UnsRestoreReq) returns (Envelope)
+
+    @handler UnsNodeForceDelete
+    delete /nodes/:nodeId/force (UnsForceDeleteReq) returns (Envelope)
+
+    @handler UnsRecycleList
+    get /recycle (PageReq) returns (Envelope)
+
     @handler UnsLabelList
     get /labels (PageReq) returns (Envelope)
 

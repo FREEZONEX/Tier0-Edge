@@ -1,11 +1,29 @@
+import { useTabName, useTranslate } from '@/hooks';
+import { useActivate, useUnActivate, usePageIsShow } from '@/contexts/tabs-lifecycle-context';
 import { type FC, useCallback, useEffect, useState } from 'react';
 import { useDeepCompareEffect } from 'ahooks';
-import { getTreeStoreSnapshot, TreeStoreProvider, useTreeStore, useTreeStoreRef } from './store/treeStore';
+import {
+  getTreeStoreSnapshot,
+  ROOT_NODE_ID,
+  TreeStoreProvider,
+  useTreeStore,
+  useTreeStoreRef,
+} from './store/treeStore';
 import { findNodeInfoById, getParentNodes, handlerTreeData } from './store/utils';
 import ModalContext from './ModalContext';
 import TopDom from './TopDom';
 import DetailDom from './DetailDom';
 import LeftDom from './LeftDom';
+import IntegrationTabs, {
+  IntegrationGuardProvider,
+  useIntegrationRoute,
+} from './components/source-stream/IntegrationTabs';
+import IntegrationWorkspace from './components/source-stream/IntegrationWorkspace';
+import WorkspaceTransition from './components/source-stream/WorkspaceTransition';
+import SourceOAuthCallback from './components/source-stream/SourceOAuth';
+import MetadataWorkspace from './components/metadata';
+import { ConnectEdgeWorkspace } from '@/pages/mqtt-auth';
+import RelationshipCanvas from './components/relationship-canvas';
 import type { UnsTreeNode } from './types';
 // import { useLocation } from 'react-router';
 // import { guideSteps } from './guide-steps';
@@ -16,7 +34,7 @@ import ComContent from '@/components/com-layout/ComContent';
 import { setAiResult, useAiStore } from '@/stores/ai-store.ts';
 import { UnsContextProvider } from './UnsContext';
 import type { PageProps } from '@/common-types.ts';
-import { useLocation } from 'react-router';
+import { Navigate, useLocation } from 'react-router';
 import { getModelInfo, getTreeData } from '@/apis/core-api/uns';
 
 const initNode = {
@@ -60,9 +78,9 @@ const findFirstMatchingNode = (treeData: UnsTreeNode[], rawValue: string) => {
 
 const Module: FC = () => {
   const location = useLocation();
-  // 默认落在 Agent（画布）——对齐 saas unsTree store 的 `activeTab: 'canvas'` 初始值；
-  // 首次选中节点后由下方 effect 自动切到 detail（同 saas onSelect→uns-info）。
-  const { treeType, selectedNode, operationFns } = useTreeStore((state) => ({
+  const { view: integrationView } = useIntegrationRoute();
+  const { treeType, selectedNode, operationFns, rootInitialized } = useTreeStore((state) => ({
+    rootInitialized: state.rootInitialized,
     treeType: state.treeType,
     selectedNode: state.selectedNode,
     operationFns: state.operationFns,
@@ -81,7 +99,6 @@ const Module: FC = () => {
 
   const [currentUnusedTopicNode, setCurrentUnusedTopicNode] = useState<UnsTreeNode>(initNode); // 当前unusedTopic节点
   const [unusedTopicBreadcrumbList, setUnusedTopicBreadcrumbList] = useState<UnsTreeNode[]>([]); //当前文件路径Array
-
 
   const resetToNamespaceGuide = useCallback(() => {
     setTreeMap(false);
@@ -131,7 +148,7 @@ const Module: FC = () => {
 
       const store = stateRef.getState();
       const currentNode = findNodeInfoById(store.treeData, targetId);
-      if (currentNode) {
+      if (currentNode && !store.searchValue) {
         focusVisibleUnsNode(currentNode, store.treeData);
         return;
       }
@@ -139,23 +156,53 @@ const Module: FC = () => {
       store.setLoading(true);
       try {
         const detail = await getModelInfo({ id: targetId });
-        const searchKey = normalizeNodeKey(
-          detail?.path || detail?.alias || detail?.namespace || detail?.name || targetId
-        );
-        const searchedTree = searchKey
-          ? handlerTreeData(await getTreeData({ type: 1, key: searchKey, keyword: searchKey }))
-          : [];
-        const targetNode = findNodeInfoById(searchedTree, targetId);
+        if (!detail?.id) return;
 
-        if (targetNode) {
-          store.setTreeData(searchedTree);
-          focusVisibleUnsNode(targetNode, searchedTree);
+        if (!store.lazyTree) {
+          const tree = handlerTreeData(await getTreeData({ type: 1 }));
+          store.setSearchValue('');
+          store.setTreeData(tree);
+          const targetNode = findNodeInfoById(tree, targetId);
+          if (targetNode) focusVisibleUnsNode(targetNode, tree);
           return;
         }
 
-        if (detail?.id) {
-          focusVisibleUnsNode(detail);
+        // 定位只展开目标路径；逐层加载正常子节点，不能用搜索结果替换整棵树。
+        const path: UnsTreeNode[] = [detail];
+        const visited = new Set([targetId]);
+        let parentId = normalizeNodeKey(detail.parentId);
+        while (parentId && parentId !== ROOT_NODE_ID && !visited.has(parentId)) {
+          visited.add(parentId);
+          const visibleParent = !store.searchValue && findNodeInfoById(stateRef.getState().treeData, parentId);
+          const parent = visibleParent || (await getModelInfo({ id: parentId }));
+          if (!parent?.id) return;
+          path.unshift(parent);
+          if (visibleParent) break;
+          parentId = normalizeNodeKey(parent.parentId);
         }
+
+        if (store.searchValue) {
+          store.setSearchValue('');
+          store.abortAllRequests();
+          store.setTreeData([]);
+          store.setLoadedKeys([]);
+          store.setExpandedKeys([]);
+          store.setNodePaginationState({});
+        }
+
+        for (const node of path) {
+          const nodeId = normalizeNodeKey(node.id);
+          if (findNodeInfoById(stateRef.getState().treeData, nodeId)) continue;
+          await store.recursiveLoadData({
+            key: normalizeNodeKey(node.parentId) || ROOT_NODE_ID,
+            newNodeKey: nodeId,
+          });
+          if (!findNodeInfoById(stateRef.getState().treeData, nodeId)) return;
+        }
+
+        const tree = stateRef.getState().treeData;
+        const targetNode = findNodeInfoById(tree, targetId);
+        if (targetNode) focusVisibleUnsNode(targetNode, tree);
       } catch (error) {
         console.error('Failed to focus UNS node:', error);
       } finally {
@@ -176,8 +223,7 @@ const Module: FC = () => {
         const searchedTree = handlerTreeData(await getTreeData({ type: 1, key: searchKey, keyword: searchKey }));
         const targetNode = findFirstMatchingNode(searchedTree, searchKey);
         if (targetNode) {
-          store.setTreeData(searchedTree);
-          focusVisibleUnsNode(targetNode, searchedTree);
+          await focusUnsNode(normalizeNodeKey(targetNode.id));
         }
       } catch (error) {
         console.error('Failed to focus UNS node:', error);
@@ -185,10 +231,12 @@ const Module: FC = () => {
         stateRef.getState().setLoading(false);
       }
     },
-    [focusVisibleUnsNode, stateRef]
+    [focusUnsNode, stateRef]
   );
 
   useEffect(() => {
+    // 根节点首次加载或失败后的刷新成功后，再定位 URL 中的目标。
+    if (!rootInitialized) return;
     const params = new URLSearchParams(location.search);
     const namespaceId = params.get('namespaceId');
     const namespaceKey = params.get('namespaceKey');
@@ -197,7 +245,7 @@ const Module: FC = () => {
     } else if (namespaceKey) {
       void focusUnsSearchKey(namespaceKey);
     }
-  }, [focusUnsNode, focusUnsSearchKey, location.search]);
+  }, [focusUnsNode, focusUnsSearchKey, location.search, rootInitialized]);
 
   useDeepCompareEffect(() => {
     if (aiResult?.uns) {
@@ -227,9 +275,12 @@ const Module: FC = () => {
   // 新手导航步骤
   // useGuideSteps(guideSteps(), location?.state?.stepId);
 
+  if (integrationView !== 'namespace') return <IntegrationWorkspace />;
+
   return (
     <ComLayout className="unsContainer">
       <LeftDom
+        customTitle={<IntegrationTabs />}
         changeCurrentPath={changeCurrentPath}
         handleDelete={handleDelete}
         setCurrentUnusedTopicNode={setCurrentUnusedTopicNode}
@@ -255,13 +306,47 @@ const Module: FC = () => {
   );
 };
 
-const WrapperModule: FC<PageProps> = () => {
+const Workspace: FC = () => {
+  const { view } = useIntegrationRoute();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  // Metadata UUIDs and historic UNS numeric IDs are distinct contracts.
+  // Existing Stream links must still open the legacy Topic/history workspace.
+  const legacyTarget = params.has('namespaceId') || params.has('namespaceKey');
+  if (view === 'edge') return <ConnectEdgeWorkspace />;
+  if (view === 'collections') {
+    const params = new URLSearchParams(location.search);
+    params.set('view', 'record');
+    return <Navigate to={`/uns/topology?${params}`} replace />;
+  }
+  if (view === 'namespace' && !legacyTarget) return <MetadataWorkspace />;
   return (
     <TreeStoreProvider>
       <UnsContextProvider>
         <Module />
       </UnsContextProvider>
     </TreeStoreProvider>
+  );
+};
+
+const WrapperModule: FC<PageProps> = () => {
+  const isShow = usePageIsShow();
+  const [active, setActive] = useState(isShow?.current ?? true);
+  useActivate(useCallback(() => setActive(true), []));
+  useUnActivate(useCallback(() => setActive(false), []));
+  const location = useLocation();
+  const t = useTranslate();
+  useTabName(t(location.pathname === '/connect' ? 'UnsConnect.connect' : 'UnsMeta.namespace'));
+  // 缓存的 Namespace 与 Connect 共用入口；隐藏页不能跟随全局路由挂载抽屉。
+  if (!active) return null;
+  return (
+    <IntegrationGuardProvider>
+      <SourceOAuthCallback />
+      <WorkspaceTransition>
+        <Workspace />
+      </WorkspaceTransition>
+      <RelationshipCanvas />
+    </IntegrationGuardProvider>
   );
 };
 export default WrapperModule;

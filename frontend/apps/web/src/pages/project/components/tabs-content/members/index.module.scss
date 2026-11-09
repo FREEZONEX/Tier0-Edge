@@ -15,6 +15,71 @@
   color: var(--ui-text-color);
 }
 
+.memberIdentity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.memberIcon {
+  flex: 0 0 auto;
+  color: var(--ui-description-card-color);
+}
+
+.groupNameButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: auto;
+  padding: 0;
+  font-weight: 500;
+  text-align: left;
+  color: var(--ui-text-color) !important;
+
+  &:hover,
+  &:focus,
+  &:active {
+    color: var(--ui-text-color) !important;
+    text-decoration: underline;
+  }
+}
+
+.rowDisclosure {
+  flex: 0 0 auto;
+  color: var(--ui-description-card-color);
+  opacity: 0;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.memberMeta {
+  margin-top: 2px;
+  color: var(--ui-description-card-color);
+  font-size: 12px;
+}
+
+.memberTypeTag {
+  padding: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  background: transparent;
+  border-radius: 3px;
+}
+
+.groupTypeTag {
+  color: var(--ui-access-blue-text);
+  border: 1px solid var(--ui-access-blue-border);
+}
+
+.directMemberTypeTag {
+  color: var(--ui-access-gray-text);
+  border: 1px solid var(--ui-access-gray-border);
+}
+
 .accessTag {
   padding: 4px 12px;
   margin: 0;
@@ -50,10 +115,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
-  background: #fffbeb;
-  color: #d97706;
+  background: var(--ui-role-orange-bg);
+  color: var(--ui-role-orange-text);
+  border: 1px solid var(--ui-role-orange-border);
   border-radius: 60px;
-  border: none;
 }
 
 .labelStyle {
@@ -68,4 +133,14 @@
 .operation {
   display: flex;
   gap: 10px;
+}
+
+:global(.ant-table-row:hover) .rowDisclosure {
+  color: var(--ui-text-color);
+  opacity: 1;
+  transform: translateX(1px);
+}
+
+.groupNameButton:focus-visible .rowDisclosure {
+  opacity: 1;
 }

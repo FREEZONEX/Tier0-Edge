@@ -20,7 +20,7 @@ import (
 const (
 	metricTopicType        = int16(3)
 	metricTable            = "uns_timeserial"
-	sinkSchema             = "uns"
+	sinkSchema             = "public"
 	physicalDDLAdvisoryKey = "tier0.uns.physical.ensure"
 	physicalDDLColumnBatch = 4
 
@@ -258,7 +258,7 @@ func (w *SinkWriter) ensurePhysicalForRecords(ctx context.Context, records []Rec
 		}
 		batch := &pgx.Batch{}
 		if len(metricRecords) > 0 {
-			queueMetricViews(batch, metricRecords, mappings)
+			queueMetricViews(batch, metricRecords, mappings, catalog)
 		}
 		queueEventAliasTables(batch, sortedStringSet(eventAliases), catalog)
 		return executePhysicalDDLBatch(ctx, tx, batch)
@@ -337,7 +337,7 @@ func missingMetricColumns(mappings map[int64][]metricFieldMapping, existingColum
 	return columns
 }
 
-func queueMetricViews(batch *pgx.Batch, records []Record, mappings map[int64][]metricFieldMapping) {
+func queueMetricViews(batch *pgx.Batch, records []Record, mappings map[int64][]metricFieldMapping, catalog map[string]sinkRelationInfo) {
 	representatives := representativeMetricRecords(records)
 	ordered := make([]Record, 0, len(representatives))
 	for _, record := range representatives {
@@ -359,6 +359,11 @@ func queueMetricViews(batch *pgx.Batch, records []Record, mappings map[int64][]m
 		selects := []string{quoteIdent(metricIDColumn), quoteIdent(metricTimeColumn), quoteIdent(metricQualityColumn)}
 		for _, mapping := range mappings[record.UnsID] {
 			selects = append(selects, metricSelectExpression(mapping))
+		}
+		if metricViewNeedsRebuild(catalog[alias], mappings[record.UnsID]) {
+			// Recreate only the projection, in the same DDL transaction. History
+			// remains in the shared table. Do not cascade into dependent objects.
+			batch.Queue(fmt.Sprintf(`DROP VIEW %s`, sinkQualifiedName(alias)))
 		}
 		batch.Queue(fmt.Sprintf(`CREATE OR REPLACE VIEW %s AS SELECT %s FROM %s WHERE %s = %d`, sinkQualifiedName(alias), strings.Join(selects, ", "), sinkQualifiedName(metricTable), quoteIdent(metricIDColumn), record.UnsID))
 	}
@@ -1110,4 +1115,33 @@ func quotedList(values []string) string {
 func shortHash(value string) string {
 	sum := sha1.Sum([]byte(value))
 	return hex.EncodeToString(sum[:])[:12]
+}
+
+// PostgreSQL cannot replace a view when columns are removed, reordered or retyped.
+func metricViewNeedsRebuild(info sinkRelationInfo, mappings []metricFieldMapping) bool {
+	if info.Kind != "v" {
+		return false
+	}
+	names := []string{metricIDColumn, metricTimeColumn, metricQualityColumn}
+	for _, mapping := range mappings {
+		names = append(names, mapping.Field.Name)
+	}
+	if len(info.Columns) > len(names) {
+		return true
+	}
+	for i, name := range info.Columns {
+		if names[i] != name {
+			return true
+		}
+	}
+	old := map[string]string{}
+	for _, col := range parseMetricViewColumns(info.ViewDefinition) {
+		old[col.ColumnName] = col.SourceColumn
+	}
+	for _, mapping := range mappings {
+		if source, ok := old[mapping.Field.Name]; ok && source != mapping.SourceColumn {
+			return true
+		}
+	}
+	return false
 }

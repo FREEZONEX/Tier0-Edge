@@ -82,6 +82,7 @@ export {
   Send as SendAlt,
   Server as ServerDns,
   SquarePlus,
+  Pin,
   Star,
   Square as StopOutline,
   Minus as Subtract,

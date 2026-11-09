@@ -49,6 +49,7 @@ const toUnsPayload = (data: any) => {
     addFlow,
     mockData,
     persistence,
+    dataQualityPolicy: data?.dataQualityPolicy,
   };
 };
 
@@ -571,3 +572,35 @@ export const pasteUns = async (_data?: any): Promise<any> => {
 };
 
 export { CustomAxiosConfigEnum };
+
+export type UnsImportJob = {
+  jobKey: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'canceled';
+  progress: number;
+  resultJson?: { imported?: number; updated?: number; skipped?: number; phase?: string };
+  errorMessage?: string;
+};
+
+export const uploadUnsImportFile = async (file: File): Promise<number> => {
+  const response = await coreApi.uploads('/assets', [{ name: 'files', value: file, fileName: file.name }], {
+    method: 'post',
+  });
+  const list = response?.list ?? response?.data?.list;
+  const fileId = Number(Array.isArray(list) ? list[0]?.fileId : 0);
+  if (!fileId) throw new Error('uns.importFailed');
+  return fileId;
+};
+
+export const createUnsImportJob = async (sourceFileId: number): Promise<UnsImportJob> => {
+  const response = await coreApi.post('/uns/import-jobs', { sourceFileId, dryRun: false });
+  return response.job;
+};
+
+export const getUnsImportJob = async (jobKey: string, signal?: AbortSignal): Promise<UnsImportJob> => {
+  const response = await coreApi.get(`/uns/import-jobs/${encodeURIComponent(jobKey)}`, {
+    signal,
+    timeout: 15000,
+    [CustomAxiosConfigEnum.NoMessage]: true,
+  });
+  return response.job;
+};

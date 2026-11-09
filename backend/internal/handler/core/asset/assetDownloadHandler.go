@@ -5,6 +5,7 @@ package asset
 
 import (
 	respx "backend/internal/httpx"
+	"backend/internal/logic/core/asset"
 	"backend/internal/svc"
 	"backend/internal/types"
 
@@ -28,6 +29,7 @@ func AssetDownloadHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			respx.WriteError(w, err)
 			return
 		}
+		asset.RecordViewAudit(r.Context(), svcCtx, item.ID, item.OriginalName)
 		defer reader.Close()
 		contentType := meta.ContentType
 		if contentType == "" {

@@ -1,5 +1,6 @@
 import { type FC, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { Tabs } from 'antd';
+import { Box, LayoutGrid, Play } from 'lucide-react';
 import { getKeepAliveTabKey, useTabs } from '@/layout/useTabs';
 import styles from './index.module.scss';
 import { createPortal } from 'react-dom';
@@ -21,8 +22,36 @@ const TabsLayout: FC<{
   const tabItems = useMemo(() => {
     return tabs.map((tab) => {
       const tabKey = getKeepAliveTabKey(tab);
+      const textLabel = tab.contextTitle ? (
+        <span className={styles['context-tab-label']}>
+          <span className={styles['context-tab-parent']}>{tab.contextTitle}</span>
+          <span className={styles['context-tab-separator']}>/</span>
+          <span className={styles['context-tab-current']}>
+            <span className={styles['context-tab-name']}>{tab.title}</span>
+          </span>
+        </span>
+      ) : (
+        tab.title
+      );
+      const ContextIcon =
+        tab.routePath === '/project/:projectId'
+          ? LayoutGrid
+          : tab.routePath === '/launchpad/:projectName'
+            ? Play
+            : tab.routePath === '/launchpad/:projectName/:appName'
+              ? Box
+              : undefined;
+      let label = textLabel;
+      if (ContextIcon) {
+        label = (
+          <span className={styles['tab-label-with-icon']}>
+            <ContextIcon size={14} strokeWidth={1.75} aria-hidden="true" />
+            {textLabel}
+          </span>
+        );
+      }
       return {
-        label: tab.title,
+        label,
         fullTitle: tab.fullTitle,
         key: tabKey,
         children: (

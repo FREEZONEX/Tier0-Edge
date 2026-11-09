@@ -61,13 +61,14 @@ type VisionLatestResultResp = {
   taskId?: number;
 };
 
-export const getTaskLatestResult = async (id: number | string) => {
-  const response = (await coreApi.get(`/vision/tasks/${id}/latest-result`)) as VisionLatestResultResp;
+export const getTaskLatestResult = async (id: number | string, config?: AxiosWrapperRequestConfig) => {
+  const response = (await coreApi.get(`/vision/tasks/${id}/latest-result`, config)) as VisionLatestResultResp;
   return response?.list || [];
 };
 
 // 视觉分析事件(告警+数据结果统一流),Results 页事件卡片流展示。
 export type VisionEventType = 'alarm' | 'data';
+export type VisionReviewStatus = 'pending' | 'confirmed' | 'false_positive';
 
 export type VisionEventSort = 'latest' | 'oldest';
 
@@ -85,6 +86,10 @@ export type VisionEvent = {
   algorithmCode?: string;
   algorithmName?: string;
   eventType: VisionEventType;
+  reviewStatus: VisionReviewStatus;
+  reviewRevision: number;
+  reviewedBy?: number;
+  reviewedAt?: number | null;
   eventName: string;
   level?: string;
   message?: string;
@@ -110,6 +115,10 @@ export type VisionEventListParams = {
   eventName?: string;
   taskId?: number;
   sort?: VisionEventSort;
+  startTime?: number;
+  endTime?: number;
+  eventType?: VisionEventType;
+  reviewStatus?: VisionReviewStatus;
 };
 
 type VisionEventPage = {
@@ -131,6 +140,10 @@ export const listVisionEvents = async (params: VisionEventListParams = {}, confi
       eventName: params.eventName,
       taskId: params.taskId,
       sort: params.sort,
+      startTime: params.startTime,
+      endTime: params.endTime,
+      eventType: params.eventType,
+      reviewStatus: params.reviewStatus,
     },
   })) as VisionEventPage;
   return {
@@ -151,3 +164,10 @@ export const batchDeleteVisionEvents = (ids: number[]) => coreApi.post('/vision/
 
 // 截图直接作为 <img src> 使用,浏览器同源请求自动携带 Cookie。
 export const eventScreenshotUrl = (id: number | string) => `/api/core/vision/events/${id}/screenshot`;
+
+export const reviewVisionEvent = (event: VisionEvent, status: VisionReviewStatus) =>
+  coreApi.post(
+    `/vision/events/${event.id}/review`,
+    { status, revision: event.reviewRevision },
+    { _noMessage: true }
+  ) as Promise<VisionEventDetail>;

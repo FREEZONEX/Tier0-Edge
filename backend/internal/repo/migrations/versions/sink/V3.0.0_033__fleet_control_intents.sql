@@ -1,0 +1,33 @@
+CREATE TABLE public.uns_fleet_control_intent (
+ invocation_id VARCHAR(64) PRIMARY KEY,
+ principal VARCHAR(256) NOT NULL,
+ idempotency_key VARCHAR(128) NOT NULL,
+ request_hash VARCHAR(64) NOT NULL,
+ input_hash VARCHAR(64) NOT NULL,
+ actor JSONB NOT NULL,
+ node_id VARCHAR(128) NOT NULL,
+ control_code VARCHAR(128) NOT NULL,
+ capability_version VARCHAR(64) NOT NULL,
+ grant_id VARCHAR(64) NOT NULL,
+ grant_revision BIGINT NOT NULL CHECK(grant_revision>0),
+ device_parameter VARCHAR(128) NOT NULL,
+ device_id VARCHAR(128) NOT NULL,
+ input JSONB NOT NULL,
+ expires_at BIGINT NOT NULL,
+ state VARCHAR(32) NOT NULL CHECK(state IN ('pendingConfirmation','queued','dispatched','succeeded','failed','unknown','expired')),
+ revision BIGINT NOT NULL,
+ created_by BIGINT NOT NULL,
+ confirmed_by BIGINT NOT NULL DEFAULT 0,
+ created_at BIGINT NOT NULL,
+ updated_at BIGINT NOT NULL,
+ dispatched_at BIGINT NOT NULL DEFAULT 0,
+ query_after BIGINT NOT NULL DEFAULT 0,
+ query_count BIGINT NOT NULL DEFAULT 0,
+ last_error VARCHAR(128) NOT NULL DEFAULT '',
+ result JSONB NOT NULL DEFAULT 'null',
+ business_completion VARCHAR(32) NOT NULL DEFAULT 'unknown',
+ causality JSONB NOT NULL DEFAULT '{}',
+ UNIQUE(principal,idempotency_key)
+);
+CREATE INDEX idx_fleet_control_intent_dispatch ON public.uns_fleet_control_intent(state,created_at,invocation_id)
+ WHERE state IN ('pendingConfirmation','queued','dispatched','unknown');

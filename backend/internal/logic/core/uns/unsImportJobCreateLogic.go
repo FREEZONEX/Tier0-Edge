@@ -6,6 +6,9 @@ package uns
 import (
 	"context"
 
+	auditdomain "backend/internal/domain/audit"
+	"backend/internal/repo"
+
 	respx "backend/internal/httpx"
 	"backend/internal/logic/logicx"
 
@@ -34,5 +37,11 @@ func (l *UnsImportJobCreateLogic) UnsImportJobCreate(req *types.UnsImportJobReq)
 	if err != nil {
 		return nil, logicx.Error(err)
 	}
+	job, _ := data["job"].(repo.AsyncJob)
+	l.svcCtx.App.Audit.Record(l.ctx, auditdomain.RecordInput{
+		ScopeType: auditdomain.ScopeTypePlatform, ResType: auditdomain.ResTypeUNS,
+		ResID: job.JobKey, ResName: "UNS import", BusinessType: auditdomain.BizImport,
+		Detail: map[string]any{"jobKey": job.JobKey, "jobType": "uns.import", "sourceFileId": req.SourceFileId},
+	})
 	return respx.Envelope(data), nil
 }

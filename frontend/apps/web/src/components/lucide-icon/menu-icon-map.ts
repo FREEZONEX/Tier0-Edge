@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   ListTree,
   Play,
+  Plug,
   Workflow,
   Zap,
   type LucideIcon,
@@ -20,6 +21,7 @@ import { resolveLegacyLucideIcon } from './legacy-icon-map';
 const resourceKeyIconMap: Record<string, LucideIcon> = {
   'home.page': Home,
   'uns.page': ListTree,
+  'uns.connect.ui': Plug,
   'flow.collection.page': Workflow,
   'flow.event.page': Zap,
   'mqtt.auth.manage': GitFork,
@@ -35,6 +37,7 @@ const resourceKeyIconMap: Record<string, LucideIcon> = {
 const urlIconMap: Record<string, LucideIcon> = {
   '/home': Home,
   '/uns': ListTree,
+  '/uns/topology': Workflow,
   '/flow': Workflow,
   '/collection-flow': Workflow,
   '/event-flow': Workflow,

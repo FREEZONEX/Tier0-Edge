@@ -1,0 +1,184 @@
+.login-log-content {
+  > :global(.content) {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filters {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ui-line-color);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(120px, 0.7fr)) minmax(340px, 2fr);
+  gap: 12px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ui-text-color);
+  font-size: 12px;
+
+  :global(.ant-select),
+  :global(.ant-picker) {
+    width: 100%;
+  }
+}
+
+.filter-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filter-tags {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+
+  :global(.ant-tag) {
+    max-width: 100%;
+    margin: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    background: var(--ui-input-color);
+    border-color: var(--ui-line-color);
+    color: var(--ui-text-color);
+  }
+}
+
+.table-summary {
+  color: var(--ui-description-card-color);
+  font-size: 12px;
+}
+
+.ellipsis-cell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.secondary-text {
+  font-size: 12px;
+
+  .ellipsis-cell {
+    color: var(--ui-description-card-color);
+    font-size: inherit;
+  }
+}
+
+.status {
+  margin: 0;
+  border-radius: 3px;
+}
+
+.success {
+  color: var(--ui-status-active-text);
+  background: var(--ui-status-active-bg);
+  border-color: var(--ui-status-active-border);
+}
+
+.failed {
+  color: var(--ui-status-inactive-text);
+  background: var(--ui-status-inactive-bg);
+  border-color: var(--ui-status-inactive-border);
+}
+
+@supports (color: color-mix(in srgb, currentcolor, transparent)) {
+  .success {
+    color: color-mix(in srgb, var(--ui-status-active-text) 70%, var(--ui-text-color));
+  }
+
+  .failed {
+    color: color-mix(in srgb, var(--ui-status-inactive-text) 90%, var(--ui-text-color));
+  }
+}
+
+.detail-fields {
+  :global(.ant-descriptions-item-label) {
+    width: 128px;
+    flex-shrink: 0;
+    color: var(--ui-description-card-color);
+  }
+
+  :global(.ant-descriptions-item-content) {
+    overflow-wrap: anywhere;
+  }
+}
+
+.detail-message {
+  margin: 0 !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+// 旧版浏览器不支持容器查询时，也按可用空间自动换行。
+@supports not (container-type: inline-size) {
+  .filter-grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .filter-field {
+    flex: 1 1 120px;
+  }
+
+  .filter-keyword {
+    flex-basis: 180px;
+  }
+
+  .filter-time {
+    flex: 2 1 340px;
+  }
+}
+
+@container (width < 900px) {
+  .filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-keyword,
+  .filter-time {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (width < 400px) {
+  .filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.login-log-table {
+  :global(.ant-table-content),
+  :global(.ant-table-body) {
+    overflow-x: auto !important;
+  }
+}

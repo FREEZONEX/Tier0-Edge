@@ -10,3 +10,59 @@
     }
   }
 }
+
+.tab-label-with-icon {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 6px;
+
+  > svg {
+    flex: 0 0 auto;
+  }
+}
+
+.context-tab-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px;
+}
+
+.context-tab-parent,
+.context-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-tab-parent {
+  flex: 0 1 auto;
+  max-width: 96px;
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.context-tab-separator {
+  flex: 0 0 auto;
+  opacity: 0.65;
+}
+
+.context-tab-current {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+
+  > svg {
+    flex: 0 0 auto;
+  }
+}
+
+.context-tab-name {
+  flex: 1 1 auto;
+}

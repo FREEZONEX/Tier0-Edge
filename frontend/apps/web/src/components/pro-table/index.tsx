@@ -1,4 +1,14 @@
-import { useState, useRef, useEffect, memo, type FC, useMemo, isValidElement, type ReactNode } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  memo,
+  type FC,
+  useMemo,
+  isValidElement,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import { Button, Dropdown, Table } from 'antd';
 import type { TableColumnsType } from 'antd';
 import classNames from 'classnames';
@@ -13,8 +23,9 @@ import { ResizableTitle } from './ResizableTitle.tsx';
 import type { ATableProps } from './types.ts';
 import { fitColumnsToContainer, getColumnMax, getColumnMin, SELECTION_COL_WIDTH } from './column-fit.ts';
 import './index.scss';
-import { Pin, PinFilled } from '@carbon/icons-react';
+import { Pin } from '@/components/lucide-icon/carbon';
 import { OverflowMenuHorizontal } from '@/components/lucide-icon/carbon';
+import { ChevronRight } from 'lucide-react';
 import ComButton from '../com-button';
 
 const resolveOperationIcon = (icon?: ReactNode, extra?: ReactNode): ReactNode => {
@@ -49,10 +60,11 @@ const ProTable: FC<ATableProps> = ({
   pagination,
   fixedPosition,
   showExpand,
+  rowNavigationIndicator = true,
+  rowNavigationColumnKey,
   wrapperStyle,
   ...restProps
 }) => {
-  const formatMessage = useTranslate();
   const { theme, primaryColor } = useThemeStore((state) => ({
     theme: state.theme,
     primaryColor: state.primaryColor,
@@ -71,11 +83,10 @@ const ProTable: FC<ATableProps> = ({
   const newPagination = pagination
     ? {
         total: pagination?.total,
-        showTotal: (total: number) => `${formatMessage('common.total')}  ${total}  ${formatMessage('common.items')}`,
-        style: { display: 'flex', justifyContent: 'flex-end', padding: '10px 0' },
         pageSize: 20,
         showQuickJumper: true,
         ...pagination,
+        showTotal: undefined,
       }
     : pagination;
 
@@ -262,6 +273,69 @@ const ProTable: FC<ATableProps> = ({
         }
       : scroll;
 
+  const sourceOnRow = restProps.onRow;
+  const interactiveOnRow = sourceOnRow
+    ? (record: any, index?: number) => {
+        const rowProps = sourceOnRow(record, index);
+        if (!rowProps?.onClick) return rowProps;
+        const sourceOnClick = rowProps.onClick;
+        return {
+          ...rowProps,
+          className: classNames(rowProps.className, 'pro-table-clickable-row'),
+          onClick: (event: MouseEvent<HTMLElement>) => {
+            const target = event.target as HTMLElement;
+            // 弹出层的 React 事件仍会冒泡到行，但不属于行内点击。
+            if (!event.currentTarget.contains(target)) return;
+            if (
+              target.closest(
+                'button, a, input, select, textarea, [role="button"], [data-row-action="true"], .custom-operation, .custom-pin, .ant-checkbox-wrapper, .ant-dropdown-trigger'
+              )
+            ) {
+              return;
+            }
+            sourceOnClick(event);
+          },
+        };
+      }
+    : undefined;
+
+  const withRowNavigationIndicator = (tableColumns: TableColumnsType) => {
+    if (!sourceOnRow || !rowNavigationIndicator) return tableColumns;
+    const navigationColumnIndex = tableColumns.findIndex((column) => {
+      const columnDataIndex = 'dataIndex' in column ? column.dataIndex : undefined;
+      const dataIndex = Array.isArray(columnDataIndex) ? columnDataIndex.join('.') : columnDataIndex;
+      if (rowNavigationColumnKey !== undefined) {
+        return column.key === rowNavigationColumnKey || dataIndex === rowNavigationColumnKey;
+      }
+      return dataIndex !== 'pin' && dataIndex !== 'isPinned' && dataIndex !== 'operation' && column.key !== 'operation';
+    });
+    if (navigationColumnIndex < 0) return tableColumns;
+
+    return tableColumns.map((column, columnIndex) => {
+      if (columnIndex !== navigationColumnIndex) return column;
+      const originalRender = column.render;
+      return {
+        ...column,
+        render: (value: unknown, record: any, rowIndex: number) => {
+          const content = originalRender ? originalRender(value, record, rowIndex) : (value as ReactNode);
+          const rowProps = sourceOnRow(record, rowIndex);
+          if (!rowProps?.onClick) return content;
+          if (content && typeof content === 'object' && !isValidElement(content) && 'props' in content) return content;
+          const contentNode = content as ReactNode;
+          return (
+            <div className="pro-table-row-link-cell">
+              <div className="pro-table-row-link-content">{contentNode}</div>
+              <ChevronRight className="pro-table-row-chevron" size={14} strokeWidth={1.75} aria-hidden="true" />
+            </div>
+          );
+        },
+      };
+    });
+  };
+
+  const interactiveResizeColumns = withRowNavigationIndicator(mergedColumns);
+  const interactiveColumns = withRowNavigationIndicator(columns);
+
   return (
     <div
       ref={tableWrapRef}
@@ -279,8 +353,9 @@ const ProTable: FC<ATableProps> = ({
           rowKey="id"
           size={'small'}
           {...restProps}
+          onRow={interactiveOnRow}
           className={_classNames}
-          columns={changeShowColumns(mergedColumns)}
+          columns={changeShowColumns(interactiveResizeColumns)}
           pagination={newPagination}
           scroll={mergedScroll}
           components={{ ...components, header: { cell: ResizableTitle } }}
@@ -291,10 +366,11 @@ const ProTable: FC<ATableProps> = ({
           rowKey="id"
           size={'small'}
           {...restProps}
+          onRow={interactiveOnRow}
           className={_classNames}
           components={components}
           scroll={scroll}
-          columns={changeShowColumns(columns)}
+          columns={changeShowColumns(interactiveColumns)}
           pagination={newPagination}
         />
       )}
@@ -332,8 +408,8 @@ const withIntlTable = (WrappedTable: FC<ATableProps>) => {
                 auth={auth}
                 disabled={disabled}
                 onClick={() => onClick?.(record)}
-                className={classNames('custom-pin', !isPin && 'custom-pin-fixed')}
-                icon={isPin ? <Pin size={16} /> : <PinFilled size={16} />}
+                className={classNames('custom-pin', 'ui-pin-button', !isPin && 'custom-pin-fixed ui-pin-button-active')}
+                icon={<Pin size={12} />}
                 size="small"
                 type={'text'}
               />
@@ -380,7 +456,7 @@ const withIntlTable = (WrappedTable: FC<ATableProps>) => {
               };
             });
             return (
-              <div className="custom-operation">
+              <div className="custom-operation" onClick={(event) => event.stopPropagation()}>
                 <Dropdown
                   disabled={operationOptions.disabled}
                   overlayClassName="pro-table-operation-menu"

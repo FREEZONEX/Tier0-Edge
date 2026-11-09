@@ -28,6 +28,8 @@ type Field struct {
 	Name        string
 	Type        string
 	SystemField bool
+	LowerLimit  *float64 `json:"lowerLimit,omitempty"`
+	UpperLimit  *float64 `json:"upperLimit,omitempty"`
 }
 
 type schemaDoc struct {

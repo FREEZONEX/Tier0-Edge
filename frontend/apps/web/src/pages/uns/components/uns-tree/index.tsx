@@ -1,4 +1,5 @@
 import { pasteUns } from '@/apis/core-api/uns';
+import { getDataQualityActiveSummary } from '@/apis/core-api/data-quality';
 import { ButtonPermission } from '@/common-types/button-permission';
 import ComButton from '@/components/com-button';
 import cx from 'classnames';
@@ -30,6 +31,7 @@ import {
   isTopicTypeFolder,
   UnsTreeNodeIcon,
 } from './tree-icons';
+import { buildQualityTreeStatus, qualityStatusForNode } from './data-quality-tree';
 import './index.scss';
 
 const renderOperationDom = (type: string) => {
@@ -426,16 +428,6 @@ const findNodeWithParent = (
 
 /** 树上行走：按 UNS namespace（node.path，见 agent/tree-adapter.ts 的 `namespace: node.path`）
  * 定位树节点；找不到（懒加载未展开到、路径不存在）返回 undefined，调用方静默跳过。 */
-const findNodeByPath = (tree: UnsTreeNode[], path: string): UnsTreeNode | undefined => {
-  for (const node of tree) {
-    if (node.path === path) return node;
-    if (node.children?.length) {
-      const found = findNodeByPath(node.children, path);
-      if (found) return found;
-    }
-  }
-  return undefined;
-};
 
 /** 树上行走高亮维持时长：过后自动淡出（inline style 的 transition 接管，见 renderTitleStyle）。 */
 const WALK_HIGHLIGHT_VISIBLE_MS = 2000;
@@ -465,11 +457,20 @@ const TopTreeCom = ({
   const { message } = App.useApp();
   // 创建一个 ref 来引用 tree 元素
   const treeRef = useRef<any>(null);
-  const {
-    systemInfo: { enableAutoCategorization },
-  } = useBaseStore((state) => ({
+  const { systemInfo, currentUserInfo } = useBaseStore((state) => ({
     systemInfo: state.systemInfo,
+    currentUserInfo: state.currentUserInfo,
   }));
+  const { enableAutoCategorization } = systemInfo;
+  const resourceKeys = (currentUserInfo as (typeof currentUserInfo & { resourceKeys?: string[] }) | undefined)
+    ?.resourceKeys;
+  const canViewDataQuality = Boolean(
+    systemInfo?.dataQualityEnabled === true &&
+    (systemInfo?.authEnable === false ||
+      currentUserInfo?.superAdmin === true ||
+      resourceKeys?.includes('uns.dataQuality.read') ||
+      resourceKeys?.includes('uns.dataQuality.manage'))
+  );
 
   const {
     lazyTree,
@@ -539,7 +540,6 @@ const TopTreeCom = ({
     setScrollTreeNode(scrollTreeNode);
   }, [scrollTreeNode]);
 
-
   // 树上行走：描边高亮维持 WALK_HIGHLIGHT_VISIBLE_MS 后自动淡出（renderTitleStyle 依据
   // highlightVisibleKey 决定是否套用高亮样式；淡出靠 inline style 的 transition 接管，见下方）。
   const [highlightVisibleKey, setHighlightVisibleKey] = useState<Key | undefined>(undefined);
@@ -580,11 +580,74 @@ const TopTreeCom = ({
     }
   };
   const isUns = treeType === 'uns';
+  const qualityTreeEnabled = isUns && canViewDataQuality;
+  const isShow = usePageIsShow();
+  const [qualityTreeStatus, setQualityTreeStatus] = useState(() => buildQualityTreeStatus([]));
+  const qualityPollingActive = useRef(false);
+  const qualityRequestRunning = useRef(false);
+
+  useEffect(() => {
+    if (!qualityTreeEnabled) return;
+    qualityPollingActive.current = true;
+
+    const refreshQualityTreeStatus = async () => {
+      if (qualityRequestRunning.current || isShow?.current === false) return;
+      qualityRequestRunning.current = true;
+      try {
+        const summary = await getDataQualityActiveSummary();
+        if (qualityPollingActive.current) {
+          setQualityTreeStatus(buildQualityTreeStatus(summary.list || []));
+        }
+      } catch {
+        // Tree markers are supplementary. Keep the previous snapshot on transient API failures.
+      } finally {
+        qualityRequestRunning.current = false;
+      }
+    };
+
+    const initialTimer = window.setTimeout(() => void refreshQualityTreeStatus(), 0);
+    const timer = window.setInterval(() => void refreshQualityTreeStatus(), 15_000);
+    return () => {
+      qualityPollingActive.current = false;
+      window.clearTimeout(initialTimer);
+      window.clearInterval(timer);
+    };
+  }, [isShow, qualityTreeEnabled]);
+
   const renderedTreeData = useMemo(
     () => (isUns ? decorateMountedNamespaceTree(treeData) : treeData),
     [isUns, treeData]
   );
-  const isShow = usePageIsShow();
+
+  const renderQualityTreeStatus = useCallback(
+    (dataNode: UnsTreeNode) => {
+      if (!qualityTreeEnabled) return null;
+      const status = qualityStatusForNode(dataNode, qualityTreeStatus);
+      if (!status || dataNode.pathType === 2) return null;
+
+      const title = formatMessage('dataQuality.tree.abnormalNodes', { count: status.count });
+
+      return (
+        <span aria-label={title} className="uns-tree-quality-summary" title={title}>
+          {formatMessage('dataQuality.tree.abnormalSummary', { count: status.count })}
+        </span>
+      );
+    },
+    [formatMessage, qualityTreeEnabled, qualityTreeStatus]
+  );
+  const renderQualityTreeClassName = useCallback(
+    (dataNode: UnsTreeNode) => {
+      if (!qualityTreeEnabled) return undefined;
+      const status = qualityStatusForNode(dataNode, qualityTreeStatus);
+      if (!status) return undefined;
+      return cx(
+        'uns-tree-quality-row',
+        `uns-tree-quality-row--${status.severity}`,
+        dataNode.pathType === 2 ? 'uns-tree-quality-row--leaf' : 'uns-tree-quality-row--branch'
+      );
+    },
+    [qualityTreeEnabled, qualityTreeStatus]
+  );
   const createFallbackNode = resolveCreateFallbackNode({
     treeData,
     enableRootAsParent,
@@ -680,6 +743,7 @@ const TopTreeCom = ({
   return (
     <>
       <ProTree
+        {...(isUns ? { wrapperClassName: 'uns-namespace-tree', itemHeight: 36 } : {})}
         onDndDragStart={(info) => {
           const { active } = info;
           if (active.pathType == 0 && expandedKeys.includes(active?.id)) {
@@ -985,6 +1049,8 @@ const TopTreeCom = ({
             )
           );
         }}
+        treeNodePersistentExtra={qualityTreeEnabled ? renderQualityTreeStatus : undefined}
+        treeNodeClassName={qualityTreeEnabled ? renderQualityTreeClassName : undefined}
         treeNodeExtra={treeNodeExtra}
         overlayChildren={(dataNode: any) => {
           return (

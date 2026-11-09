@@ -1,0 +1,16 @@
+ALTER TABLE sys_user_oper_log ALTER COLUMN detail TYPE TEXT;
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS scope_type SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS scope_id BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS scope_name VARCHAR(200) NOT NULL DEFAULT '';
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS request_id VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS ip VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS user_agent TEXT NOT NULL DEFAULT '';
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS result_msg TEXT NOT NULL DEFAULT '';
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS resource_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE sys_user_oper_log ADD COLUMN IF NOT EXISTS event_id VARCHAR(64) NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_event ON sys_user_oper_log(event_id) WHERE event_id <> '';
+CREATE INDEX IF NOT EXISTS idx_audit_scope_time ON sys_user_oper_log(scope_type, scope_id, created_time DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_module_time ON sys_user_oper_log(res_type, business_type, created_time DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_code_time ON sys_user_oper_log(code, created_time DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_operator_time ON sys_user_oper_log(user_id, created_time DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_request ON sys_user_oper_log(request_id) WHERE request_id <> '';

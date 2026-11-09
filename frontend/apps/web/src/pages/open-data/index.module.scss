@@ -68,11 +68,11 @@
   padding: 22px;
   border: 1px solid var(--ui-line-color);
   border-radius: 4px;
-  background: #fff;
+  background: var(--ui-bg-color);
 
   p {
     margin: 12px 0 26px;
-    color: #7b7f86;
+    color: var(--ui-description-card-color);
     font-size: 14px;
     line-height: 1.5;
   }
@@ -82,7 +82,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #1f1f1f;
+  color: var(--ui-text-color);
   font-size: 16px;
 }
 
@@ -105,7 +105,7 @@
 
 .accessHint {
   margin: 16px 0 8px;
-  color: #3c4048;
+  color: var(--ui-text-color);
   font-size: 13px;
 }
 
@@ -117,13 +117,13 @@
   padding: 12px 14px;
   border: 1px solid var(--ui-line-color);
   border-radius: 4px;
-  background: #fafafa;
+  background: var(--ui-charttop-bg-color);
 
   pre {
     min-height: 22px;
     margin: 0;
     overflow: hidden;
-    color: #20242b;
+    color: var(--ui-text-color);
     font-family: 'IBM Plex Mono', Consolas, monospace;
     font-size: 13px;
     line-height: 1.7;
@@ -171,6 +171,54 @@
 
 .aiSingletonForm {
   width: min(640px, 100%);
+}
+
+.aiTrustedHostsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-text-color);
+}
+
+.aiTrustedHostsDesc {
+  margin: 0 0 20px;
+  color: var(--ui-access-gray-text, #7b7f86);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.aiTrustedHostsLoadError {
+  margin-bottom: 16px;
+}
+
+.aiTrustedHostsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.aiTrustedHostRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+  align-items: end;
+
+  :global(.ant-form-item) {
+    margin-bottom: 0;
+  }
+}
+
+.aiTrustedHostDelete {
+  margin-bottom: 1px;
+}
+
+.aiTrustedHostsFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-line-color, #e0e0e0);
 }
 
 .aiFieldHint {

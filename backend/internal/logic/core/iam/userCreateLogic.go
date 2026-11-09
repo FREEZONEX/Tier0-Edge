@@ -37,14 +37,15 @@ func (l *UserCreateLogic) UserCreate(req *types.UserSaveReq) (resp *types.Envelo
 		roles = append(roles, domainiam.UserRoleCommand{RoleID: role.RoleId, RoleName: role.RoleName})
 	}
 	data, err := l.svcCtx.App.IAM.CreateUser(l.ctx, domainiam.UserSaveCommand{
-		Username:  req.Username,
-		Password:  req.Password,
-		FirstName: req.FirstName,
-		Email:     req.Email,
-		Phone:     req.Phone,
-		Enabled:   req.Enabled,
-		RoleList:  roles,
-		UserID:    logicx.UserID(l.ctx),
+		Username:    req.Username,
+		Password:    req.Password,
+		FirstName:   req.FirstName,
+		Email:       req.Email,
+		Phone:       req.Phone,
+		Enabled:     req.Enabled,
+		IsRandomPwd: req.ForceChangePassword,
+		RoleList:    roles,
+		UserID:      logicx.UserID(l.ctx),
 	})
 	if err != nil {
 		return nil, logicx.Error(err)

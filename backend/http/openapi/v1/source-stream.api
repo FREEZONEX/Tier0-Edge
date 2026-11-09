@@ -1,0 +1,343 @@
+syntax = "v1"
+
+type OpenapiSourceListReq {
+	page         int    `json:"page,optional"`
+	size         int    `json:"size,optional"`
+	search       string `json:"search,optional"`
+	protocol     string `json:"protocol,optional"`
+	health       string `json:"health,optional"`
+}
+
+type OpenapiStreamListReq {
+	page     int    `json:"page,optional"`
+	size     int    `json:"size,optional"`
+	search   string `json:"search,optional"`
+	sourceId int64  `json:"sourceId,optional"`
+	topicId  int64  `json:"topicId,optional"`
+	model    string `json:"model,optional"`
+	status   string `json:"status,optional"`
+}
+
+type OpenapiStreamVersionListReq {
+	streamId int64 `path:"streamId"`
+	page     int   `json:"page,optional"`
+	size     int   `json:"size,optional"`
+}
+
+type OpenapiStreamRunListReq {
+	page     int    `json:"page,optional"`
+	size     int    `json:"size,optional"`
+	sourceId int64  `json:"sourceId,optional"`
+	streamId int64  `json:"streamId,optional"`
+	topicId  int64  `json:"topicId,optional"`
+	model    string `json:"model,optional"`
+	status   string `json:"status,optional"`
+}
+
+// Explicit API Key scopes intersect with the owner's current permissions.
+// Existing API Key default scopes are intentionally unchanged.
+@server (
+ prefix: /openapi/v1/uns
+ timeout: 40s
+ group: openapi/v1/sourcestream
+ middleware: ApiKeyAuth
+)
+service backend {
+ @doc(
+  summary: "SourceProtocolList"
+  description: "Requires uns.source on both the API Key and its owner. Returns protocol IDs, credential kinds and Source document templates. Source stores endpoint and credentials; acquisition belongs to Stream."
+  authType: "admin"
+  resource: "uns.source"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiSourceProtocolList
+ post /source-protocols/list (SourceStreamEmpty) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceList"
+  description: "Requires uns.source on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns.source"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiSourceList
+ post /sources/list (OpenapiSourceListReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceDetail"
+  description: "Requires uns.source on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.source"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiSourceDetail
+ post /sources/:sourceId/detail (SourceIDReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceImpact"
+  description: "Requires uns.source on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.source"
+  action: "update"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceImpact
+ post /sources/:sourceId/impact (SourceIDReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceCreate"
+  description: "Requires uns.source.manage on both the API Key and its owner. Create a connection record with expectedRevision=0. Start with a document from source-protocols/list. Secrets must be written separately through credentials."
+  authType: "admin"
+  resource: "uns.source"
+  action: "create"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceCreate
+ post /sources/create (SourceSaveReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceUpdate"
+  description: "Requires uns.source.manage on both the API Key and its owner. Replace the saved Source document using its current revision. Read impact and supply confirmedImpactRevision when changing an in-use connection."
+  authType: "admin"
+  resource: "uns.source"
+  action: "update"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceUpdate
+ post /sources/:sourceId/update (SourceSaveReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceDelete"
+  description: "Requires uns.source.manage on both the API Key and its owner. Disable Source and remove dependent Streams before deletion. Use the latest revision and impactRevision."
+  authType: "admin"
+  resource: "uns.source"
+  action: "delete"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceDelete
+ post /sources/:sourceId/delete (SourceMutationReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceValidate"
+  description: "Requires uns.source.manage on both the API Key and its owner. Validate document without saving or connecting. A successful response contains valid=true and sideEffects=false; invalid configuration returns HTTP 400."
+  authType: "admin"
+  resource: "uns.source"
+  action: "validate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiSourceValidate
+ post /sources/validate (SourceValidateReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceProbe"
+  description: "Requires uns.source.manage on both the API Key and its owner. Test a real connection. Supply saved sourceId to use its credentials, or an unsaved document. timeoutMs is 100..10000. Inspect data.health, not only HTTP status."
+  authType: "admin"
+  resource: "uns.source"
+  action: "test"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceProbe
+ post /sources/probe (SourceProbeReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceDiscover"
+  description: "Requires uns.source.manage on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.source"
+  action: "operate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceDiscover
+ post /sources/:sourceId/discover (SourceDiscoverReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceCredentialSave"
+  description: "Requires uns.source.credentials on both the API Key and its owner. Write or replace credentials without returning their plaintext. Use expectedRevision and, for an in-use Source, confirmedImpactRevision. OAuth client secrets use kind=oauth2."
+  authType: "admin"
+  resource: "uns.source"
+  action: "update"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceCredentialSave
+ post /sources/:sourceId/credentials (SourceCredentialSaveReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceOAuthStart"
+  description: "Requires uns.source.credentials on both the API Key and its owner. Start Authorization Code + PKCE. Returns an authorization URL; the user must approve access at the provider. redirectUri must match the registered callback."
+  authType: "admin"
+  resource: "uns.source"
+  action: "update"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceOAuthStart
+ post /sources/:sourceId/oauth/start (SourceOAuthStartReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "SourceOAuthComplete"
+  description: "Requires uns.source.credentials on both the API Key and its owner. Complete the previously started authorization using state and code. Never store codes or tokens in Stream scripts."
+  authType: "admin"
+  resource: "uns.source"
+  action: "update"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiSourceOAuthComplete
+ post /sources/:sourceId/oauth/complete (SourceOAuthCompleteReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamList"
+  description: "Requires uns.stream on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiStreamList
+ post /streams/list (OpenapiStreamListReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamDetail"
+  description: "Requires uns.stream on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiStreamDetail
+ post /streams/:streamId/detail (StreamIDReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamVersionList"
+  description: "Requires uns.stream on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiStreamVersionList
+ post /streams/:streamId/versions/list (OpenapiStreamVersionListReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamRunList"
+  description: "Requires uns.stream on both the API Key and its owner. List, pagination and filters are supplied in the JSON body. IDs in the path must not be repeated in the body."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiStreamRunList
+ post /stream-runs/list (OpenapiStreamRunListReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamRunDetail"
+  description: "Requires uns.stream on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiStreamRunDetail
+ post /stream-runs/:runId/detail (StreamRunIDReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamCreate"
+  description: "Requires uns.stream.manage on both the API Key and its owner. Create a draft with expectedRevision=0. A script Stream has model=script, script.code, script.timeoutMs and optional sources [{alias,sourceId,configRevision}]."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "create"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamCreate
+ post /streams/create (StreamSaveReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamUpdate"
+  description: "Requires uns.stream.manage on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "update"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamUpdate
+ post /streams/:streamId/update (StreamSaveReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamDelete"
+  description: "Requires uns.stream.manage on both the API Key and its owner. Disable an enabled Stream first, then delete with its latest expectedRevision."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "delete"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamDelete
+ post /streams/:streamId/delete (StreamMutationReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamValidate"
+  description: "Requires uns.stream.manage on both the API Key and its owner. Validate the draft and bound Source revisions without publishing. An independent script uses expectedSourceRevision=0."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "validate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "1"
+ )
+ @handler OpenapiStreamValidate
+ post /streams/validate (StreamValidateReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamTest"
+  description: "Requires uns.stream.manage on both the API Key and its owner. Run a draft test without publishing. A script subscription samples one message for up to 20 seconds and runs the callback; it does not leave a persistent subscription."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "test"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamTest
+ post /streams/test (StreamTestReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamDeploy"
+  description: "Requires uns.stream.deploy on both the API Key and its owner. Publish an immutable version with expectedRevision. MQTT source.subscribe scripts start continuous subscriptions. Query detail for executionState and stream-runs/list for outcomes."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "operate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamDeploy
+ post /streams/:streamId/deploy (StreamDeployReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamDisable"
+  description: "Requires uns.stream.deploy on both the API Key and its owner. Uses the same business validation and optimistic revision checks as the internal management API."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "operate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamDisable
+ post /streams/:streamId/disable (StreamMutationReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamRollback"
+  description: "Requires uns.stream.deploy on both the API Key and its owner. Activate a saved version using streamId, versionId, expectedRevision and expectedSourceRevision; normal deployment validation still applies."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "operate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamRollback
+ post /streams/:streamId/versions/:versionId/activate (StreamRollbackReq) returns (SourceStreamEnvelope)
+ @doc(
+  summary: "StreamInvoke"
+  description: "Requires uns.stream.execute on both the API Key and its owner. Invoke the active manual Stream version. expectedActiveVersion guards version changes; idempotencyKey prevents repeated operations. Also requires uns.write. MQTT subscriptions cannot be manually invoked."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "operate"
+  group: "openapi/v1/sourcestream"
+  recordLogMode: "3"
+ )
+ @handler OpenapiStreamInvoke
+ post /streams/:streamId/invoke (StreamInvokeReq) returns (SourceStreamEnvelope)
+}

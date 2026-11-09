@@ -54,7 +54,7 @@
       }
     }
 
-    .starButton {
+    .pinButton {
       position: absolute;
       top: 16px;
       right: 16px;
@@ -84,7 +84,7 @@
       }
     }
 
-    .starActive {
+    .pinActive {
       color: var(--ui-warning-color);
 
       svg {
@@ -165,7 +165,7 @@
         border-color: rgb(255 255 255 / 24%);
       }
 
-      .starButton {
+      .pinButton {
         color: var(--ui-description-card-color);
         background: var(--ui-bg-color);
         border-color: var(--ui-active-bg-color);

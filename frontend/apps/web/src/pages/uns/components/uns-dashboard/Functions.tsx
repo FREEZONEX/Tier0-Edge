@@ -11,15 +11,8 @@ import styles from './index.module.scss';
 import { useActivate } from '@/contexts/tabs-lifecycle-context.ts';
 
 const functionGroupKeys = new Set(['uns', 'system']);
-const namespaceFunctionKeys = new Set(['uns.page', 'flow.collection.page', 'flow.event.page', 'mqtt.auth.manage']);
-const namespaceFunctionUrls = new Set([
-  '/uns',
-  '/flow',
-  '/collection-flow',
-  '/event-flow',
-  '/mqtt-auth',
-  '/edge-connection',
-]);
+const namespaceFunctionKeys = new Set(['uns.page', 'mqtt.auth.manage']);
+const namespaceFunctionUrls = new Set(['/uns', '/edge-connection']);
 
 const isNamespaceFunction = (item?: ResourceProps) =>
   namespaceFunctionKeys.has(String(item?.resourceKey || '')) || namespaceFunctionUrls.has(String(item?.url || ''));

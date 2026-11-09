@@ -1,0 +1,172 @@
+// Port of SaaS namespace-connections/graph.module.scss, using Edge theme tokens.
+.workspace,
+.scroller,
+.canvas {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+.workspace {
+  display: flex;
+  flex-direction: column;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ui-line-color);
+  > :global(.ant-input-affix-wrapper) {
+    max-width: 256px;
+  }
+}
+.scroller {
+  display: flex;
+  overflow: auto;
+}
+.canvas {
+  --tree-width: clamp(220px, 28%, 360px);
+  --graph-width: calc(100% - var(--tree-width));
+  position: relative;
+  min-width: 640px;
+  height: 100%;
+  isolation: isolate;
+  background-image: radial-gradient(var(--ui-line-color) 1px, transparent 1px);
+  background-size: 12px 12px;
+  &:has(.treePanel):not(:has([data-connect-namespace])) {
+    --tree-width: 44px;
+  }
+  &[data-tree='false'] {
+    --tree-width: 0px;
+    min-width: 420px;
+  }
+}
+.sources,
+.streams {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 8px 12px 0;
+    font-size: 12px;
+    color: var(--ui-description-card-color);
+  }
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: var(--ui-bg-color);
+    border: 0;
+    cursor: pointer;
+    span {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    svg {
+      flex-shrink: 0;
+    }
+    &:hover {
+      background: var(--ui-fill-secondary);
+    }
+    &[aria-pressed='true'],
+    &[data-related='true'] {
+      box-shadow: inset 0 0 0 1px var(--ui-theme-color);
+    }
+  }
+}
+.sources {
+  left: 20px;
+  width: calc(var(--graph-width) * 0.35 - 20px);
+}
+.streams {
+  left: calc(var(--graph-width) * 0.54);
+  width: calc(var(--graph-width) * 0.34);
+}
+.scrollArea {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.protocolGroup {
+  margin-bottom: 8px;
+  background: var(--ui-bg-color);
+  border: 1px solid var(--ui-line-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.protocolHeader {
+  height: 36px;
+  padding: 0 12px;
+}
+.sources .sourceRow {
+  width: calc(100% - 12px);
+  height: 44px;
+  margin: 0 6px 4px;
+  padding: 0 12px;
+  border-radius: 4px;
+}
+.streams .streamCard {
+  height: 28px;
+  margin-bottom: 12px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-line-color);
+  border-radius: 6px;
+}
+.treePanel {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--tree-width);
+  background: var(--ui-bg-color);
+  > aside {
+    height: 100%;
+  }
+}
+.lines {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.line {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.empty {
+  position: absolute;
+  inset: 56px var(--tree-width) 0 0;
+  display: grid;
+  place-content: center;
+  pointer-events: none;
+}

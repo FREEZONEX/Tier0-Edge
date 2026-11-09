@@ -51,6 +51,14 @@ func (l *UserUpdateLogic) UserUpdate(req *types.UserUpdateReq) (resp *types.Enve
 		return nil, logicx.Error(err)
 	}
 	if strings.TrimSpace(req.HomePage) != "" {
+		// 状态变更已经提交并独立记账；后续失败仅记录整个请求失败。
+		defer func() {
+			state := auditdomain.StateFromContext(l.ctx)
+			if err != nil && state != nil && state.Suppressed && state.Record != nil && (state.Record.BusinessType == auditdomain.BizEnable || state.Record.BusinessType == auditdomain.BizDisable) {
+				state.Suppressed = false
+				state.Record = nil
+			}
+		}()
 		homePage, err := l.svcCtx.App.IAM.UpdateUserHomePage(l.ctx, req.Id, req.HomePage)
 		if err != nil {
 			return nil, logicx.Error(err)
@@ -62,14 +70,19 @@ func (l *UserUpdateLogic) UserUpdate(req *types.UserUpdateReq) (resp *types.Enve
 		if name == "" {
 			name, _ = data["nickName"].(string)
 		}
-		l.svcCtx.App.Audit.Record(l.ctx, auditdomain.RecordInput{
-			ScopeType:    auditdomain.ScopeTypePlatform,
-			ResType:      auditdomain.ResTypeUserManagement,
-			ResID:        strconv.FormatInt(id, 10),
-			ResName:      name,
-			BusinessType: auditdomain.BizUpdate,
-			Detail:       map[string]any{"userId": id},
-		})
+		state := auditdomain.StateFromContext(l.ctx)
+		if state != nil && state.Record != nil && state.Record.ResType == auditdomain.ResTypeUserManagement && state.Record.ResID == strconv.FormatInt(id, 10) && (state.Record.BusinessType == auditdomain.BizEnable || state.Record.BusinessType == auditdomain.BizDisable) {
+			state.Record.ResName = name
+		} else {
+			l.svcCtx.App.Audit.Record(l.ctx, auditdomain.RecordInput{
+				ScopeType:    auditdomain.ScopeTypePlatform,
+				ResType:      auditdomain.ResTypeUserManagement,
+				ResID:        strconv.FormatInt(id, 10),
+				ResName:      name,
+				BusinessType: auditdomain.BizUpdate,
+				Detail:       map[string]any{"userId": id},
+			})
+		}
 	}
 	return respx.Envelope(data), nil
 }

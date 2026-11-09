@@ -1,0 +1,89 @@
+syntax = "v1"
+
+type (
+ NativeAppPreviewReq {
+  FileId string `json:"fileId"`
+ }
+ NativeAppGrant {
+  Alias string `json:"alias"`
+  CollectionId string `json:"collectionId"`
+  Permissions []string `json:"permissions"`
+ }
+ NativeAppInstallReq {
+  FileId string `json:"fileId"`
+  AppId string `json:"appId,optional"`
+  IdempotencyKey string `json:"idempotencyKey"`
+  SkipInvalidRoles bool `json:"skipInvalidRoles,optional"`
+  RolePlanDigest string `json:"rolePlanDigest,optional"`
+  RenameRoleKeys []string `json:"renameRoleKeys,optional"`
+  Collections []NativeAppGrant `json:"collections,optional"`
+ }
+ NativeAppActionReq {
+  AppId string `path:"appId"`
+  Action string `json:"action,options=start|stop|restart|uninstall|refreshCredentials"`
+ }
+ NativeAppIdReq { AppId string `path:"appId"` }
+ NativeAppListReq {
+  Archived bool `form:"archived,optional"`
+  Launchable bool `form:"launchable,optional"`
+ }
+ NativeAppTrashReq {
+  AppId string `path:"appId"`
+  ExpectedRevision int64 `json:"expectedRevision"`
+  Trashed bool `json:"trashed"`
+ }
+ NativeAppRoleReq {
+  Key string `json:"key"`
+  Name string `json:"name"`
+  Description string `json:"description,optional"`
+  UserIds []string `json:"userIds,optional"`
+  GroupIds []string `json:"groupIds,optional"`
+  ExpectedRevision int64 `json:"expectedRevision"`
+ }
+ NativeAppRoleDeleteReq {
+  Key string `json:"key"`
+  ExpectedRevision int64 `json:"expectedRevision"`
+ }
+ NativeAppRoleAssignmentReq {
+  TargetType string `json:"targetType,options=user|group"`
+  TargetId string `json:"targetId"`
+  RoleKeys []string `json:"roleKeys"`
+  ExpectedRoleKeys []string `json:"expectedRoleKeys"`
+ }
+ NativeAppJobReq { JobId string `path:"jobId"` }
+)
+
+@server(
+ prefix: /api/core
+ group: core/nativeapp
+ middleware: SessionAuth, Permission
+ timeout: 5m
+)
+service backend {
+ @handler NativeAppPreview
+ post /app-runtime/preview (NativeAppPreviewReq) returns (Envelope)
+ @handler NativeAppInstall
+ post /app-runtime/install (NativeAppInstallReq) returns (Envelope)
+ @handler NativeAppList
+ get /app-runtime/apps (NativeAppListReq) returns (Envelope)
+ @handler NativeAppTrash
+ post /app-runtime/apps/:appId/trash (NativeAppTrashReq) returns (Envelope)
+ @handler NativeAppRoleOptions
+ get /app-runtime/business-role-options returns (Envelope)
+ @handler NativeAppRoles
+ get /app-runtime/business-roles returns (Envelope)
+ @handler NativeAppRoleCreate
+ post /app-runtime/business-roles/create (NativeAppRoleReq) returns (Envelope)
+ @handler NativeAppRoleUpdate
+ post /app-runtime/business-roles/update (NativeAppRoleReq) returns (Envelope)
+ @handler NativeAppRoleDelete
+ post /app-runtime/business-roles/delete (NativeAppRoleDeleteReq) returns (Envelope)
+ @handler NativeAppRoleAssignment
+ post /app-runtime/business-role-assignments/update (NativeAppRoleAssignmentReq) returns (Envelope)
+ @handler NativeAppAction
+ post /app-runtime/apps/:appId/actions (NativeAppActionReq) returns (Envelope)
+ @handler NativeAppLogs
+ get /app-runtime/apps/:appId/logs (NativeAppIdReq) returns (Envelope)
+ @handler NativeAppJob
+ get /app-runtime/jobs/:jobId (NativeAppJobReq) returns (Envelope)
+}

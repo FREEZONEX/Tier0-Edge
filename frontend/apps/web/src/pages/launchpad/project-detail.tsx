@@ -13,7 +13,7 @@ import { useLocation, useNavigate, useParams, type Location } from 'react-router
 import type { ProjectItem } from '../project/types';
 import AppGrid from './components/AppGrid';
 import AppTable from './components/AppTable';
-import { useLaunchpadFavorites } from './useLaunchpadFavorites';
+import { useLaunchpadPinned } from './useLaunchpadPinned';
 import styles from './project-detail.module.scss';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -54,7 +54,7 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
   const location = keepAliveLocation || routerLocation;
   const formatMessage = useTranslate('Launchpad');
   const formatCommon = useTranslate();
-  const { isAppFavorite, toggleAppFavorite } = useLaunchpadFavorites();
+  const { isAppPinned, pinnedAppIds, toggleAppPin, refreshPinned } = useLaunchpadPinned();
   const params = useParams<{ projectName: string }>();
   const routeProjectName = useMemo(() => getLaunchpadProjectRouteParam(location.pathname), [location.pathname]);
   const projectName = propProjectName || routeProjectName || params.projectName;
@@ -68,6 +68,7 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     loading,
     data: projectDetail,
     runImmediate,
+    runRefresh,
     runDebounced,
   } = useDebouncedRequest(
     async (name: string, key?: string) => {
@@ -75,7 +76,10 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
         return await getLaunchpadProjectByNameApi(name, key);
       } catch (error: any) {
         if (error?.code === 403) {
-          navigate({ pathname: '/launchpad', state: { tabName: formatMessage('title') } });
+          navigate({
+            pathname: '/launchpad',
+            state: { tabName: formatMessage('title') },
+          });
           return null;
         }
         throw error;
@@ -87,8 +91,14 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     }
   );
 
-  const apps: App[] = projectDetail?.apps ?? [];
   const project: ProjectItem | undefined = projectDetail?.project;
+
+  // 置顶应用排前，其余保持后端返回顺序（sort 为稳定排序）
+  const apps: App[] = useMemo(() => {
+    const list = projectDetail?.apps ?? [];
+    const pinned = new Set(pinnedAppIds);
+    return [...list].sort((a, b) => Number(pinned.has(String(b.appId))) - Number(pinned.has(String(a.appId))));
+  }, [projectDetail?.apps, pinnedAppIds]);
 
   const fallbackProjectName = useMemo(() => {
     if (!projectName) {
@@ -115,11 +125,12 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
   }, [projectName, runDebounced, runImmediate]);
 
   useActivate(() => {
+    void refreshPinned();
     if (!projectName) {
       return;
     }
     runDebounced.cancel();
-    void runImmediate(projectName, appliedSearchKeyword || undefined);
+    void runRefresh(projectName, appliedSearchKeyword || undefined);
   });
 
   useEffect(() => {
@@ -153,7 +164,10 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     if (onBack) {
       onBack();
     } else {
-      navigate({ pathname: '/launchpad', state: { tabName: formatMessage('title') } });
+      navigate({
+        pathname: '/launchpad',
+        state: { tabName: formatMessage('title') },
+      });
     }
   };
 
@@ -197,7 +211,11 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
       pathname: `/launchpad/${encodeURIComponent(String(project?.id || projectName || ''))}/${encodeURIComponent(
         String(app.appId || app.appName)
       )}`,
-      state: { tabName: app?.displayName || app?.appName },
+      state: {
+        tabName: app?.displayName || app?.appName,
+        tabContextName: project?.displayName || project?.name || fallbackProjectName,
+        tabParentPathname: location.pathname,
+      },
     });
   };
 
@@ -249,16 +267,16 @@ const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           <AppTable
             apps={apps}
             onAppClick={handleAppClick}
-            isAppFavorite={isAppFavorite}
-            onToggleFavorite={(app) => toggleAppFavorite(app.appId)}
+            isAppPinned={isAppPinned}
+            onTogglePin={(app) => toggleAppPin(app.appId)}
             keyword={appliedSearchKeyword}
           />
         ) : (
           <AppGrid
             apps={apps}
             onAppClick={handleAppClick}
-            isAppFavorite={isAppFavorite}
-            onToggleFavorite={(app) => toggleAppFavorite(app.appId)}
+            isAppPinned={isAppPinned}
+            onTogglePin={(app) => toggleAppPin(app.appId)}
             keyword={appliedSearchKeyword}
           />
         )}

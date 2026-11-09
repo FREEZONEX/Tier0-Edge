@@ -28,6 +28,7 @@ enableMapSet(); // immer需要开启支持map和set, 必须在创建 store 前�
 
 const initialState: TreeStoreState = {
   loading: false,
+  rootInitialized: false,
   searchValue: '',
   treeType: 'uns',
   searchType: 1,
@@ -53,7 +54,7 @@ export const ROOT_NODE_ID = '0';
 // 页码
 export const PAGE_SIZE = 100;
 
-const createTreeStore = (initProps?: Partial<TreeStoreProps>) => {
+export const createTreeStore = (initProps?: Partial<TreeStoreProps>) => {
   return createStore<TreeStoreProps>()(
     subscribeWithSelector(
       persist(
@@ -349,6 +350,7 @@ const createTreeStore = (initProps?: Partial<TreeStoreProps>) => {
                           // 如果是第一页，直接设置树数据
                           const rootNodes = handleRootNodeData(data, restResponse, parentInfo);
                           setTreeData(rootNodes);
+                          if (!searchValue) set({ rootInitialized: true });
                           if (reset) {
                             scrollTreeNode?.(rootNodes?.[0]?.id);
                           }
@@ -441,6 +443,7 @@ const createTreeStore = (initProps?: Partial<TreeStoreProps>) => {
                         } else {
                           resetTreeData();
                         }
+                        if (!searchValue) set({ rootInitialized: true });
                         cb?.(tree);
                       })
                       .catch((err) => {

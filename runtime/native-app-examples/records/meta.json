@@ -1,0 +1,6 @@
+{
+  "name": "Collection Records CRUD",
+  "version": "1.0.0",
+  "description": "Create, read, update and soft-delete business records in explicitly granted Collections.",
+  "runtime": { "entry": "server.mjs", "healthPath": "/healthz" }
+}

@@ -1,0 +1,11 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core/home
+    group: core/home
+    middleware: SessionAuth
+)
+service backend {
+    @handler HomeRecentList
+    get /recents (HomeRecentReq) returns (Envelope)
+}

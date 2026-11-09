@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	auditdomain "backend/internal/domain/audit"
 	"backend/internal/domain/dataingest"
 	domainuns "backend/internal/domain/uns"
 	respx "backend/internal/httpx"
@@ -18,6 +19,9 @@ import (
 	"backend/internal/repo"
 	"backend/internal/svc"
 	"backend/internal/types"
+
+	"github.com/zeromicro/go-zero/core/logx"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -27,6 +31,8 @@ const (
 	openapiQualityGoodNoData  = "GoodNoData"
 	openapiHistoryDefaultSize = int64(1000)
 	openapiHistoryMaxSize     = int64(2000)
+	openapiBatchResolveSize   = 1000
+	openapiQueryConcurrency   = 4
 )
 
 func openapiUnsRead(ctx context.Context, svcCtx *svc.ServiceContext, req *types.ReadReq) (*types.Envelope, error) {
@@ -40,19 +46,31 @@ func openapiUnsRead(ctx context.Context, svcCtx *svc.ServiceContext, req *types.
 	if err != nil {
 		return nil, logicx.Error(err)
 	}
-	nodeByTopic := make(map[string]repo.UnsNode, len(topics))
+	nodeByTopic, err := findOpenapiNodes(ctx, topics)
+	if err != nil {
+		return nil, logicx.Error(err)
+	}
 	metadataNodes := make([]repo.UnsNode, 0, len(topics))
 	for _, topic := range topics {
-		node, ok, err := findOpenapiNode(ctx, topic, false)
-		if err != nil {
-			return nil, logicx.Error(err)
-		}
+		node, ok := nodeByTopic[topic]
 		if !ok {
 			continue
 		}
-		nodeByTopic[topic] = node
 		if req.IncludeMetadata {
 			metadataNodes = append(metadataNodes, node)
+		}
+	}
+	latestNodes := make([]repo.UnsNode, 0, len(nodeByTopic))
+	for _, node := range nodeByTopic {
+		if node.Type == 2 {
+			latestNodes = append(latestNodes, node)
+		}
+	}
+	latestByNodeID := map[int64]map[string]any{}
+	if svcCtx != nil && svcCtx.App != nil && svcCtx.App.DataIngest != nil {
+		latestByNodeID, err = svcCtx.App.DataIngest.LastPayloads(ctx, latestNodes)
+		if err != nil {
+			logx.WithContext(ctx).Errorf("openapi uns read batch latest partial failure topics=%d err=%v", len(latestNodes), err)
 		}
 	}
 	bindFlowIDs, err := openapiBindFlowIDMap(ctx, req.IncludeMetadata, metadataNodes)
@@ -77,9 +95,14 @@ func openapiUnsRead(ctx context.Context, svcCtx *svc.ServiceContext, req *types.
 			continue
 		}
 		row["success"] = true
-		row["result"] = openapiLatestVQT(ctx, svcCtx, node)
+		vqt := openapiLatestVQTFromPayload(latestByNodeID[node.ID])
+		row["result"] = vqt
 		if req.IncludeMetadata {
-			row["metadata"] = openapiNodeInfo(ctx, svcCtx, node, true, req.IncludeLeafValue, bindFlowIDs)
+			metadata := openapiNodeInfo(ctx, svcCtx, node, true, false, bindFlowIDs)
+			if req.IncludeLeafValue {
+				metadata["payload"] = vqt
+			}
+			row["metadata"] = metadata
 		}
 		results = append(results, row)
 	}
@@ -132,6 +155,19 @@ func openapiUnsWrite(ctx context.Context, svcCtx *svc.ServiceContext, req *types
 		}
 		results = append(results, row)
 	}
+	writeTopics := make([]string, 0, len(req.Writes))
+	for _, item := range req.Writes {
+		if topic := normalizeOpenapiTopic(item.Topic); topic != "" {
+			writeTopics = append(writeTopics, topic)
+		}
+	}
+	recordUNSAudit(ctx, svcCtx, "", firstAuditTopic(writeTopics), auditdomain.BizUpdate, map[string]any{
+		"topics":  writeTopics,
+		"count":   len(req.Writes),
+		"qos":     req.Qos,
+		"retain":  req.Retain,
+		"success": success,
+	})
 	return respx.Envelope(map[string]any{"success": success, "results": results}), nil
 }
 
@@ -212,60 +248,81 @@ func openapiUnsHistory(ctx context.Context, svcCtx *svc.ServiceContext, req *typ
 		return nil, logicx.Error(fmt.Errorf("end_time must be greater than or equal to start_time"))
 	}
 	agg, aggErr := parseOpenapiHistoryAggregation(req.Aggregation)
+	countExact, err := parseOpenapiHistoryCountMode(req.CountMode)
+	if err != nil {
+		return nil, logicx.Error(err)
+	}
 	autoMode := req.Page <= 0 && req.Size <= 0
 	page, size := normalizeOpenapiPage(req.Page, req.Size, openapiHistoryDefaultSize)
 	if autoMode {
 		page = 1
-		size = openapiHistoryDefaultSize
 	}
-	results := make([]map[string]any, 0, len(req.Topics))
-	success := true
-	total := int64(0)
-	for _, rawTopic := range req.Topics {
-		topic := normalizeOpenapiTopic(rawTopic)
-		row := map[string]any{"success": false, "topic": topic}
-		switch {
-		case topic == "":
-			row["error"] = openapiItemError(400, "topic empty")
-		case hasOpenapiWildcard(topic):
-			row["error"] = openapiItemError(400, "history topic does not support wildcard")
-		default:
-			node, ok, err := findOpenapiNode(ctx, topic, false)
-			if err != nil {
-				return nil, logicx.Error(err)
-			}
-			if !ok {
-				row["error"] = openapiItemError(404, "topic not found")
-			} else if node.Type != 2 {
-				row["error"] = openapiItemError(400, "topic is not a file node")
-			} else if node.EnableHistory != 1 {
-				row["error"] = openapiItemError(400, "history is not enabled for topic")
-			} else if aggErr != nil {
-				row["error"] = openapiItemError(400, aggErr.Error())
-			} else if svcCtx == nil || svcCtx.App == nil || svcCtx.App.DataIngest == nil {
-				row["error"] = openapiItemError(500, "data ingest is not initialized")
-			} else {
-				values, itemTotal, meta, err := queryOpenapiHistory(ctx, svcCtx, node, start, end, page, size, autoMode, agg)
-				if err != nil {
-					row["error"] = openapiItemError(400, err.Error())
+	nodeByTopic, err := findOpenapiNodes(ctx, req.Topics)
+	if err != nil {
+		return nil, logicx.Error(err)
+	}
+	results := make([]map[string]any, len(req.Topics))
+	totals := make([]int64, len(req.Topics))
+	var group errgroup.Group
+	group.SetLimit(openapiQueryConcurrency)
+	for idx, rawTopic := range req.Topics {
+		idx, rawTopic := idx, rawTopic
+		group.Go(func() error {
+			topic := normalizeOpenapiTopic(rawTopic)
+			row := map[string]any{"success": false, "topic": topic}
+			switch {
+			case topic == "":
+				row["error"] = openapiItemError(400, "topic empty")
+			case hasOpenapiWildcard(topic):
+				row["error"] = openapiItemError(400, "history topic does not support wildcard")
+			default:
+				node, ok := nodeByTopic[topic]
+				if !ok {
+					row["error"] = openapiItemError(404, "topic not found")
+				} else if node.Type != 2 {
+					row["error"] = openapiItemError(400, "topic is not a file node")
+				} else if node.EnableHistory != 1 {
+					row["error"] = openapiItemError(400, "history is not enabled for topic")
+				} else if aggErr != nil {
+					row["error"] = openapiItemError(400, aggErr.Error())
+				} else if svcCtx == nil || svcCtx.App == nil || svcCtx.App.DataIngest == nil {
+					row["error"] = openapiItemError(500, "data ingest is not initialized")
 				} else {
-					row["success"] = true
-					row["result"] = map[string]any{"values": values, "meta": meta}
-					total += itemTotal
+					values, itemTotal, meta, err := queryOpenapiHistory(ctx, svcCtx, node, start, end, page, size, autoMode, countExact, agg)
+					if err != nil {
+						row["error"] = openapiItemError(400, err.Error())
+					} else {
+						row["success"] = true
+						row["result"] = map[string]any{"values": values, "meta": meta}
+						totals[idx] = itemTotal
+					}
 				}
 			}
-		}
+			results[idx] = row
+			return nil
+		})
+	}
+	_ = group.Wait()
+	success := true
+	total := int64(-1)
+	if countExact {
+		total = 0
+	}
+	for idx, row := range results {
 		if row["success"] != true {
 			success = false
 		}
-		results = append(results, row)
+		if countExact {
+			total += totals[idx]
+		}
 	}
 	return respx.Envelope(map[string]any{
-		"success": success,
-		"results": results,
-		"page":    page,
-		"size":    size,
-		"total":   total,
+		"success":    success,
+		"results":    results,
+		"page":       page,
+		"size":       size,
+		"total":      total,
+		"totalExact": countExact,
 	}), nil
 }
 
@@ -284,6 +341,7 @@ func openapiUnsCreate(ctx context.Context, svcCtx *svc.ServiceContext, req *type
 	}
 	results := make([]map[string]any, 0, len(created))
 	success := true
+	createdTopics := make([]string, 0, len(created))
 	for _, item := range created {
 		row := map[string]any{"success": item.Err == nil, "topic": item.Name}
 		if item.Err != nil {
@@ -291,8 +349,16 @@ func openapiUnsCreate(ctx context.Context, svcCtx *svc.ServiceContext, req *type
 			success = false
 		} else {
 			row["topic"] = item.Namespace
+			createdTopics = append(createdTopics, item.Namespace)
 		}
 		results = append(results, row)
+	}
+	if len(createdTopics) > 0 {
+		recordUNSAudit(ctx, svcCtx, "", firstAuditTopic(createdTopics), auditdomain.BizCreate, map[string]any{
+			"topics":  createdTopics,
+			"count":   len(createdTopics),
+			"success": success,
+		})
 	}
 	return respx.Envelope(map[string]any{"success": success, "results": results}), nil
 }
@@ -340,22 +406,77 @@ func openapiUnsUpdate(ctx context.Context, svcCtx *svc.ServiceContext, req *type
 	if err != nil {
 		return nil, logicx.Error(err)
 	}
+	recordUNSAudit(ctx, svcCtx, strconv.FormatInt(node.ID, 10), firstNonBlank(name, node.Namespace), auditdomain.BizUpdate, map[string]any{
+		"path": req.Path,
+		"name": name,
+	})
 	return respx.Envelope(map[string]any{"success": true}), nil
 }
 
 func openapiUnsDelete(ctx context.Context, svcCtx *svc.ServiceContext, req *types.NodeDeleteReq) (*types.Envelope, error) {
-	if req == nil || len(req.Topics) == 0 { return nil, logicx.Error(fmt.Errorf("topics is required")) }
+	if req == nil || len(req.Topics) == 0 {
+		return nil, logicx.Error(fmt.Errorf("topics is required"))
+	}
 	for _, rawTopic := range req.Topics {
 		topic := normalizeOpenapiTopic(rawTopic)
-		if topic == "" || hasOpenapiWildcard(topic) { return nil, logicx.Error(fmt.Errorf("delete topics does not support wildcard")) }
-		node, ok, err := findOpenapiNode(ctx, topic, false)
-		if err != nil { return nil, logicx.Error(err) }
-		if !ok { return nil, logicx.Error(domainuns.ErrNotFound) }
-		if _, err := svcCtx.App.UNS.Delete(ctx, node.ID, logicx.UserID(ctx)); err != nil { return nil, logicx.Error(err) }
+		if topic == "" || hasOpenapiWildcard(topic) {
+			return nil, logicx.Error(fmt.Errorf("delete topics does not support wildcard"))
+		}
+		node, ok, err := findOpenapiNode(ctx, topic, req.HardDelete)
+		if err != nil {
+			return nil, logicx.Error(err)
+		}
+		if !ok {
+			return nil, logicx.Error(domainuns.ErrNotFound)
+		}
+		if req.HardDelete {
+			if node.DeletedTime == 0 {
+				if _, err := svcCtx.App.UNS.Delete(ctx, node.ID, logicx.UserID(ctx)); err != nil {
+					return nil, logicx.Error(err)
+				}
+			}
+			if _, err := svcCtx.App.UNS.ForceDelete(ctx, node.ID, logicx.UserID(ctx), false); err != nil {
+				return nil, logicx.Error(err)
+			}
+			continue
+		}
+		if _, err := svcCtx.App.UNS.Delete(ctx, node.ID, logicx.UserID(ctx)); err != nil {
+			return nil, logicx.Error(err)
+		}
 	}
+	topics := make([]string, 0, len(req.Topics))
+	for _, rawTopic := range req.Topics {
+		topics = append(topics, normalizeOpenapiTopic(rawTopic))
+	}
+	recordUNSAudit(ctx, svcCtx, "", firstAuditTopic(topics), auditdomain.BizDelete, map[string]any{
+		"topics":     topics,
+		"hardDelete": req.HardDelete,
+	})
 	return respx.Envelope(map[string]any{"success": true}), nil
 }
 
+func openapiUnsRestore(ctx context.Context, svcCtx *svc.ServiceContext, req *types.NodeRestoreReq) (*types.Envelope, error) {
+	if req == nil || strings.TrimSpace(req.Path) == "" {
+		return nil, logicx.Error(fmt.Errorf("path is required"))
+	}
+	node, ok, err := findOpenapiNode(ctx, req.Path, true)
+	if err != nil {
+		return nil, logicx.Error(err)
+	}
+	if !ok {
+		return nil, logicx.Error(domainuns.ErrNotFound)
+	}
+	if node.DeletedTime == 0 {
+		return respx.Envelope(map[string]any{"success": true}), nil
+	}
+	if _, err := svcCtx.App.UNS.Restore(ctx, node.ID, logicx.UserID(ctx), true); err != nil {
+		return nil, logicx.Error(err)
+	}
+	recordUNSAudit(ctx, svcCtx, strconv.FormatInt(node.ID, 10), firstNonBlank(node.Namespace, node.Name), auditdomain.BizRestore, map[string]any{
+		"path": req.Path,
+	})
+	return respx.Envelope(map[string]any{"success": true}), nil
+}
 
 func openapiBrowseNodes(ctx context.Context, path string) ([]repo.UnsNode, *repo.UnsNode, error) {
 	path = normalizeOpenapiTopic(path)
@@ -372,14 +493,14 @@ func openapiBrowseNodes(ctx context.Context, path string) ([]repo.UnsNode, *repo
 	return nodes, &root, err
 }
 
-func buildOpenapiNodeTree(ctx context.Context, svcCtx *svc.ServiceContext, nodes []repo.UnsNode, root *repo.UnsNode, maxDepth int64, includeMetadata, includeLeafValue bool, bindFlowIDs map[int64]int64) []map[string]any {
+func buildOpenapiNodeTree(ctx context.Context, svcCtx *svc.ServiceContext, nodes []repo.UnsNode, root *repo.UnsNode, maxDepth int64, includeMetadata, includeLeafValue bool, binds *openapiBindFlows) []map[string]any {
 	byParent := make(map[int64][]repo.UnsNode)
 	for _, node := range nodes {
 		byParent[node.ParentID] = append(byParent[node.ParentID], node)
 	}
 	var walk func(node repo.UnsNode, depth int64) map[string]any
 	walk = func(node repo.UnsNode, depth int64) map[string]any {
-		info := openapiNodeInfo(ctx, svcCtx, node, includeMetadata, includeLeafValue, bindFlowIDs)
+		info := openapiNodeInfo(ctx, svcCtx, node, includeMetadata, includeLeafValue, binds)
 		if maxDepth <= 0 || depth < maxDepth {
 			children := byParent[node.ID]
 			if len(children) > 0 {
@@ -407,7 +528,7 @@ func buildOpenapiNodeTree(ctx context.Context, svcCtx *svc.ServiceContext, nodes
 	return tree
 }
 
-func openapiNodeInfo(ctx context.Context, svcCtx *svc.ServiceContext, node repo.UnsNode, includeMetadata, includeLeafValue bool, bindFlowIDs ...map[int64]int64) map[string]any {
+func openapiNodeInfo(ctx context.Context, svcCtx *svc.ServiceContext, node repo.UnsNode, includeMetadata, includeLeafValue bool, binds ...*openapiBindFlows) map[string]any {
 	ret := map[string]any{
 		"id":        node.ID,
 		"path":      strings.Trim(node.Namespace, "/"),
@@ -423,8 +544,10 @@ func openapiNodeInfo(ctx context.Context, svcCtx *svc.ServiceContext, node repo.
 		ret["alias"] = strings.Trim(node.Alias, "/")
 		ret["enableHistory"] = node.EnableHistory == 1
 		ret["bindFlowID"] = int64(0)
-		if len(bindFlowIDs) > 0 && bindFlowIDs[0] != nil {
-			ret["bindFlowID"] = bindFlowIDs[0][node.ID]
+		ret["bindEventFlowID"] = int64(0)
+		if len(binds) > 0 && binds[0] != nil {
+			ret["bindFlowID"] = binds[0].sourceID(node.ID)
+			ret["bindEventFlowID"] = binds[0].eventID(node.ID)
 		}
 	}
 	if includeLeafValue && node.Type == 2 {
@@ -433,10 +556,29 @@ func openapiNodeInfo(ctx context.Context, svcCtx *svc.ServiceContext, node repo.
 	return ret
 }
 
-func openapiBindFlowIDMap(ctx context.Context, includeMetadata bool, nodes []repo.UnsNode) (map[int64]int64, error) {
-	out := map[int64]int64{}
+// openapiBindFlows 节点绑定的 flow 关系，source/event 各一条
+type openapiBindFlows struct {
+	source map[int64]int64
+	event  map[int64]int64
+}
+
+func (b *openapiBindFlows) sourceID(nodeID int64) int64 {
+	if b == nil || b.source == nil {
+		return 0
+	}
+	return b.source[nodeID]
+}
+
+func (b *openapiBindFlows) eventID(nodeID int64) int64 {
+	if b == nil || b.event == nil {
+		return 0
+	}
+	return b.event[nodeID]
+}
+
+func openapiBindFlowIDMap(ctx context.Context, includeMetadata bool, nodes []repo.UnsNode) (*openapiBindFlows, error) {
 	if !includeMetadata || len(nodes) == 0 {
-		return out, nil
+		return &openapiBindFlows{}, nil
 	}
 	ids := make([]int64, 0, len(nodes))
 	seen := make(map[int64]struct{}, len(nodes))
@@ -450,16 +592,27 @@ func openapiBindFlowIDMap(ctx context.Context, includeMetadata bool, nodes []rep
 		seen[node.ID] = struct{}{}
 		ids = append(ids, node.ID)
 	}
-	return repo.NewFlowRepo(ctx).BindFlowIDMapByNodeIDs(ctx, ids)
+	source, event, err := repo.NewFlowRepo(ctx).BindFlowIDMapsByNodeIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return &openapiBindFlows{source: source, event: event}, nil
 }
 
 func openapiLatestVQT(ctx context.Context, svcCtx *svc.ServiceContext, node repo.UnsNode) map[string]any {
-	ret := map[string]any{"quality": openapiQualityGoodNoData, "timeStamp": int64(0)}
 	if svcCtx == nil || svcCtx.App == nil || svcCtx.App.DataIngest == nil || node.Type != 2 {
-		return ret
+		return openapiLatestVQTFromPayload(nil)
 	}
 	payload, err := svcCtx.App.DataIngest.LastPayload(ctx, node)
 	if err != nil || len(payload) == 0 {
+		return openapiLatestVQTFromPayload(nil)
+	}
+	return openapiLatestVQTFromPayload(payload)
+}
+
+func openapiLatestVQTFromPayload(payload map[string]any) map[string]any {
+	ret := map[string]any{"quality": openapiQualityGoodNoData, "timeStamp": int64(0)}
+	if len(payload) == 0 {
 		return ret
 	}
 	value := payload["payload"]
@@ -514,7 +667,7 @@ func openapiCreateTreeNode(node types.NamespaceNode, inheritedTopicType string, 
 	return result
 }
 
-func queryOpenapiHistory(ctx context.Context, svcCtx *svc.ServiceContext, node repo.UnsNode, start, end, page, size int64, autoMode bool, agg openapiHistoryAggregation) ([]map[string]any, int64, map[string]any, error) {
+func queryOpenapiHistory(ctx context.Context, svcCtx *svc.ServiceContext, node repo.UnsNode, start, end, page, size int64, autoMode, countExact bool, agg openapiHistoryAggregation) ([]map[string]any, int64, map[string]any, error) {
 	query := dataingest.HistoryQuery{
 		StartMs:    start,
 		EndMs:      end,
@@ -523,6 +676,8 @@ func queryOpenapiHistory(ctx context.Context, svcCtx *svc.ServiceContext, node r
 		Auto:       autoMode,
 		Aggregate:  agg.enabled,
 		IntervalMs: agg.intervalMs,
+		PointLimit: int(size),
+		SkipCount:  !countExact,
 	}
 	if agg.legacy {
 		query.Fields = []dataingest.HistoryAggregationField{{Name: agg.field, Function: agg.function}}
@@ -751,6 +906,71 @@ func aggregateOpenapiQuality(values []map[string]any) string {
 	return worst
 }
 
+func findOpenapiNodes(ctx context.Context, topics []string) (map[string]repo.UnsNode, error) {
+	result := make(map[string]repo.UnsNode, len(topics))
+	refs := make([]string, 0, len(topics))
+	seen := make(map[string]struct{}, len(topics))
+	for _, rawTopic := range topics {
+		topic := normalizeOpenapiTopic(rawTopic)
+		if topic == "" || hasOpenapiWildcard(topic) {
+			continue
+		}
+		if _, ok := seen[topic]; ok {
+			continue
+		}
+		seen[topic] = struct{}{}
+		refs = append(refs, topic)
+	}
+	unsRepo := repo.NewUnsRepo(ctx)
+	for start := 0; start < len(refs); start += openapiBatchResolveSize {
+		end := start + openapiBatchResolveSize
+		if end > len(refs) {
+			end = len(refs)
+		}
+		batch := refs[start:end]
+		ids := make([]int64, 0, len(batch))
+		names := make([]string, 0, len(batch))
+		for _, topic := range batch {
+			if id, err := strconv.ParseInt(topic, 10, 64); err == nil && id > 0 {
+				ids = append(ids, id)
+				continue
+			}
+			names = append(names, topic)
+		}
+		nodes, err := unsRepo.GetActiveUnsNodesByRefs(ctx, ids, names, names)
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[int64]repo.UnsNode, len(nodes))
+		byNamespace := make(map[string]repo.UnsNode, len(nodes))
+		byAlias := make(map[string]repo.UnsNode, len(nodes))
+		for _, node := range nodes {
+			byID[node.ID] = node
+			byNamespace[normalizeOpenapiTopic(node.Namespace)] = node
+			alias := normalizeOpenapiTopic(node.Alias)
+			if alias != "" {
+				byAlias[alias] = node
+			}
+		}
+		for _, topic := range batch {
+			if id, err := strconv.ParseInt(topic, 10, 64); err == nil && id > 0 {
+				if node, ok := byID[id]; ok {
+					result[topic] = node
+				}
+				continue
+			}
+			if node, ok := byNamespace[topic]; ok {
+				result[topic] = node
+				continue
+			}
+			if node, ok := byAlias[topic]; ok {
+				result[topic] = node
+			}
+		}
+	}
+	return result, nil
+}
+
 func findOpenapiNode(ctx context.Context, topic string, includeDeleted bool) (repo.UnsNode, bool, error) {
 	topic = normalizeOpenapiTopic(topic)
 	if topic == "" {
@@ -785,6 +1005,7 @@ func findOpenapiNode(ctx context.Context, topic string, includeDeleted bool) (re
 }
 
 func expandOpenapiTopics(ctx context.Context, topics []string) ([]string, error) {
+	topics = compactOpenapiTopicPatterns(topics)
 	out := make([]string, 0, len(topics))
 	seen := map[string]struct{}{}
 	var allNodes []repo.UnsNode
@@ -801,7 +1022,7 @@ func expandOpenapiTopics(ctx context.Context, topics []string) ([]string, error)
 			continue
 		}
 		if allNodes == nil {
-			nodes, err := repo.NewUnsRepo(ctx).ListUnsNodes(ctx, repo.UnsNodeFilter{})
+			nodes, err := repo.NewUnsRepo(ctx).ListActiveUnsNodesRaw(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -819,6 +1040,61 @@ func expandOpenapiTopics(ctx context.Context, topics []string) ([]string, error)
 		}
 	}
 	return out, nil
+}
+
+func compactOpenapiTopicPatterns(topics []string) []string {
+	normalized := make([]string, 0, len(topics))
+	seen := make(map[string]struct{}, len(topics))
+	for _, raw := range topics {
+		topic := normalizeOpenapiTopic(raw)
+		if topic == "" {
+			continue
+		}
+		if _, ok := seen[topic]; ok {
+			continue
+		}
+		seen[topic] = struct{}{}
+		normalized = append(normalized, topic)
+	}
+	out := make([]string, 0, len(normalized))
+	for idx, candidate := range normalized {
+		if !hasOpenapiWildcard(candidate) {
+			out = append(out, candidate)
+			continue
+		}
+		covered := false
+		for otherIdx, other := range normalized {
+			if idx == otherIdx || !hasOpenapiWildcard(other) {
+				continue
+			}
+			if mqttTopicPatternCovers(other, candidate) &&
+				(!mqttTopicPatternCovers(candidate, other) || otherIdx < idx) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+func mqttTopicPatternCovers(cover, candidate string) bool {
+	coverParts := strings.Split(normalizeOpenapiTopic(cover), "/")
+	candidateParts := strings.Split(normalizeOpenapiTopic(candidate), "/")
+	for idx, part := range coverParts {
+		if part == "#" {
+			return true
+		}
+		if idx >= len(candidateParts) || candidateParts[idx] == "#" {
+			return false
+		}
+		if part != "+" && part != candidateParts[idx] {
+			return false
+		}
+	}
+	return len(coverParts) == len(candidateParts)
 }
 
 func mqttTopicMatches(pattern, topic string) bool {
@@ -1005,24 +1281,7 @@ func openapiStringMapJSON(value map[string]string) string {
 }
 
 func openapiLatestValuePayload(value any) any {
-	body, ok := value.(map[string]any)
-	if !ok {
-		return value
-	}
-	if len(body) == 1 {
-		if v, ok := body["value"]; ok {
-			return v
-		}
-	}
-	out := make(map[string]any, len(body))
-	for key, item := range body {
-		lower := strings.ToLower(strings.TrimSpace(key))
-		if lower == "timestamp" || lower == "quality" || lower == "_timestamp" || lower == "_quality" || lower == "_ct" || lower == "_qos" || lower == "created_time" {
-			continue
-		}
-		out[key] = item
-	}
-	return out
+	return value
 }
 
 func openapiPayloadQuality(value any) string {
@@ -1113,6 +1372,17 @@ func normalizeOpenapiPage(page, size, defaultSize int64) (int64, int64) {
 		size = openapiHistoryMaxSize
 	}
 	return page, size
+}
+
+func parseOpenapiHistoryCountMode(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "exact":
+		return true, nil
+	case "none":
+		return false, nil
+	default:
+		return false, fmt.Errorf("countMode must be none or exact")
+	}
 }
 
 func pageOpenapiNodes(nodes []repo.UnsNode, page, size int64) []repo.UnsNode {

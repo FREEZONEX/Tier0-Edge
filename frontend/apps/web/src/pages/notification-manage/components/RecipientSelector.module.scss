@@ -1,0 +1,67 @@
+.recipient-tree-popup {
+  :global(.ant-select-tree-list-holder-inner) {
+    gap: 2px;
+  }
+
+  :global(.ant-select-tree-treenode) {
+    min-height: 32px;
+    padding: 0 8px;
+    align-items: center;
+  }
+
+  :global(.ant-select-tree-node-content-wrapper) {
+    min-width: 0;
+    padding: 4px 6px;
+  }
+
+  :global(.ant-select-tree-switcher) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.recipient-tree-section {
+  margin-top: 4px;
+  padding-top: 0 !important;
+
+  .recipient-option-name,
+  .recipient-option > svg {
+    color: var(--ui-description-card-color);
+  }
+
+  .recipient-option-name {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.recipient-option {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+
+  > svg {
+    flex: 0 0 auto;
+    color: var(--ui-description-card-color);
+  }
+}
+
+.recipient-option-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipient-count-tag {
+  flex: 0 0 auto;
+  margin-inline-start: 2px;
+  color: var(--ui-description-card-color);
+}

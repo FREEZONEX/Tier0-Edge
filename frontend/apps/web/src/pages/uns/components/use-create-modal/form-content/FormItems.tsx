@@ -15,6 +15,7 @@ import ComRadio from '@/components/com-radio';
 import AttributeTypeForm from '@/pages/uns/components/use-create-modal/components/file/AttributeTypeForm';
 import { CaretRightOutlined } from '@ant-design/icons';
 import styles from './index.module.scss';
+import DataQualityCreateSettings from '@/pages/uns/components/use-create-modal/components/DataQualityCreateSettings';
 
 const { TextArea } = Input;
 
@@ -114,6 +115,8 @@ const renderItems = (item: FormItemType) => {
       return <AdvancedOptions key={key} />;
     case 'attributeTypeForm':
       return <AttributeTypeForm key={key} {...childProps} />;
+    case 'dataQualityCreate':
+      return <DataQualityCreateSettings key={key} />;
     default:
       return null;
   }

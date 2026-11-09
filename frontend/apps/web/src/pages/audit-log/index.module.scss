@@ -8,6 +8,14 @@
   padding-top: 24px !important;
 }
 
+.tableShell {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
 .auditSearch {
   height: 28px;
 
@@ -164,6 +172,10 @@
   min-width: 0;
   display: grid;
   gap: 4px;
+
+  > :global(.ant-tag) {
+    width: fit-content;
+  }
 }
 
 .fullSpan {
@@ -218,7 +230,21 @@
   font-size: 12px;
   line-height: 20px;
   white-space: pre-wrap;
-  word-break: break-word;
+}
+
+.jobFiles {
+  width: 100%;
+}
+
+.failureReason {
+  padding: 12px 14px;
+  border-left: 3px solid var(--ui-error-color);
+  background: var(--ui-fill-tertiary);
+  color: var(--ui-text-color);
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .emptyDetail {
@@ -248,5 +274,73 @@
   .detailJson {
     background: var(--ui-charttop-bg-color);
     border-color: var(--ui-control-border);
+  }
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 24px 16px;
+}
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ui-text-color);
+  font-size: 12px;
+  :global(.ant-select),
+  :global(.ant-input-number),
+  :global(.ant-picker) {
+    width: 100%;
+  }
+}
+.filter-time {
+  grid-column: span 2;
+}
+.filter-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.filter-tags {
+  flex: 1;
+  min-width: 0;
+  :global(.ant-tag) {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+.change-value {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+}
+.audit-summary {
+  margin: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1200px) {
+  .filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .filter-time {
+    grid-column: auto;
+  }
+  .filter-grid {
+    grid-template-columns: 1fr;
   }
 }

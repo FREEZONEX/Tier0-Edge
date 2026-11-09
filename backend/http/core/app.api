@@ -1,0 +1,23 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core
+    group: core/app
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler ContainerAppList
+    get /apps returns (Envelope)
+
+    @handler ContainerAppCreate
+    post /apps (ContainerAppSaveReq) returns (Envelope)
+
+    @handler ContainerAppUpdate
+    put /apps/:appId (ContainerAppSaveReq) returns (Envelope)
+
+    @handler ContainerAppVisibility
+    put /apps/:appId/visibility (ContainerAppVisibilityReq) returns (Envelope)
+
+    @handler ContainerAppDelete
+    delete /apps/:appId (ContainerAppIdReq) returns (Envelope)
+}

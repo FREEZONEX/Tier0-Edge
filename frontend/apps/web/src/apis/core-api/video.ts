@@ -108,8 +108,8 @@ export const reconnectVideoCamera = (id: number | string) =>
   coreApi.post(`/video/cameras/${id}/reconnect`, {}) as Promise<VideoCamera>;
 
 // 预览信令：把浏览器 offer SDP 交给媒体平面，换取 answer SDP
-export const previewVideoCamera = (id: number | string, sdp: string) =>
-  coreApi.post(`/video/cameras/${id}/preview`, { sdp }) as Promise<{ sdp: string }>;
+export const previewVideoCamera = (id: number | string, sdp: string, config?: AxiosWrapperRequestConfig) =>
+  coreApi.post(`/video/cameras/${id}/preview`, { sdp }, config) as Promise<{ sdp: string }>;
 
 // 结束预览：关闭预览拉流
 export const stopVideoCameraPreview = (id: number | string) => coreApi.delete(`/video/cameras/${id}/preview`);

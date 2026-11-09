@@ -1,5 +1,5 @@
 import type { TableColumnsType, TableProps } from 'antd';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, Key } from 'react';
 import type { OperationProps } from '@/components/operation-buttons/utils.tsx';
 
 export type ProTableColumn<RecordType = any> = TableColumnsType<RecordType>[number] & {
@@ -19,6 +19,10 @@ export interface ATableProps<RecordType = any> extends Omit<TableProps<RecordTyp
   hiddenEmpty?: boolean;
   fixedPosition?: boolean; // 是否固定页码在底部
   showExpand?: boolean; // 是否显示展开按钮
+  /** 行可点击时是否自动在首个数据列显示 ChevronRight，已有自定义指示器的表格可关闭 */
+  rowNavigationIndicator?: boolean;
+  /** 指定 ChevronRight 所在列；未指定时自动选择首个非操作列 */
+  rowNavigationColumnKey?: Key;
   wrapperStyle?: CSSProperties;
   // 操作项配置
   operationOptions?: {

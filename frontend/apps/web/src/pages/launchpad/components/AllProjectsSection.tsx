@@ -3,7 +3,7 @@ import empty from '@/assets/common/empty.svg';
 import { Search } from '@carbon/icons-react';
 import ViewModeSegmented from '@/components/lucide-icon/ViewModeSegmented';
 import { useTranslate } from '@/hooks';
-import type { Project } from '@/pages/launchpad/type';
+import type { App, Project } from '@/pages/launchpad/type';
 import { Empty, Input, Typography } from 'antd';
 import { type FC } from 'react';
 import ProjectGrid from './ProjectGrid';
@@ -18,9 +18,10 @@ interface AllProjectsSectionProps {
   hasSearchKeyword: boolean;
   viewMode: string;
   onViewModeChange: (mode: string) => void;
-  isProjectFavorite: (id: string | number) => boolean;
-  onToggleFavorite: (project: Project) => void;
+  isProjectPinned: (id: string | number) => boolean;
+  onTogglePin: (project: Project) => void;
   onProjectClick: (project: Project) => void;
+  onAppClick: (app: App) => void;
 }
 
 const AllProjectsSection: FC<AllProjectsSectionProps> = ({
@@ -31,9 +32,10 @@ const AllProjectsSection: FC<AllProjectsSectionProps> = ({
   hasSearchKeyword,
   viewMode,
   onViewModeChange,
-  isProjectFavorite,
-  onToggleFavorite,
+  isProjectPinned,
+  onTogglePin,
   onProjectClick,
+  onAppClick,
 }) => {
   const formatMessage = useTranslate('Launchpad');
   const formatCommon = useTranslate();
@@ -75,16 +77,17 @@ const AllProjectsSection: FC<AllProjectsSectionProps> = ({
         <ProjectTable
           projects={projects}
           onProjectClick={onProjectClick}
-          isProjectFavorite={isProjectFavorite}
-          onToggleFavorite={onToggleFavorite}
+          isProjectPinned={isProjectPinned}
+          onTogglePin={onTogglePin}
           keyword={appliedSearchKeyword}
         />
       ) : (
         <ProjectGrid
           projects={projects}
           onProjectClick={onProjectClick}
-          isProjectFavorite={isProjectFavorite}
-          onToggleFavorite={onToggleFavorite}
+          onAppClick={onAppClick}
+          isProjectPinned={isProjectPinned}
+          onTogglePin={onTogglePin}
           keyword={appliedSearchKeyword}
         />
       )}

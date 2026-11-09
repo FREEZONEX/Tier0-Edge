@@ -1,4 +1,4 @@
-import { useTranslate } from '@/hooks';
+import { useTabName, useTranslate } from '@/hooks';
 import { type FC, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
@@ -10,6 +10,7 @@ import ComLayout from '@/components/com-layout';
 import ComContent from '@/components/com-layout/ComContent';
 import { getSearchParamsObj } from '@/utils/url-util';
 import { Flex, message } from 'antd';
+import { Folder } from 'lucide-react';
 import AppsTab from './components/tabs-content/apps';
 import MembersTab from './components/tabs-content/members';
 import RolesTab from './components/tabs-content/roles';
@@ -24,8 +25,10 @@ const Detail: FC<PageProps> = ({ location }) => {
 
   const formatMessage = useTranslate();
   const [apiLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('apps');
+  const tabParam = searchParams.tab;
+  const [activeTab, setActiveTab] = useState(tabParam === 'members' || tabParam === 'roles' ? tabParam : 'apps');
   const [projectDetail, setProjectDetail] = useState<ProjectItem>();
+  useTabName(projectDetail?.name);
 
   const tabOptions = [
     { label: formatMessage('project.apps'), value: 'apps' },
@@ -85,20 +88,25 @@ const Detail: FC<PageProps> = ({ location }) => {
     <ComLayout loading={apiLoading}>
       <ComContent mustHasBack={false} style={{ overflow: 'hidden' }} hasPadding border={false}>
         <Flex vertical style={{ height: '100%' }}>
-          <ComDetailHeader
-            showBack
-            onBack={handleBack}
-            showDesc
-            titleNode={
-              <Flex align="center" gap={8}>
-                <h1 className={styles.title} title={projectDetail?.name}>
-                  {projectDetail?.name}
-                </h1>
-                {projectDetail?.id != null && <span className={styles.projectId}>ID: {projectDetail.id}</span>}
-              </Flex>
-            }
-            desc={projectDetail?.description || ''}
-          />
+          <div className={styles.projectHeader}>
+            <ComDetailHeader
+              showBack
+              onBack={handleBack}
+              showDesc
+              titleNode={
+                <Flex align="center" gap={8}>
+                  <span className={styles.titleIcon} aria-hidden="true">
+                    <Folder size={14} />
+                  </span>
+                  <h1 className={styles.title} title={projectDetail?.name}>
+                    {projectDetail?.name}
+                  </h1>
+                  {projectDetail?.id != null && <span className={styles.projectId}>ID: {projectDetail.id}</span>}
+                </Flex>
+              }
+              desc={projectDetail?.description || ''}
+            />
+          </div>
           {projectDetail && (
             <div className={styles.content}>
               <ComBtnTabs

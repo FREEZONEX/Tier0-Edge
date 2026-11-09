@@ -4,7 +4,6 @@
   "description": "pnpm monorepo tier0",
   "type": "module",
   "scripts": {
-    "prepare": "cd .. && husky frontend/.husky",
     "lint": "pnpm i18n:fallback:check && eslint .",
     "i18n:fallback:check": "node apps/web/scripts/check-i18n-fallback.mjs",
     "intl:once": "turbo run intl:once",
@@ -12,10 +11,8 @@
     "properties:convert": "turbo run properties:convert",
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter ./apps/web",
-    "dev:anchor": "turbo run dev --filter ./apps/anchor",
     "build": "turbo run build",
     "build:web": "turbo run build --filter ./apps/web",
-    "build:anchor": "turbo run build --filter ./apps/anchor",
     "build:scripts": "turbo run build --filter ./packages/scripts",
     "clean": "rimraf --glob \"**/node_modules\"  || exit 0"
   },

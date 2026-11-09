@@ -1,0 +1,6 @@
+{
+  "name": "@tier0/native-validation-mqtt",
+  "private": true,
+  "type": "module",
+  "dependencies": { "aedes": "1.2.0", "ws": "8.22.1" }
+}

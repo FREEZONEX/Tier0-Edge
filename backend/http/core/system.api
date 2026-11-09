@@ -1,5 +1,9 @@
 syntax = "v1"
 
+type SystemLoginSessionDurationReq {
+    duration string `json:"duration"`
+}
+
 @server(
     group: core/system
 )
@@ -21,4 +25,20 @@ service backend {
 service backend {
     @handler Config
     get /system/config returns (Envelope)
+}
+
+@server(
+    prefix: /api/core
+    group: core/system
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler RuntimeMetrics
+    get /system/runtime-metrics returns (Envelope)
+
+    @handler LoginSessionDurationGet
+    get /system/login-session-duration returns (Envelope)
+
+    @handler LoginSessionDurationPut
+    put /system/login-session-duration (SystemLoginSessionDurationReq) returns (Envelope)
 }

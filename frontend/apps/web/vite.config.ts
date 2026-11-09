@@ -18,12 +18,26 @@ const proxy = getProxy(
 delete proxy['/files/system/resource'];
 logDevInfo(devInfo);
 const buildTime = logBuildTime();
+// 开发和生产预览共用显式主机白名单，保留 Vite 默认的 Host 校验。
+const allowedHosts = [
+  'edge-dev.local',
+  'host.docker.internal',
+  '127.0.0.1',
+  'localhost',
+  ...(devInfo.VITE_ALLOWED_HOSTS?.split(',')
+    .map((host) => host.trim())
+    .filter(Boolean) || []),
+];
 const localResourceRoot = path.resolve(__dirname, '../../../deploy/mount/edge/system/resource');
 
 const localResourcePlugin = () => {
   const serveLocalResource = (req: any, res: any, next: any) => {
     const url = req.url || '';
     if (url.split('?')[0] === '/runtime-env.js') {
+      if (devInfo.API_PROXY_URL) {
+        next();
+        return;
+      }
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');
       res.end(
@@ -135,7 +149,7 @@ export default defineConfig({
   envPrefix: ['REACT_APP_', 'VITE_', 'OPENAI_'],
   server: {
     host: devInfo.VITE_ENABLE_HOST,
-    allowedHosts: ['edge-dev.local', 'host.docker.internal', '127.0.0.1', 'localhost'],
+    allowedHosts,
     origin: devInfo.VITE_ASSET_PREFIX,
     fs: {
       allow: [
@@ -165,6 +179,11 @@ export default defineConfig({
         '.js': 'jsx',
       },
     },
+  },
+  // 预览默认继承 server.proxy，保留 API、iframe 和插件资源的完整代理。
+  preview: {
+    host: devInfo.VITE_ENABLE_HOST || undefined,
+    allowedHosts,
   },
   build: {
     rollupOptions: {

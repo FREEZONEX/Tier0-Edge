@@ -1,0 +1,45 @@
+syntax = "v1"
+
+type OpenapiMqttAuthCreateReq {
+    name string `json:"name"`
+    description string `json:"description,optional"`
+    clientIDRandomSuffixEnabled bool `json:"clientIDRandomSuffixEnabled,optional"`
+}
+
+type OpenapiMqttAuthCreateResp {
+    id int64 `json:"id"`
+    name string `json:"name"`
+    clientID string `json:"clientID"`
+    username string `json:"username"`
+    password string `json:"password"`
+    clientIDRandomSuffixEnabled bool `json:"clientIDRandomSuffixEnabled"`
+}
+
+type OpenapiMqttAuthDeleteReq {
+    id int64 `json:"id"`
+}
+
+type OpenapiMqttAuthDeleteResp {
+    success bool `json:"success"`
+}
+
+@server(
+    prefix: /openapi/v1
+    group: openapi/v1/mqttauth
+    middleware: ApiKeyAuth
+)
+service backend {
+    @doc(
+        summary: "创建 MQTT Auth"
+        description: "创建与页面手动创建类型一致的普通 MQTT Auth。OpenAPI 的 password 字段仅在本次创建成功响应中返回一次，请立即安全保存；此 OpenAPI 不提供密码查询或再次返回能力。仅 full_access API Key 可调用。"
+    )
+    @handler OpenapiMqttAuthCreate
+    post /mqtt-auth/create (OpenapiMqttAuthCreateReq) returns (OpenapiMqttAuthCreateResp)
+
+    @doc(
+        summary: "删除 MQTT Auth"
+        description: "幂等删除普通 MQTT Auth；不存在、已删除或非普通类型的 ID 均返回成功且不会删除 Flow、EdgeNode 等系统凭证。仅 full_access API Key 可调用。"
+    )
+    @handler OpenapiMqttAuthDelete
+    post /mqtt-auth/delete (OpenapiMqttAuthDeleteReq) returns (OpenapiMqttAuthDeleteResp)
+}

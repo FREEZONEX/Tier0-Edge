@@ -18,15 +18,24 @@ import (
 )
 
 type Service struct {
-	repo          *repo.AssetRepo
-	files         filestore.Store
-	driver        string
-	publicBaseURL string
-	urlTTL        time.Duration
+	repo             *repo.AssetRepo
+	files            filestore.Store
+	driver           string
+	publicBaseURL    string
+	privateBucket    string
+	publicBucket     string
+	s3Endpoint       string
+	s3PublicEndpoint string
+	s3UseSSL         bool
+	s3PathStyle      bool
+	urlTTL           time.Duration
 }
 
 type Config struct {
-	FileRoot string
+	Driver        string
+	FileRoot      string
+	PublicBaseURL string
+	S3            filestore.S3Config
 }
 
 type UploadCommand struct {
@@ -68,21 +77,71 @@ type AttachmentUploadCommand struct {
 }
 
 func New(ctx context.Context, conf Config) (*Service, error) {
-	files, err := filestore.NewLocal(conf.FileRoot)
+	driver := strings.ToLower(strings.TrimSpace(conf.Driver))
+	if driver == "" {
+		driver = "local"
+	}
+	var (
+		files filestore.Store
+		err   error
+	)
+	switch driver {
+	case "local":
+		files, err = filestore.NewLocal(conf.FileRoot)
+	case "s3":
+		var s3store *filestore.S3Store
+		s3store, err = filestore.NewS3(conf.S3)
+		if err == nil && conf.S3.BootstrapBuckets {
+			// 仅内置 RustFS 模式：启动时幂等确保 bucket 存在（替代 deploy 侧
+			// rustfs-init 容器）；外置 S3 不做 bucket 级写操作，由运维预建。
+			err = s3store.EnsureBuckets(ctx)
+		}
+		if err == nil {
+			files = s3store
+		}
+	default:
+		return nil, ErrInvalid
+	}
 	if err != nil {
 		return nil, err
 	}
 	return &Service{
-		repo:   repo.NewAssetRepo(ctx),
-		files:  files,
-		driver: "local",
-		urlTTL: 5 * time.Minute,
+		repo:             repo.NewAssetRepo(ctx),
+		files:            files,
+		driver:           driver,
+		publicBaseURL:    strings.TrimRight(strings.TrimSpace(conf.PublicBaseURL), "/"),
+		privateBucket:    strings.TrimSpace(conf.S3.Bucket),
+		publicBucket:     strings.TrimSpace(conf.S3.PublicBucket),
+		s3Endpoint:       strings.TrimSpace(conf.S3.Endpoint),
+		s3PublicEndpoint: strings.TrimRight(strings.TrimSpace(conf.S3.PublicEndpoint), "/"),
+		s3UseSSL:         conf.S3.UseSSL,
+		s3PathStyle:      conf.S3.PathStyle,
+		urlTTL:           5 * time.Minute,
 	}, nil
 }
 
-func (s *Service) bucketForVisibility(string) string { return "" }
+// bucketForVisibility resolves the bucket a new upload goes to. Public files
+// fall back to the private bucket when no public bucket is configured
+// (local/single-bucket dev layout). The result is persisted on asset_file at
+// upload time; reads never re-derive it.
+func (s *Service) bucketForVisibility(visibility string) string {
+	if visibility == VisibilityPublic && s.publicBucket != "" {
+		return s.publicBucket
+	}
+	return s.privateBucket
+}
 
-func (s *Service) bucketForFile(repo.AssetFile) string { return "" }
+// bucketForFile resolves the bucket a stored file lives in from the value
+// recorded at upload time, so later config changes (e.g. enabling
+// FILESTORE_S3_PUBLIC_BUCKET) never point existing files at the wrong
+// bucket. Legacy rows written before the bucket column keep the
+// visibility-derived resolution.
+func (s *Service) bucketForFile(item repo.AssetFile) string {
+	if bucket := strings.TrimSpace(item.Bucket); bucket != "" {
+		return bucket
+	}
+	return s.bucketForVisibility(item.Visibility)
+}
 
 func (s *Service) List(ctx context.Context, ownerType string, ownerID int64) (map[string]any, error) {
 	items, err := s.repo.ListAssetFiles(ctx, repo.AssetFileFilter{OwnerType: ownerType, OwnerID: ownerID})
@@ -121,7 +180,7 @@ func (s *Service) Upload(ctx context.Context, cmd UploadCommand) (map[string]any
 		Sha256:        cmd.Sha256,
 		StorageDriver: s.driver,
 		StorageKey:    cmd.StorageKey,
-		Bucket:        "",
+		Bucket:        s.privateBucket,
 	}
 	file.CreatedBy = cmd.UserID
 	created, err := s.repo.CreateAssetFile(ctx, file)
@@ -137,7 +196,7 @@ func (s *Service) UploadContent(ctx context.Context, cmd UploadContentCommand) (
 	}
 	key := newStorageKey(cmd.FileName)
 	hasher := sha256.New()
-	if err := s.files.Put(ctx, "", key, io.TeeReader(cmd.Reader, hasher), filestore.PutMeta{
+	if err := s.files.Put(ctx, s.privateBucket, key, io.TeeReader(cmd.Reader, hasher), filestore.PutMeta{
 		ContentType: cmd.ContentType,
 		SizeBytes:   cmd.Size,
 	}); err != nil {
@@ -155,12 +214,12 @@ func (s *Service) UploadContent(ctx context.Context, cmd UploadContentCommand) (
 		Sha256:        sha,
 		StorageDriver: s.driver,
 		StorageKey:    key,
-		Bucket:        "",
+		Bucket:        s.privateBucket,
 	}
 	file.CreatedBy = cmd.UserID
 	created, err := s.repo.CreateAssetFile(ctx, file)
 	if err != nil {
-		_ = s.files.Delete(ctx, "", key)
+		_ = s.files.Delete(ctx, s.privateBucket, key)
 		return nil, err
 	}
 	return assetResp(created), nil
@@ -319,6 +378,11 @@ func (s *Service) Unbind(ctx context.Context, id int64) (map[string]any, error) 
 	return map[string]any{"deleted": true}, nil
 }
 
+// Binding 按 id 读取绑定行；解绑审计在删除前经此取 fileId/owner 信息。
+func (s *Service) Binding(ctx context.Context, id int64) (repo.AssetBinding, error) {
+	return s.repo.GetAssetBinding(ctx, id)
+}
+
 func assetResp(item repo.AssetFile) map[string]any {
 	resp := map[string]any{
 		"id":             item.ID,
@@ -375,7 +439,7 @@ func (s *Service) fileURL(ctx context.Context, item repo.AssetFile) (string, int
 	if signed, ok, err := s.files.SignGetURL(ctx, s.bucketForFile(item), item.StorageKey, s.urlTTL, ""); err != nil {
 		return "", 0, err
 	} else if ok && strings.TrimSpace(signed) != "" {
-		return signed, time.Now().Add(s.urlTTL).UnixMilli(), nil
+		return s.rewriteToURLEndpoint(ctx, signed), time.Now().Add(s.urlTTL).UnixMilli(), nil
 	}
 	path := "/api/core/assets/" + strconv.FormatInt(item.ID, 10) + "/download"
 	if s.publicBaseURL == "" {

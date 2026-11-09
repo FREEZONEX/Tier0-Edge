@@ -7,10 +7,13 @@ import ComDetailHeader from '@/components/com-detail-header';
 import { useActivate } from '@/contexts/tabs-lifecycle-context';
 import { useTranslate } from '@/hooks';
 import type { App } from '@/pages/launchpad/type';
+import type { ProjectItem } from '@/pages/project/types';
 import { useLocationNavigate } from '@/routers';
-import { normalizeLocalAppUrl } from '@/utils/app-url';
+import { normalizeLocalAppUrl, resolveAppNotificationUrl } from '@/utils/app-url';
 import { getToken } from '@/utils/auth';
+import { getSearchParamsString } from '@/utils/url-util';
 import { useBaseStore } from '@/stores/base';
+import { withLaunchpadStandaloneQuery } from '@/utils/launchpad-site';
 import { Maximize, Minimize } from '@/components/lucide-icon/carbon';
 import { Button, Result, Spin } from 'antd';
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,12 +22,36 @@ import AppSwitcher from './components/AppSwitcher';
 import styles from './app-detail.module.scss';
 
 interface AppDetailPageProps {
+  appOnly?: boolean;
   projectName?: string;
   appName?: string;
   location?: Location;
   onBack?: () => void;
   onAppChange?: (appName: string, app?: App) => void;
 }
+
+const APP_IFRAME_ALLOWED_FEATURES = [
+  'camera',
+  'microphone',
+  'geolocation',
+  'display-capture',
+  'clipboard-read',
+  'clipboard-write',
+  'bluetooth',
+  'serial',
+  'usb',
+  'hid',
+  'fullscreen',
+] as const;
+
+const createAppIframeAllow = (url: string) => {
+  try {
+    const appOrigin = new URL(url).origin;
+    return APP_IFRAME_ALLOWED_FEATURES.map((feature) => `${feature} ${appOrigin}`).join('; ');
+  } catch {
+    return APP_IFRAME_ALLOWED_FEATURES.join('; ');
+  }
+};
 
 const decodePathSegment = (value?: string) => {
   if (!value) return '';
@@ -47,6 +74,7 @@ const getLaunchpadAppRouteParams = (pathname: string) => {
 };
 
 const AppDetailPage: FC<AppDetailPageProps> = ({
+  appOnly = false,
   projectName: propProjectName,
   appName: propAppName,
   location: keepAliveLocation,
@@ -67,54 +95,71 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
   const [appNotFound, setAppNotFound] = useState(false);
   const [noPermission, setNoPermission] = useState(false);
   const [apps, setApps] = useState<App[]>([]);
+  const [projectInfo, setProjectInfo] = useState<ProjectItem | null>(null);
   const [loading, setLoading] = useState(!!appName);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const formatMessage = useTranslate();
-  // Builder（auth/me.roleCode=admin/builder → superAdmin）版异常页多一个 Go to Project；Operator 仅 Back to Launchpad
+  // Builder（auth/me.roleCode=admin/builder → superAdmin）版异常页多一个 Go to Project，跳转项目 Members tab；Operator 仅 Back to Launchpad
   const isBuilder = useBaseStore((state) => state.currentUserInfo?.superAdmin === true);
 
-  const fetchAppDetail = useCallback(() => {
-    if (!projectName || !appName) return;
-    const requestId = ++appDetailRequestIdRef.current;
-    setLoading(true);
-    setAppNotFound(false);
-    setNoPermission(false);
-    getLaunchpadAppByNameApi(projectName, appName)
-      .then((data) => {
-        if (!isMountedRef.current || requestId !== appDetailRequestIdRef.current) return;
-        setApp(data?.app || null);
+  // background=true：tab 重新激活时的静默刷新，保留已渲染内容（iframe 不卸载），失败时维持现状
+  const fetchAppDetail = useCallback(
+    (options?: { background?: boolean }) => {
+      const background = options?.background === true;
+      if (!projectName || !appName) return;
+      const requestId = ++appDetailRequestIdRef.current;
+      if (!background) {
+        setLoading(true);
         setAppNotFound(false);
         setNoPermission(false);
-      })
-      .catch((error) => {
-        if (!isMountedRef.current || requestId !== appDetailRequestIdRef.current) return;
-        setApp(null);
-        // 403 = App 存在但成员缺 App Role → App access required；
-        // 其余（含 404 不存在/已删除/非成员，不披露存在性）→ App not found
-        if (error?.code === 403) {
-          setNoPermission(true);
+      }
+      getLaunchpadAppByNameApi(projectName, appName)
+        .then((data) => {
+          if (!isMountedRef.current || requestId !== appDetailRequestIdRef.current) return;
+          setApp(data?.app || null);
           setAppNotFound(false);
-        } else {
-          setAppNotFound(true);
           setNoPermission(false);
-        }
-      })
-      .finally(() => {
-        if (isMountedRef.current && requestId === appDetailRequestIdRef.current) setLoading(false);
-      });
-  }, [projectName, appName]);
+        })
+        .catch((error) => {
+          if (!isMountedRef.current || requestId !== appDetailRequestIdRef.current) return;
+          // 403/404 是后端对权限与存在性的确定性结果，后台刷新同样要落错误态；
+          // 仅瞬时错误（网络抖动等）保留当前视图，避免打断正在使用的页面
+          if (background && error?.code !== 403 && error?.code !== 404) {
+            console.warn('launchpad app background refresh failed:', error);
+            return;
+          }
+          setApp(null);
+          // 403 = App 存在但成员缺 App Role → App access required；
+          // 其余（含 404 不存在/已删除/非成员，不披露存在性）→ App not found
+          if (error?.code === 403) {
+            setNoPermission(true);
+            setAppNotFound(false);
+          } else {
+            setAppNotFound(true);
+            setNoPermission(false);
+          }
+        })
+        .finally(() => {
+          if (isMountedRef.current && requestId === appDetailRequestIdRef.current) setLoading(false);
+        });
+    },
+    [projectName, appName]
+  );
 
   const fetchProjectApps = useCallback(() => {
-    if (!projectName) return;
+    if (appOnly || !projectName) return;
     getLaunchpadProjectByNameApi(projectName)
       .then((data) => {
-        if (isMountedRef.current) setApps(data?.apps || []);
+        if (!isMountedRef.current) return;
+        setApps(data?.apps || []);
+        setProjectInfo(data?.project || null);
       })
       .catch(() => {
         if (!isMountedRef.current) return;
         setApps([]);
+        setProjectInfo(null);
       });
-  }, [projectName]);
+  }, [appOnly, projectName]);
 
   const recordAppView = useCallback((appId?: string | number) => {
     if (!appId) return;
@@ -137,23 +182,27 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
   }, [app?.appId, recordAppView]);
 
   useEffect(() => {
-    if (!app) return;
+    if (appOnly || !app) return;
     if (routerLocation.pathname !== location.pathname || routerLocation.search !== location.search) return;
     const tabName = app.displayName || app.appName || appName;
-    if (!tabName || location.state?.tabName === tabName) return;
+    const tabContextName = location.state?.tabContextName || app.projectDisplayName || app.projectName || projectName;
+    if (!tabName || (location.state?.tabName === tabName && location.state?.tabContextName === tabContextName)) return;
     routerNavigate(location.pathname + location.search, {
       replace: true,
       state: {
         ...(location.state || {}),
         tabName,
+        tabContextName,
       },
     });
   }, [
+    appOnly,
     app,
     appName,
     location.pathname,
     location.search,
     location.state,
+    projectName,
     routerLocation.pathname,
     routerLocation.search,
     routerNavigate,
@@ -165,7 +214,7 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
   }, [fetchProjectApps]);
 
   useActivate(() => {
-    fetchAppDetail();
+    fetchAppDetail({ background: true });
     fetchProjectApps();
   });
 
@@ -183,7 +232,7 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
       return;
     }
     if (appNotFound) {
-      routerNavigate('/launchpad', {
+      routerNavigate(withLaunchpadStandaloneQuery('/launchpad'), {
         replace: true,
         state: { tabName: formatMessage('Launchpad.title') },
       });
@@ -195,17 +244,33 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
     });
   };
 
+  const handleGoToProject = () => {
+    const projectId = projectInfo?.id;
+    if (!projectId) return;
+    routerNavigate(`/project/${projectId}?${getSearchParamsString({ from: '/launchpad', tab: 'members' })}`, {
+      state: { tabName: projectInfo?.displayName || projectInfo?.name || projectName },
+    });
+  };
+
   const handleAppChange = (newAppName: string, nextApp?: App) => {
     if (onAppChange) {
       onAppChange(newAppName, nextApp);
     } else {
-      routerNavigate(`/launchpad/${encodeURIComponent(projectName || '')}/${encodeURIComponent(newAppName)}`, {
-        replace: true,
-        state: {
-          tabName: nextApp?.displayName || nextApp?.appName || newAppName,
-          replaceCurrentTab: true,
-        },
-      });
+      routerNavigate(
+        withLaunchpadStandaloneQuery(
+          `/launchpad/${encodeURIComponent(projectName || '')}/${encodeURIComponent(newAppName)}`
+        ),
+        {
+          replace: true,
+          state: {
+            tabName: nextApp?.displayName || nextApp?.appName || newAppName,
+            tabContextName:
+              location.state?.tabContextName || nextApp?.projectDisplayName || nextApp?.projectName || projectName,
+            tabParentPathname: location.state?.tabParentPathname,
+            replaceCurrentTab: true,
+          },
+        }
+      );
     }
   };
 
@@ -223,15 +288,21 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
   // 头部始终渲染，title 优先用已有 app state，loading 时用 appName 作为占位
   const title = app?.displayName || app?.appName || appName || '';
   const rawAppUrl = app?.url;
+  const notificationPath = new URLSearchParams(location.search).get('notificationPath');
 
   const appUrl = useMemo(() => {
     if (!rawAppUrl) return '';
     const shouldRewritePrivateHost = app?.siteType === 'dynamic' && !app?.manual && app?.appType !== 'manual';
     const normalizedUrl = normalizeLocalAppUrl(rawAppUrl, { allowPrivateHostRewrite: shouldRewritePrivateHost });
+    const targetUrl = resolveAppNotificationUrl(normalizedUrl, notificationPath);
+    if (!targetUrl) return '';
     const token = getToken();
-    const separator = normalizedUrl.includes('?') ? '&' : '?';
-    return token ? `${normalizedUrl}${separator}_token=${encodeURIComponent(token)}` : normalizedUrl;
-  }, [app?.appType, app?.manual, app?.siteType, rawAppUrl]);
+    if (!token) return targetUrl;
+    const url = new URL(targetUrl, window.location.origin);
+    url.searchParams.set('_token', token);
+    return url.toString();
+  }, [app?.appType, app?.manual, app?.siteType, rawAppUrl, notificationPath]);
+  const appIframeAllow = useMemo(() => createAppIframeAllow(appUrl), [appUrl]);
 
   // App not found：不存在 / 已删除 / 非 Workspace Member（不披露存在性）
   if (appNotFound) {
@@ -246,16 +317,21 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
             'This app is unavailable. It may have been removed, or the link is no longer valid.'
           )}
           extra={
-            <Button type="primary" onClick={() => routerNavigate('/launchpad', { replace: true })}>
-              {formatMessage('Launchpad.backToLaunchpad', {}, 'Back to Launchpad')}
-            </Button>
+            !appOnly && (
+              <Button
+                type="primary"
+                onClick={() => routerNavigate(withLaunchpadStandaloneQuery('/launchpad'), { replace: true })}
+              >
+                {formatMessage('Launchpad.backToLaunchpad', {}, 'Back to Launchpad')}
+              </Button>
+            )
           }
         />
       </div>
     );
   }
 
-  // App access required：成员但缺 App 绑定的 Business Role（Builder 版多 Go to Project，Operator 仅 Back）
+  // App access required：成员但缺 App 绑定的 Business Role（Builder 版多 Go to Project 跳转项目 Members tab 引导配置角色，Operator 仅 Back）
   if (noPermission) {
     return (
       <div className={styles.appDetailPage}>
@@ -270,27 +346,21 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
               : 'You have not been assigned the role required to access this app. Please contact the project owner or administrator to configure role permissions.'
           )}
           extra={
-            <>
-              {isBuilder && (
+            !appOnly && (
+              <>
+                {isBuilder && (
+                  <Button type="primary" onClick={handleGoToProject}>
+                    {formatMessage('Launchpad.goToProject', {}, 'Go to Project')}
+                  </Button>
+                )}
                 <Button
-                  type="primary"
-                  onClick={() =>
-                    navigate({
-                      pathname: `/launchpad/${encodeURIComponent(projectName || '')}`,
-                      state: { tabName: projectName || formatMessage('Launchpad.title') },
-                    })
-                  }
+                  type={isBuilder ? 'default' : 'primary'}
+                  onClick={() => routerNavigate(withLaunchpadStandaloneQuery('/launchpad'), { replace: true })}
                 >
-                  {formatMessage('Launchpad.goToProject', {}, 'Go to Project')}
+                  {formatMessage('Launchpad.backToLaunchpad', {}, 'Back to Launchpad')}
                 </Button>
-              )}
-              <Button
-                type={isBuilder ? 'default' : 'primary'}
-                onClick={() => routerNavigate('/launchpad', { replace: true })}
-              >
-                {formatMessage('Launchpad.backToLaunchpad', {}, 'Back to Launchpad')}
-              </Button>
-            </>
+              </>
+            )
           }
         />
       </div>
@@ -299,27 +369,29 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
 
   return (
     <div className={styles.appDetailPage}>
-      <ComDetailHeader
-        title={title}
-        onBack={handleBack}
-        showBack
-        showDesc={false}
-        rightExtra={
-          <>
-            <AppSwitcher apps={apps} currentAppName={appName} onAppChange={handleAppChange} />
-            <Button
-              type="text"
-              icon={isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-              onClick={toggleFullscreen}
-              className={styles.fullscreenButton}
-            />
-          </>
-        }
-        style={{
-          border: '1px solid var(--ui-menu-hover-color)',
-          alignItems: 'center',
-        }}
-      />
+      {!appOnly && (
+        <ComDetailHeader
+          title={title}
+          onBack={handleBack}
+          showBack
+          showDesc={false}
+          rightExtra={
+            <>
+              <AppSwitcher apps={apps} currentAppName={appName} onAppChange={handleAppChange} />
+              <Button
+                type="text"
+                icon={isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                onClick={toggleFullscreen}
+                className={styles.fullscreenButton}
+              />
+            </>
+          }
+          style={{
+            border: '1px solid var(--ui-menu-hover-color)',
+            alignItems: 'center',
+          }}
+        />
+      )}
       <div className={styles.iframeContainer}>
         {loading ? (
           <div className={styles.loading}>
@@ -330,7 +402,13 @@ const AppDetailPage: FC<AppDetailPageProps> = ({
         ) : !appUrl ? (
           <div className={styles.loading}>{formatMessage('project.appNotReady')}</div>
         ) : (
-          <iframe ref={iframeRef} src={appUrl} className={styles.iframe} title={app.displayName || app.appName} />
+          <iframe
+            ref={iframeRef}
+            src={appUrl}
+            className={styles.iframe}
+            title={app.displayName || app.appName}
+            allow={appIframeAllow}
+          />
         )}
       </div>
     </div>

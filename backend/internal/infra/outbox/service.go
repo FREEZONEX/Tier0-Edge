@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"backend/internal/repo"
+
+	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -19,6 +21,16 @@ func New() *Service {
 }
 
 func (s *Service) Enqueue(ctx context.Context, eventType, aggregateType, aggregateID string, payload any) error {
+	return enqueueOnDB(ctx, s.store, eventType, aggregateType, aggregateID, payload)
+}
+
+// EnqueueOnTx 在指定事务上落 outbox 行（调用方事务提交时任务随之原子可见）。
+// 供需要"业务行与任务行同事务"的场景使用（如 notify.create_inbox 与请求行同事务）。
+func (s *Service) EnqueueOnTx(tx *gorm.DB, eventType, aggregateType, aggregateID string, payload any) error {
+	return enqueueOnDB(context.Background(), repo.NewOutboxRepo(tx), eventType, aggregateType, aggregateID, payload)
+}
+
+func enqueueOnDB(ctx context.Context, store *repo.OutboxRepo, eventType, aggregateType, aggregateID string, payload any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -30,7 +42,7 @@ func (s *Service) Enqueue(ctx context.Context, eventType, aggregateType, aggrega
 		digest := sha256.Sum256([]byte(eventID))
 		eventID = fmt.Sprintf("%x", digest[:])
 	}
-	return s.store.EnqueueOutbox(ctx, repo.OutboxEvent{
+	return store.EnqueueOutbox(ctx, repo.OutboxEvent{
 		EventID:       eventID,
 		EventType:     eventType,
 		AggregateType: aggregateType,

@@ -1,0 +1,90 @@
+syntax = "v1"
+
+type OperationResourceEnvelope {
+ code int `json:"code"`
+ msg string `json:"msg"`
+ data interface{} `json:"data,optional"`
+}
+
+type OperationResourceListReq {
+ page int `json:"page,optional"`
+ size int `json:"size,optional"`
+ search string `json:"search,optional"`
+ status string `json:"status,optional"`
+}
+
+type OperationResourceDetailReq {
+ controlCode string `path:"controlCode"`
+}
+
+// Payload is internal only. The generator reads the entire bounded JSON body
+// into this field; it is NOT a wire field or an {input: ...} wrapper.
+type OperationResourceInvokeReq {
+ controlCode string `path:"controlCode"`
+ idempotencyKey string `header:"Idempotency-Key"`
+ capabilityVersion string `header:"X-Control-Capability-Version,optional"`
+ expiresAt int64 `header:"X-Control-Expires-At,optional"`
+ payload interface{} `json:"-"`
+}
+
+type OperationResourceInvocationReq {
+ controlCode string `path:"controlCode"`
+ idempotencyKey string `json:"idempotencyKey"`
+}
+
+@server (
+ prefix: /openapi/v1
+ group: openapi/v1/operationresource
+ middleware: FleetAuth
+ maxBytes: 1048576
+ timeout: 35s
+)
+service backend {
+ @doc (
+  summary: "OperationResourceList"
+  description: "Discover public control contracts without Stream bindings, Source addresses, or credentials. Requires control.read."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/operationresource"
+  recordLogMode: "1"
+ )
+ @handler OperationResourceList
+ post /controls/discover (OperationResourceListReq) returns (OperationResourceEnvelope)
+
+ @doc (
+  summary: "OperationResourceDescribe"
+  description: "Read one public control contract. Requires control.read."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/operationresource"
+  recordLogMode: "1"
+ )
+ @handler OperationResourceDescribe
+ post /controls/:controlCode/describe (OperationResourceDetailReq) returns (OperationResourceEnvelope)
+
+ @doc (
+  summary: "OperationResourceInvoke"
+  description: "Invoke a stable control code using its own JSON body. Idempotency-Key is required. Requires control.execute and control.write for side effects. Synchronous execution does not use NATS; ambiguous device operations are never automatically replayed."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "operate"
+  group: "openapi/v1/operationresource"
+  recordLogMode: "3"
+ )
+ @handler OperationResourceInvoke
+ post /controls/:controlCode/invoke (OperationResourceInvokeReq) returns (OperationResourceEnvelope)
+
+ @doc (
+  summary: "OperationResourceInvocation"
+  description: "Read this principal's original Control invocation by its stable idempotency key. Returns frozen execution results or unknown; never executes or retries a device operation. Business completion is independent of execution success."
+  authType: "admin"
+  resource: "uns.stream"
+  action: "view"
+  group: "openapi/v1/operationresource"
+  recordLogMode: "1"
+ )
+ @handler OperationResourceInvocation
+ post /controls/:controlCode/invocations/get (OperationResourceInvocationReq) returns (OperationResourceEnvelope)
+}

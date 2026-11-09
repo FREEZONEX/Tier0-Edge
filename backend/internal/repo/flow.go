@@ -13,19 +13,21 @@ import (
 )
 
 type Flow struct {
-	ID            int64   `gorm:"column:id;primaryKey;autoIncrement:false" json:"id"`
-	RuntimeFlowID string  `gorm:"column:flow_id;size:64;index" json:"runtimeFlowId"`
-	Name          string  `gorm:"column:flow_name;type:varchar(512);uniqueIndex:idx_uns_flow_parent_name_del,priority:3,where:deleted_time = 0" json:"name"`
-	FlowData      string  `gorm:"column:flow_data;type:text" json:"flowData"`
-	Status        string  `gorm:"column:flow_status;size:32" json:"status"`
-	Template      string  `gorm:"column:template;size:64" json:"template"`
-	Description   string  `gorm:"column:description;size:512" json:"description"`
-	FlowType      int     `gorm:"column:flow_type;uniqueIndex:idx_uns_flow_parent_name_del,priority:1,where:deleted_time = 0" json:"flowType"`
-	NodeType      int     `gorm:"column:node_type;default:1" json:"nodeType"`
-	ParentID      int64   `gorm:"column:parent_id;default:0;index:idx_uns_flow_parent;uniqueIndex:idx_uns_flow_parent_name_del,priority:2,where:deleted_time = 0" json:"parentId"`
-	SortKey       int64   `gorm:"column:sort_key;default:0;index:idx_uns_flow_sort" json:"sortKey"`
-	IsFavorite    int16   `gorm:"column:is_favorite;default:2" json:"isFavorite"`
-	UnsNodeIDs    []int64 `gorm:"-" json:"unsNodeIds,omitempty"`
+	ID               int64   `gorm:"column:id;primaryKey;autoIncrement:false" json:"id"`
+	RuntimeFlowID    string  `gorm:"column:flow_id;size:64;index" json:"runtimeFlowId"`
+	ConnectClientID  int64   `gorm:"column:connect_client_id;index" json:"connectClientId"`
+	Name             string  `gorm:"column:flow_name;type:varchar(512);uniqueIndex:idx_uns_flow_parent_name_del,priority:3,where:deleted_time = 0" json:"name"`
+	CurrentVersionID int64   `gorm:"column:current_version_id;default:0" json:"currentVersionId"`
+	FlowData         string  `gorm:"column:flow_data;type:text" json:"flowData"`
+	Status           string  `gorm:"column:flow_status;size:32" json:"status"`
+	Template         string  `gorm:"column:template;size:64" json:"template"`
+	Description      string  `gorm:"column:description;size:512" json:"description"`
+	FlowType         int     `gorm:"column:flow_type;uniqueIndex:idx_uns_flow_parent_name_del,priority:1,where:deleted_time = 0" json:"flowType"`
+	NodeType         int     `gorm:"column:node_type;default:1" json:"nodeType"`
+	ParentID         int64   `gorm:"column:parent_id;default:0;index:idx_uns_flow_parent;uniqueIndex:idx_uns_flow_parent_name_del,priority:2,where:deleted_time = 0" json:"parentId"`
+	SortKey          int64   `gorm:"column:sort_key;default:0;index:idx_uns_flow_sort" json:"sortKey"`
+	IsFavorite       int16   `gorm:"column:is_favorite;default:2" json:"isFavorite"`
+	UnsNodeIDs       []int64 `gorm:"-" json:"unsNodeIds,omitempty"`
 	SoftNoDelByTime
 }
 
@@ -84,11 +86,12 @@ func (r *FlowRepo) CreateFlow(ctx context.Context, flow Flow) (Flow, error) {
 	if flow.Status == "" {
 		flow.Status = "draft"
 	}
+	flow.CurrentVersionID = 0
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&flow).Error; err != nil {
 			return err
 		}
-		return replaceFlowNodes(tx, flow.ID, flow.UnsNodeIDs, now)
+		return replaceFlowNodes(tx, flow.ID, flow.FlowType, flow.UnsNodeIDs, now)
 	})
 	if err != nil {
 		return Flow{}, normalizeDBError(err)
@@ -128,7 +131,7 @@ func (r *FlowRepo) UpdateFlow(ctx context.Context, flow Flow) (Flow, error) {
 		if res.RowsAffected == 0 {
 			return ErrNotFound
 		}
-		return replaceFlowNodes(tx, flow.ID, flow.UnsNodeIDs, now)
+		return replaceFlowNodes(tx, flow.ID, flow.FlowType, flow.UnsNodeIDs, now)
 	})
 	if err != nil {
 		return Flow{}, normalizeDBError(err)
@@ -136,8 +139,29 @@ func (r *FlowRepo) UpdateFlow(ctx context.Context, flow Flow) (Flow, error) {
 	return r.GetFlow(ctx, flow.ID)
 }
 
+// source/event flow 均可绑定 UNS 节点，folder 拒绝
 func flowCanBindUns(flow Flow) bool {
-	return flow.FlowType == 1 && flow.NodeType == 2
+	return (flow.FlowType == 1 || flow.FlowType == 2) && flow.NodeType == 2
+}
+
+// UpdateFlowNameDescription 仅更新 Flow 的 flow_name 与 description（含 touch 字段），
+// 不触碰 flow_type/parent_id/flow-node 关联。用于 App 导入顶层 id 命中覆盖时按包内值更新名称与描述。
+func (r *FlowRepo) UpdateFlowNameDescription(ctx context.Context, id int64, name, description string, userID int64) (Flow, error) {
+	now := time.Now().UTC().UnixMilli()
+	var flow Flow
+	res := r.db.WithContext(ctx).Model(&flow).Clauses(returningAll()).
+		Where("id = ? AND deleted_time = 0", id).
+		Updates(touchByValues(map[string]any{
+			"flow_name":   name,
+			"description": description,
+		}, userID, now))
+	if res.Error != nil {
+		return Flow{}, normalizeDBError(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return Flow{}, ErrNotFound
+	}
+	return flow, nil
 }
 
 // UpdateFlowConnectClient 回写 Flow 的 connect_client_id（导入 flow 补建本地 MQTT 凭证时使用）。
@@ -387,11 +411,12 @@ func (r *FlowRepo) DeleteFlow(ctx context.Context, id, userID int64) error {
 		if err := tx.Where("parent_id = ?", id).Delete(&flowNode{}).Error; err != nil {
 			return err
 		}
-		return nil
+		return tx.Where("flow_id = ?", id).Delete(&FlowVersion{}).Error
 	})
 }
 
 func (r *FlowRepo) SaveFlowData(ctx context.Context, id int64, data string, userID int64) (Flow, error) {
+	now := time.Now().UTC().UnixMilli()
 	current, err := r.GetFlow(ctx, id)
 	if err != nil {
 		return Flow{}, err
@@ -401,49 +426,115 @@ func (r *FlowRepo) SaveFlowData(ctx context.Context, id int64, data string, user
 		status = "disabled"
 	}
 	var flow Flow
-	res := r.db.WithContext(ctx).Model(&flow).Clauses(returningAll()).
-		Where("id = ? AND deleted_time = 0", id).
-		Updates(touchByValues(map[string]any{"flow_data": data, "flow_status": status}, userID, 0))
-	if res.Error != nil {
-		return Flow{}, normalizeDBError(res.Error)
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&flow).Clauses(returningAll()).
+			Where("id = ? AND deleted_time = 0", id).
+			Updates(touchByValues(map[string]any{"flow_data": data, "flow_status": status}, userID, now))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		version, err := createFlowVersion(tx, flow.ID, fmt.Sprintf("auto-save-%d", now), FlowVersionTypeAuto, "auto save", data, "", userID, now)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&Flow{}).Where("id = ?", flow.ID).Update("current_version_id", version.ID).Error; err != nil {
+			return err
+		}
+		if err := pruneAutoFlowVersions(tx, flow.ID, 10); err != nil {
+			return err
+		}
+		flow.CurrentVersionID = version.ID
+		return nil
+	})
+	if err != nil {
+		return Flow{}, normalizeDBError(err)
 	}
-	if res.RowsAffected == 0 {
-		return Flow{}, ErrNotFound
-	}
-	flow.UnsNodeIDs, _ = r.FlowNodeIDs(ctx, flow.ID)
 	return flow, nil
 }
 
 func (r *FlowRepo) DeployFlow(ctx context.Context, id, userID int64) (Flow, error) {
-	return r.UpdateFlowStatus(ctx, id, "deployed", userID)
-}
-
-func (r *FlowRepo) MarkFlowDeployed(ctx context.Context, id int64, runtimeFlowID string, deployedFlowData string, status string, userID int64) (Flow, error) {
-	current, err := r.GetFlow(ctx, id)
+	now := time.Now().UTC().UnixMilli()
+	flow, err := r.GetFlow(ctx, id)
 	if err != nil {
 		return Flow{}, err
 	}
-	if current.NodeType == 1 {
+	if flow.NodeType == 1 {
+		return Flow{}, ErrFlowFolderCannotDeploy
+	}
+	var updated Flow
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		version, err := createFlowVersion(tx, flow.ID, fmt.Sprintf("auto-deploy-%d", now), FlowVersionTypeAuto, "auto deploy", flow.FlowData, "", userID, now)
+		if err != nil {
+			return err
+		}
+		res := tx.Model(&updated).Clauses(returningAll()).
+			Where("id = ? AND deleted_time = 0", id).
+			Updates(touchByValues(map[string]any{"flow_status": "deployed", "current_version_id": version.ID}, userID, now))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return pruneAutoFlowVersions(tx, flow.ID, 10)
+	})
+	if err != nil {
+		return Flow{}, normalizeDBError(err)
+	}
+	updated.UnsNodeIDs, _ = r.FlowNodeIDs(ctx, updated.ID)
+	return updated, nil
+}
+
+func (r *FlowRepo) MarkFlowDeployed(ctx context.Context, id int64, runtimeFlowID string, deployedFlowData string, status string, userID int64) (Flow, error) {
+	now := time.Now().UTC().UnixMilli()
+	flow, err := r.GetFlow(ctx, id)
+	if err != nil {
+		return Flow{}, err
+	}
+	if flow.NodeType == 1 {
 		return Flow{}, ErrFlowFolderCannotDeploy
 	}
 	if strings.TrimSpace(runtimeFlowID) == "" {
-		runtimeFlowID = current.RuntimeFlowID
+		runtimeFlowID = flow.RuntimeFlowID
 	}
-	if strings.TrimSpace(deployedFlowData) == "" {
-		deployedFlowData = current.FlowData
+	snapshotData := strings.TrimSpace(deployedFlowData)
+	if snapshotData == "" {
+		snapshotData = flow.FlowData
 	}
-	if strings.TrimSpace(status) == "" {
+	status = strings.TrimSpace(status)
+	if status == "" {
 		status = "deployed"
 	}
 	var updated Flow
-	res := r.db.WithContext(ctx).Model(&updated).Clauses(returningAll()).
-		Where("id = ? AND deleted_time = 0", id).
-		Updates(touchByValues(map[string]any{"flow_id": runtimeFlowID, "flow_data": deployedFlowData, "flow_status": status}, userID, 0))
-	if res.Error != nil {
-		return Flow{}, normalizeDBError(res.Error)
-	}
-	if res.RowsAffected == 0 {
-		return Flow{}, ErrNotFound
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		version, err := createFlowVersion(tx, flow.ID, fmt.Sprintf("auto-deploy-%d", now), FlowVersionTypeAuto, "auto deploy", snapshotData, "", userID, now)
+		if err != nil {
+			return err
+		}
+		values := map[string]any{
+			"flow_id":            runtimeFlowID,
+			"flow_status":        status,
+			"current_version_id": version.ID,
+		}
+		if snapshotData != flow.FlowData {
+			values["flow_data"] = snapshotData
+		}
+		res := tx.Model(&updated).Clauses(returningAll()).
+			Where("id = ? AND deleted_time = 0", id).
+			Updates(touchByValues(values, userID, now))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return pruneAutoFlowVersions(tx, flow.ID, 10)
+	})
+	if err != nil {
+		return Flow{}, normalizeDBError(err)
 	}
 	updated.UnsNodeIDs, _ = r.FlowNodeIDs(ctx, updated.ID)
 	return updated, nil
@@ -463,4 +554,16 @@ func (r *FlowRepo) UpdateFlowStatus(ctx context.Context, id int64, status string
 	}
 	updated.UnsNodeIDs, _ = r.FlowNodeIDs(ctx, updated.ID)
 	return updated, nil
+}
+
+// RememberFlowRuntimeID preserves an allocated tab without marking deployment successful.
+func (r *FlowRepo) RememberFlowRuntimeID(ctx context.Context, id int64, runtimeID string) error {
+	result := r.db.WithContext(ctx).Model(&Flow{}).Where("id = ? AND deleted_time = 0", id).Update("flow_id", runtimeID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

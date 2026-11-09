@@ -2,11 +2,13 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -121,17 +123,25 @@ type AuditLog struct {
 	ResID            string    `gorm:"column:res_id;type:VARCHAR(50)" json:"resId"`
 	ResName          string    `gorm:"column:res_name;type:VARCHAR(256)" json:"resName"`
 	BusinessTypeCode int64     `gorm:"column:business_type;type:BIGINT;not null" json:"-"`
-	DetailJSON       string    `gorm:"column:detail;type:VARCHAR(500)" json:"detailJson"`
+	DetailJSON       string    `gorm:"column:detail;type:TEXT" json:"detailJson"`
 	Code             int64     `gorm:"column:code;type:BIGINT;not null;default:200" json:"code"`
 	IsShowInRecent   int64     `gorm:"column:is_show_in_recent;type:BIGINT;not null;default:1" json:"isShowInRecent"`
 	OperatorName     string    `gorm:"column:operator_name;type:VARCHAR(100)" json:"operatorName"`
 	OperatorEmail    string    `gorm:"-" json:"operatorEmail"`
 	CreatedTime      time.Time `gorm:"column:created_time;type:TIMESTAMPTZ;index;not null;default:CURRENT_TIMESTAMP" json:"-"`
 
+	EventID      string `gorm:"column:event_id" json:"eventId,omitempty"`
+	RequestID    string `gorm:"column:request_id" json:"requestId"`
+	IP           string `gorm:"column:ip" json:"ip"`
+	UserAgent    string `gorm:"column:user_agent" json:"userAgent"`
+	ResultMsg    string `gorm:"column:result_msg" json:"resultMsg"`
+	ResourcePath string `gorm:"column:resource_path" json:"resourcePath"`
+	Result       string `gorm:"column:result" json:"result"`
+	DetailValid  bool   `gorm:"-" json:"detailValid"`
 	OperatorID   string `gorm:"-" json:"operatorId"`
-	ScopeType    int    `gorm:"-" json:"scopeType"`
-	ScopeID      int64  `gorm:"-" json:"scopeId"`
-	ScopeName    string `gorm:"-" json:"scopeName"`
+	ScopeType    int    `gorm:"column:scope_type" json:"scopeType"`
+	ScopeID      int64  `gorm:"column:scope_id" json:"scopeId"`
+	ScopeName    string `gorm:"column:scope_name" json:"scopeName"`
 	BusinessType string `gorm:"-" json:"businessType"`
 	CreatedAt    int64  `gorm:"-" json:"createdAt"`
 }
@@ -139,21 +149,29 @@ type AuditLog struct {
 func (AuditLog) TableName() string { return "sys_user_oper_log" }
 
 type AuditLogFilter struct {
-	PageNo           int
-	PageSize         int
-	ScopeType        int
-	ScopeID          int64
-	ResType          string
-	ResID            string
-	BusinessTypeCode int64
-	OperatorKeyword  string
-	OperatorUserIDs  []int64
-	Code             *int
-	StartTime        int64
-	EndTime          int64
+	// FleetUserOperations hides background/refresh noise only in the Fleet view.
+	FleetUserOperations bool
+	PageNo              int
+	PageSize            int
+	ScopeType           int
+	ScopeID             int64
+	ResType             string
+	ResID               string
+	ScopeName           string
+	OperatorID          int64
+	ResourceKeyword     string
+	RequestID           string
+	IP                  string
+	Result              string
+	BusinessTypeCode    int64
+	OperatorKeyword     string
+	OperatorUserIDs     []int64
+	Code                *int
+	StartTime           int64
+	EndTime             int64
 }
 
-const auditSelect = "id, user_id, res_type, res_id, res_name, business_type, detail, code, is_show_in_recent, operator_name, created_time"
+const auditSelect = "id, user_id, res_type, res_id, res_name, business_type, detail, code, is_show_in_recent, operator_name, created_time, scope_type, scope_id, scope_name, request_id, ip, user_agent, result_msg, resource_path, event_id, result"
 
 func AuditBusinessTypeCode(value string) int64 {
 	value = strings.TrimSpace(value)
@@ -226,7 +244,12 @@ func (r *AuditRepo) GetAuditLog(ctx context.Context, id int64) (AuditLog, error)
 	return item, err
 }
 
-func (r *AuditRepo) ListRecentAuditLogs(ctx context.Context, userID int64, limit int, isShowInRecent int64) ([]AuditLog, error) {
+type RecentAuditCursor struct {
+	CreatedTime time.Time
+	ID          int64
+}
+
+func (r *AuditRepo) ListRecentAuditLogs(ctx context.Context, userID int64, limit int, isShowInRecent int64, before *RecentAuditCursor) ([]AuditLog, error) {
 	if userID <= 0 {
 		return nil, ErrInvalidArgument
 	}
@@ -242,7 +265,37 @@ func (r *AuditRepo) ListRecentAuditLogs(ctx context.Context, userID int64, limit
 	if isShowInRecent > 0 {
 		query = query.Where("is_show_in_recent = ?", isShowInRecent)
 	}
+	if before != nil {
+		query = query.Where("(created_time, id) < (?, ?)", before.CreatedTime, before.ID)
+	}
 	err := query.Order("created_time DESC, id DESC").Limit(limit).Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	if err := r.attachOperatorEmails(ctx, out); err != nil {
+		return nil, err
+	}
+	normalizeAuditLogs(out)
+	return out, nil
+}
+
+// ListRecentAppViews 查询用户最近的 ProjectApp View 记录，用于 Launchpad 最近应用。
+func (r *AuditRepo) ListRecentAppViews(ctx context.Context, userID int64, limit int) ([]AuditLog, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidArgument
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	var out []AuditLog
+	err := r.db.WithContext(ctx).Model(&AuditLog{}).Select(auditSelect).
+		Where("user_id = ? AND res_type = 'ProjectApp' AND business_type = ? AND code >= 200 AND code < 400", userID, AuditBizView).
+		Order("created_time DESC, id DESC").
+		Limit(limit).
+		Find(&out).Error
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +313,9 @@ func (r *AuditRepo) InsertAuditLog(ctx context.Context, item AuditLog) error {
 	if item.Code == 0 {
 		item.Code = 200
 	}
+	if item.Result == "" {
+		item.Result = AuditResult(item.Code)
+	}
 	if item.IsShowInRecent == 0 {
 		item.IsShowInRecent = 1
 	}
@@ -269,13 +325,22 @@ func (r *AuditRepo) InsertAuditLog(ctx context.Context, item AuditLog) error {
 	if strings.TrimSpace(item.DetailJSON) == "" {
 		item.DetailJSON = "{}"
 	}
-	return r.db.WithContext(ctx).Table(AuditLog{}.TableName()).Create(map[string]any{
+	q := r.db.WithContext(ctx).Table(AuditLog{}.TableName())
+	if item.EventID != "" {
+		q = q.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "event_id"}}, TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "event_id <> ''"}}}, DoNothing: true})
+	}
+	return q.Create(map[string]any{
+		"event_id":   item.EventID,
+		"result":     item.Result,
+		"scope_type": item.ScopeType, "scope_id": item.ScopeID, "scope_name": truncateAuditField(item.ScopeName, 200),
+		"request_id": truncateAuditField(item.RequestID, 64), "ip": truncateAuditField(item.IP, 64),
+		"user_agent": item.UserAgent, "result_msg": item.ResultMsg, "resource_path": item.ResourcePath,
 		"user_id":           item.UserID,
 		"res_type":          truncateAuditField(item.ResType, 50),
 		"res_id":            truncateAuditField(item.ResID, 50),
 		"res_name":          truncateAuditField(item.ResName, 256),
 		"business_type":     item.BusinessTypeCode,
-		"detail":            truncateAuditField(item.DetailJSON, 500),
+		"detail":            item.DetailJSON,
 		"code":              item.Code,
 		"is_show_in_recent": item.IsShowInRecent,
 		"operator_name":     truncateAuditField(item.OperatorName, 100),
@@ -284,6 +349,45 @@ func (r *AuditRepo) InsertAuditLog(ctx context.Context, item AuditLog) error {
 }
 
 func applyAuditFilter(db *gorm.DB, f AuditLogFilter) *gorm.DB {
+	if f.FleetUserOperations {
+		db = db.Where("user_id > 0 AND LOWER(TRIM(COALESCE(operator_name, ''))) <> ?", "system")
+		// detail is legacy TEXT and may not be valid JSON; avoid casts that can
+		// break the entire list. Match the action field, not arbitrary text.
+		db = db.Where("COALESCE(detail, '') !~ ?", `"action"[[:space:]]*:[[:space:]]*"flow\.(catalog|snapshot)\.refresh"`)
+	}
+	if f.ScopeType != 0 {
+		if f.ScopeType == -1 {
+			db = db.Where("scope_type = 0")
+		} else {
+			db = db.Where("scope_type = ?", f.ScopeType)
+		}
+	}
+	if f.ScopeID > 0 {
+		db = db.Where("scope_id = ?", f.ScopeID)
+	}
+	if kw := strings.TrimSpace(f.ScopeName); kw != "" {
+		db = db.Where("scope_name ILIKE ?", auditLike(kw))
+	}
+	if f.OperatorID > 0 {
+		db = db.Where("user_id = ?", f.OperatorID)
+	}
+	if kw := strings.TrimSpace(f.ResourceKeyword); kw != "" {
+		db = db.Where("(res_name ILIKE ? OR res_id = ? OR resource_path ILIKE ? OR (res_type = 'UNS' AND resource_path = '' AND detail ILIKE ?))", auditLike(kw), kw, auditLike(kw), auditLike(kw))
+	}
+	if f.RequestID != "" {
+		db = db.Where("request_id = ?", strings.TrimSpace(f.RequestID))
+	}
+	if f.IP != "" {
+		db = db.Where("ip = ?", strings.TrimSpace(f.IP))
+	}
+	switch f.Result {
+	case "success":
+		db = db.Where("(result = 'success' OR (result = '' AND code >= 200 AND code < 400 AND code <> 202))")
+	case "accepted":
+		db = db.Where("(result = 'accepted' OR (result = '' AND code = 202))")
+	case "failed":
+		db = db.Where("(result = 'failed' OR (result = '' AND (code < 200 OR code >= 400)))")
+	}
 	if rt := strings.TrimSpace(f.ResType); rt != "" {
 		db = db.Where("res_type = ?", rt)
 	}
@@ -294,7 +398,7 @@ func applyAuditFilter(db *gorm.DB, f AuditLogFilter) *gorm.DB {
 		db = db.Where("business_type = ?", f.BusinessTypeCode)
 	}
 	if kw := strings.TrimSpace(f.OperatorKeyword); kw != "" {
-		like := "%" + kw + "%"
+		like := auditLike(kw)
 		if len(f.OperatorUserIDs) > 0 {
 			db = db.Where("(operator_name ILIKE ? OR CAST(user_id AS TEXT) ILIKE ? OR user_id IN ?)", like, like, f.OperatorUserIDs)
 		} else {
@@ -315,7 +419,7 @@ func applyAuditFilter(db *gorm.DB, f AuditLogFilter) *gorm.DB {
 
 func (r *AuditRepo) userIDsMatchingEmail(ctx context.Context, keyword string) ([]int64, error) {
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
-	if keyword == "" {
+	if !strings.Contains(keyword, "@") {
 		return nil, nil
 	}
 	type row struct {
@@ -391,7 +495,16 @@ func normalizeAuditLog(item *AuditLog) {
 		return
 	}
 	item.OperatorID = strconv.FormatInt(item.UserID, 10)
-	item.ScopeType = 1
+	if item.Result == "" {
+		item.Result = AuditResult(item.Code)
+	}
+	item.DetailValid = json.Valid([]byte(item.DetailJSON))
+	if item.ResultMsg == "" && item.DetailValid {
+		var detail map[string]any
+		if json.Unmarshal([]byte(item.DetailJSON), &detail) == nil {
+			item.ResultMsg, _ = detail["_resultMsg"].(string)
+		}
+	}
 	item.BusinessType = AuditBusinessTypeName(item.BusinessTypeCode)
 	if item.CreatedAt == 0 && !item.CreatedTime.IsZero() {
 		item.CreatedAt = item.CreatedTime.UTC().UnixMilli()
@@ -403,12 +516,23 @@ func normalizeAuditLog(item *AuditLog) {
 
 func truncateAuditField(value string, limit int) string {
 	value = strings.TrimSpace(value)
-	if limit <= 0 || len(value) <= limit {
+	runes := []rune(value)
+	if limit <= 0 || len(runes) <= limit {
 		return value
 	}
-	return value[:limit]
+	return string(runes[:limit])
 }
 
 type AuditRepo struct{ db *gorm.DB }
 
 func NewAuditRepo(in any) *AuditRepo { return &AuditRepo{db: GetCommonConn(in)} }
+
+func AuditResult(code int64) string {
+	if code == 202 {
+		return "accepted"
+	}
+	if code >= 200 && code < 400 {
+		return "success"
+	}
+	return "failed"
+}

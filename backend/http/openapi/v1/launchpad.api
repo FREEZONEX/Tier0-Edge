@@ -1,0 +1,11 @@
+syntax = "v1"
+
+@server(
+    prefix: /openapi/v1
+    group: openapi/v1/launchpad
+    middleware: ApiKeyAuth
+)
+service backend {
+    @handler OpenapiLaunchpadGetMembers
+    post /launchpad/:projectName/getMembers (LaunchpadGetMembersReq) returns (LaunchpadMembersResp)
+}

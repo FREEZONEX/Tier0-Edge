@@ -1,8 +1,14 @@
-import { getAuditLogDetail, getAuditLogPage, type AuditLogItem } from '@/apis/core-api/audit-log';
+import {
+  getAuditLogDetail,
+  getAuditLogPage,
+  getAuditLogOptions,
+  exportAuditLogs,
+  type AuditLogItem,
+  type AuditFilterOption,
+} from '@/apis/core-api/audit-log';
 import ComLayout from '@/components/com-layout';
 import ComContent from '@/components/com-layout/ComContent';
 import ProTable from '@/components/pro-table';
-import ProSearch from '@/components/pro-search';
 import { useTranslate } from '@/hooks';
 import {
   getAuditActionLabel,
@@ -13,7 +19,14 @@ import {
   getAuditScopeLabel,
 } from './presentation';
 import { formatTimestamp } from '@/utils/format';
-import { App, Space, Typography } from 'antd';
+import { App, Button, Empty, Space, Tag, Typography } from 'antd';
+import { useSearchParams } from 'react-router';
+import { Renew, Download } from '@carbon/icons-react';
+import { AuthButton } from '@/components/auth';
+import { ButtonPermission } from '@/common-types/button-permission';
+import { downloadFn } from '@/utils/blob';
+import { AuditFilterBar } from './AuditFilters';
+import { type AuditFilters, cleanFilters, defaultFilters, readFilters, writeFilters } from './filters';
 import { useEffect, useRef, useState } from 'react';
 import { AuditLogDetailDrawer } from './AuditLogDetailDrawer';
 import styles from './index.module.scss';
@@ -52,7 +65,7 @@ const renderEllipsisText = (value: string) => (
   </Text>
 );
 
-const renderTimeText = (value: string) => {
+const renderTimeText = (value: number) => {
   const formatted = formatTimestamp(value) || '-';
   return (
     <Text className={styles.timeCell} ellipsis={{ tooltip: formatted }}>
@@ -182,12 +195,19 @@ const AuditLogPage = () => {
   const translate = (id: string, opt?: any, defaultMessage?: string) => formatMessage(id, opt, defaultMessage);
   const t = (id: string, fallback: string, opt?: Record<string, unknown>) => translate(id, opt, fallback);
   const [loading, setLoading] = useState(false);
+  const [listFailed, setListFailed] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [data, setData] = useState<AuditLogItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [pageNo, setPageNo] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [operatorKeyword, setOperatorKeyword] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pageNo, setPageNo] = useState(Math.max(1, Number(searchParams.get('page')) || 1));
+  const [pageSize, setPageSize] = useState(Math.min(200, Math.max(1, Number(searchParams.get('size')) || 20)));
+  const [applied, setApplied] = useState<AuditFilters>(() => readFilters(searchParams));
+  const [draft, setDraft] = useState<AuditFilters>(applied);
+  const [options, setOptions] = useState<AuditFilterOption[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const listRequest = useRef(0);
+  const detailRequest = useRef(0);
   const [detail, setDetail] = useState<AuditLogItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [tableShellWidth, setTableShellWidth] = useState(0);
@@ -196,29 +216,72 @@ const AuditLogPage = () => {
   const auditTableWidth = Math.max(tableAvailableWidth, auditMinimumTableWidth);
   const flexibleColumnWidth = resolveFlexibleColumnWidths(data, auditTableWidth, translate);
 
-  const fetchList = async (nextPageNo = pageNo, nextPageSize = pageSize, nextKeyword = operatorKeyword) => {
+  const fetchList = async (nextPageNo = pageNo, nextPageSize = pageSize, nextFilters = applied) => {
+    const request = ++listRequest.current;
     setLoading(true);
+    setListFailed(false);
     try {
       const resp = await getAuditLogPage({
         pageNo: nextPageNo,
         pageSize: nextPageSize,
-        operatorKeyword: nextKeyword || undefined,
+        ...nextFilters,
       });
+      if (request !== listRequest.current) return;
       setData(resp?.data || []);
       setTotal(resp?.total || 0);
       setPageNo(resp?.pageNo || nextPageNo);
       setPageSize(resp?.pageSize || nextPageSize);
     } catch {
+      if (request !== listRequest.current) return;
+      setData([]);
+      setTotal(0);
+      setListFailed(true);
       message.error(t('auditLog.loadFailed', 'Failed to load audit logs'));
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   };
 
-  // Initial page load uses the default filter state once.
+  const applyFilters = (value: AuditFilters) => {
+    const next = cleanFilters(value);
+    setApplied(next);
+    setDraft(next);
+    setPageNo(1);
+    setSearchParams(writeFilters(searchParams, next, 1, pageSize), { replace: true });
+    void fetchList(1, pageSize, next);
+  };
+  const exportLogs = async () => {
+    setExporting(true);
+    try {
+      const result = await exportAuditLogs(applied);
+      downloadFn({ data: result.content, name: result.fileName });
+    } catch {
+      message.error(t('auditLog.exportFailed', 'Export failed'));
+    } finally {
+      setExporting(false);
+    }
+  };
+  useEffect(() => {
+    let active = true;
+    void getAuditLogOptions({ startTime: applied.startTime, endTime: applied.endTime })
+      .then((items) => {
+        if (active) setOptions(items || []);
+      })
+      .catch(() => {
+        if (active) message.error(t('auditLog.optionsFailed', 'Failed to load filters'));
+      });
+    return () => {
+      active = false;
+    };
+  }, [applied.startTime, applied.endTime]);
+  // 首次加载恢复当前 URL 的已生效条件，后续查询由显式操作触发。
 
   useEffect(() => {
-    void fetchList(1, 20, '');
+    void fetchList(pageNo, pageSize, applied);
+    return () => {
+      listRequest.current++;
+      detailRequest.current++;
+    };
   }, []);
 
   useEffect(() => {
@@ -232,20 +295,23 @@ const AuditLogPage = () => {
   }, []);
 
   const openDetail = async (record: AuditLogItem) => {
+    const request = ++detailRequest.current;
+    setDetail(null);
     setDetailOpen(true);
     setDetailLoading(true);
     try {
       const resp = await getAuditLogDetail(record.id);
-      setDetail(resp);
+      if (request === detailRequest.current) setDetail(resp);
     } catch {
-      message.error(t('auditLog.detailFailed', 'Failed to load audit log detail'));
+      if (request === detailRequest.current)
+        message.error(t('auditLog.detailFailed', 'Failed to load audit log detail'));
     } finally {
-      setDetailLoading(false);
+      if (request === detailRequest.current) setDetailLoading(false);
     }
   };
 
   return (
-    <ComLayout loading={loading}>
+    <ComLayout>
       <ComContent
         className={styles.auditContent}
         title={t('auditLog.title', 'Audit Log')}
@@ -253,30 +319,61 @@ const AuditLogPage = () => {
         style={{ display: 'flex', flexDirection: 'column' }}
         extra={
           <Space>
-            <ProSearch
-              className={styles.auditSearch}
-              size="sm"
-              value={operatorKeyword}
-              placeholder={t('auditLog.operatorPlaceholder', 'Search operator')}
-              onChange={(e) => setOperatorKeyword(e.target.value)}
-              onSearch={(value) => {
-                setOperatorKeyword(value);
-                void fetchList(1, pageSize, value);
-              }}
-              style={{ width: 260 }}
-            />
+            <Button icon={<Renew size={16} />} onClick={() => void fetchList()}>
+              {t('auditLog.refresh', 'Refresh')}
+            </Button>
+            <AuthButton
+              auth={ButtonPermission['AuditLog.export']}
+              icon={<Download size={16} />}
+              loading={exporting}
+              onClick={() => void exportLogs()}
+            >
+              {t('auditLog.export', 'Export')}
+            </AuthButton>
           </Space>
         }
       >
-        <div ref={tableShellRef} style={{ width: '100%', minWidth: 0 }}>
+        <AuditFilterBar
+          value={draft}
+          applied={applied}
+          options={options}
+          onChange={setDraft}
+          onApply={applyFilters}
+          onReset={() => applyFilters(defaultFilters())}
+        />
+        <div ref={tableShellRef} className={styles.tableShell}>
           <ProTable
             key={auditTableWidth}
             className={styles.auditTable}
             rowKey="id"
+            loading={loading}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={t(
+                    listFailed
+                      ? 'auditLog.loadFailed'
+                      : Object.keys(applied).length
+                        ? 'auditLog.noMatches'
+                        : 'auditLog.noLogs',
+                    'No audit logs'
+                  )}
+                >
+                  {listFailed ? (
+                    <Button onClick={() => void fetchList()}>{t('auditLog.refresh', 'Refresh')}</Button>
+                  ) : (
+                    Object.keys(applied).length > 0 && (
+                      <Button onClick={() => applyFilters({})}>{t('auditLog.clearFilters', 'Clear filters')}</Button>
+                    )
+                  )}
+                </Empty>
+              ),
+            }}
             dataSource={data}
             tableLayout="fixed"
             columnFit={false}
-            scroll={{ y: 'calc(100vh - 240px)', x: auditTableWidth }}
+            scroll={{ y: 'calc(100vh - 440px)', x: auditTableWidth }}
             columns={[
               {
                 title: () => t('auditLog.time', 'Time'),
@@ -284,7 +381,7 @@ const AuditLogPage = () => {
                 key: 'createdAt',
                 ellipsis: true,
                 width: fixedColumnWidth.time,
-                render: (value: string) => renderTimeText(value),
+                render: (value: number) => renderTimeText(value),
               },
               {
                 title: () => t('auditLog.scope', 'Scope'),
@@ -342,8 +439,19 @@ const AuditLogPage = () => {
                 key: 'code',
                 ellipsis: true,
                 width: flexibleColumnWidth.result,
-                render: (_: unknown, record: any) =>
-                  renderEllipsisText(getAuditResultLabel(record as AuditLogItem, translate)),
+                render: (_: unknown, record: any) => (
+                  <Tag
+                    color={
+                      record.result === 'accepted' || record.code === 202
+                        ? 'processing'
+                        : record.code >= 200 && record.code < 400
+                          ? 'success'
+                          : 'error'
+                    }
+                  >
+                    {getAuditResultLabel(record as AuditLogItem, translate)}
+                  </Tag>
+                ),
               },
               {
                 title: () => t('common.operation', 'Operation'),
@@ -362,7 +470,8 @@ const AuditLogPage = () => {
               current: pageNo,
               pageSize,
               onChange: (current, size) => {
-                void fetchList(current, size, operatorKeyword);
+                setSearchParams(writeFilters(searchParams, applied, current, size), { replace: true });
+                void fetchList(current, size, applied);
               },
             }}
           />
@@ -371,7 +480,15 @@ const AuditLogPage = () => {
           open={detailOpen}
           loading={detailLoading}
           detail={detail}
-          onClose={() => setDetailOpen(false)}
+          onClose={() => {
+            detailRequest.current++;
+            setDetailOpen(false);
+          }}
+          onRelated={(record) => {
+            detailRequest.current++;
+            setDetailOpen(false);
+            applyFilters({ resType: record.resType, resId: record.resId });
+          }}
         />
       </ComContent>
     </ComLayout>

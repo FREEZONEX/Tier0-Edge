@@ -7,7 +7,10 @@ import { useLocation, useNavigate } from 'react-router';
  *
  * @param name - The name to display in the tab. Pass undefined to skip.
  */
-export function useTabName(name: string | undefined, options?: { displayName?: string; fullName?: string }) {
+export function useTabName(
+  name: string | undefined,
+  options?: { displayName?: string; fullName?: string; contextName?: string }
+) {
   const location = useLocation();
   const navigate = useNavigate();
   const initialPathRef = useRef(location.pathname);
@@ -20,14 +23,21 @@ export function useTabName(name: string | undefined, options?: { displayName?: s
     if (
       nextTabName &&
       location.pathname === initialPathRef.current &&
-      (location.state?.tabName !== nextTabName || location.state?.tabNameFull !== nextFullName)
+      (location.state?.tabName !== nextTabName ||
+        location.state?.tabNameFull !== nextFullName ||
+        location.state?.tabContextName !== options?.contextName)
     ) {
       navigate(location.pathname + (location.search || ''), {
-        state: { ...location.state, tabName: nextTabName, tabNameFull: nextFullName },
+        state: {
+          ...location.state,
+          tabName: nextTabName,
+          tabNameFull: nextFullName,
+          tabContextName: options?.contextName,
+        },
         replace: true,
       });
     }
-  }, [name, options?.displayName, options?.fullName]);
+  }, [name, options?.contextName, options?.displayName, options?.fullName]);
 }
 
 export default useTabName;

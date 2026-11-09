@@ -6,6 +6,7 @@ import ComCodeSnippet from '@/components/com-code-snippet';
 import ComCopyContent from '@/components/com-copy/ComCopyContent';
 import { sqlKeywordsRegex } from '@/utils/pattern';
 import { useBaseStore } from '@/stores/base';
+import { resolveMqttWebsocketPort, resolveMqttWebsocketUrl } from '@/utils/mqtt';
 
 const apikey = '4174348a-9222-4e81-b33e-5d72d2fd7f1e';
 
@@ -103,7 +104,8 @@ const HistoryData = ({ instanceInfo }: any) => {
 
 const RealtimeData = ({ instanceInfo }: any) => {
   const systemInfo = useBaseStore((state) => state.systemInfo);
-  const wsPort = systemInfo?.mqttWebsocketTslPort ?? window.location.port;
+  const mqttWebsocketUrl = resolveMqttWebsocketUrl(systemInfo);
+  const mqttWebsocketPort = resolveMqttWebsocketPort(mqttWebsocketUrl);
   const multipleTopicPre = '';
   const topic = instanceInfo.topic;
   const tcpPort = systemInfo?.mqttTcpPort ?? window.location.port;
@@ -120,7 +122,7 @@ const options = {
   rejectUnauthorized: false,
 };
 
-const connectUrl ='wss://${hostName}:${wsPort}/mqtt';
+const connectUrl ='${mqttWebsocketUrl}';
 
 const client = mqtt.connect(connectUrl, options);
 
@@ -227,8 +229,8 @@ client.on('message', function (topic, message) {
               key: 'js',
               children: (
                 <Flex gap={14} vertical>
-                  <ComCopyContent label={formatMessage('uns.MQTTUrl')} textToCopy={`wss://${hostName}`} />
-                  <ComCopyContent label={formatMessage('uns.MQTTPort')} textToCopy={wsPort} />
+                  <ComCopyContent label={formatMessage('uns.MQTTUrl')} textToCopy={mqttWebsocketUrl} />
+                  <ComCopyContent label={formatMessage('uns.MQTTPort')} textToCopy={mqttWebsocketPort} />
                   <ComCopyContent label={formatMessage('uns.topic')} textToCopy={`${multipleTopicPre}${topic}`} />
                   <ComCopyContent label={formatMessage('uns.dependent')} textToCopy={'npm install mqtt'} />
                 </Flex>

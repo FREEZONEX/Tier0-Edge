@@ -1,0 +1,14 @@
+{
+  "repository": "FREEZONEX/Tier0-Backend",
+  "revision": "681ed85cfc953fd9d5c79bd4dc6e21a1c4a7d19c",
+  "files": [
+    {
+      "path": "share/unscontract/source-stream-shared.json",
+      "sha256": "347ebda17ee16e096278533dcda0e4d6f31e7cdb813ffd62ac064eac7a57ff37"
+    },
+    {
+      "path": "share/unscontract/source-stream-effective.json",
+      "sha256": "714ab6b547df085abbf5205254051c3cd0585d34e2a763cbcd2ed4c7ec9f0c71"
+    }
+  ]
+}

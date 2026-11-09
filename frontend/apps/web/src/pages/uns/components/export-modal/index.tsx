@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { type FC, useImperativeHandle, useState } from 'react';
-import { App, Divider, Flex, Form, Segmented } from 'antd';
+import { App, Divider, Flex } from 'antd';
 import { useTranslate } from '@/hooks';
 import ProModal from '@/components/pro-modal';
 import { UnsTree } from '@/pages/uns/components/export-modal/uns-tree.tsx';
@@ -8,9 +8,8 @@ import styles from './index.module.scss';
 import { TreeStoreProvider, useTreeStore } from '@/pages/uns/components/export-modal/treeStore.tsx';
 import { CodeDom } from '@/pages/uns/components/export-modal/code-dom.tsx';
 import ComButton from '../../../../components/com-button';
-import OtherDom from '@/pages/uns/components/export-modal/other-dom.tsx';
 import { processedCheckedKeys } from '@/pages/uns/store/utils.ts';
-import { getParamsForArray, SelectAllId } from '@/utils';
+import { getParamsForArray } from '@/utils';
 import { exportExcelGlobal } from '@/apis/core-api';
 import { useDownloadNotification } from '@/hooks/useDownloadNotification';
 
@@ -22,90 +21,19 @@ export interface ExportModalProps {
   exportRef?: RefObject<ExportModalRef>;
 }
 
-const Tab = ({ onChange }: { onChange: (value: 'uns' | 'others') => void }) => {
-  const formatMessage = useTranslate();
-  const { tabType } = useTreeStore((state) => ({
-    tabType: state.tabType,
-  }));
-
-  return (
-    <Segmented<string>
-      className={styles.exportSegmented}
-      defaultValue={'uns'}
-      options={[
-        {
-          value: 'uns',
-          label: formatMessage('uns.importUnsTab'),
-        },
-        {
-          value: 'others',
-          label: formatMessage('common.others'),
-        },
-      ]}
-      value={tabType}
-      onChange={(value) => {
-        onChange(value as 'uns' | 'others');
-      }}
-    />
-  );
-};
-
-const getParams = (list: any) => {
-  if (list.some((s: any) => s.value === SelectAllId)) {
-    return {};
-  }
-  return list.reduce(
-    (result: any, item: any) => {
-      if (item.category === 'group') {
-        result.gids.push(item.id);
-      } else if (item.category === 'file') {
-        result.ids.push(item.id);
-      }
-      return result;
-    },
-    { gids: [] as number[], ids: [] as number[] }
-  );
-};
-
 const Content = ({ isFullscreen, open, onClose }: { isFullscreen?: boolean; open: boolean; onClose: () => void }) => {
   const formatMessage = useTranslate();
-  const { tabType, checkedKeys, allChecked, treeData, setTabType, setCheckedKeys, setAllChecked, setJsonData } =
-    useTreeStore((state) => ({
-      tabType: state.tabType,
-      setTabType: state.setTabType,
-      checkedKeys: state.checkedKeys,
-      allChecked: state.allChecked,
-      treeData: state.treeData,
-      setCheckedKeys: state.setCheckedKeys,
-      setAllChecked: state.setAllChecked,
-      setJsonData: state.setJsonData,
-    }));
-  const [form] = Form.useForm();
+  const { checkedKeys, allChecked, treeData } = useTreeStore((state) => ({
+    checkedKeys: state.checkedKeys,
+    allChecked: state.allChecked,
+    treeData: state.treeData,
+  }));
   const [showDownloadNotification, contextHolder] = useDownloadNotification();
   const { message } = App.useApp();
 
-  const handleTabChange = (value: 'uns' | 'others') => {
-    if (value === 'uns') {
-      form.setFieldsValue({
-        sourceFlowExportParam: [],
-        eventFlowExportParam: [],
-      });
-    } else {
-      setCheckedKeys([]);
-      setAllChecked(false);
-      setJsonData(undefined);
-    }
-    setTabType(value);
-  };
-
   const onExport = async () => {
-    const values = await form.validateFields();
     const params: any = {};
-    if (
-      !(allChecked || checkedKeys?.length) &&
-      !values?.eventFlowExportParam?.length &&
-      !values?.sourceFlowExportParam?.length
-    ) {
+    if (!(allChecked || checkedKeys?.length)) {
       message.warning(formatMessage('home.mustOne'));
       return;
     }
@@ -131,40 +59,18 @@ const Content = ({ isFullscreen, open, onClose }: { isFullscreen?: boolean; open
         checkSmallFile: false,
       };
     }
-    if (values.sourceFlowExportParam?.length > 0) {
-      params['sourceFlowExportParam'] = getParams(values.sourceFlowExportParam);
-    }
-    if (values.eventFlowExportParam?.length > 0) {
-      params['eventFlowExportParam'] = getParams(values.eventFlowExportParam);
-    }
     return exportExcelGlobal(params).then((zip) => {
       showDownloadNotification({ data: zip, name: 'global-export.zip' });
       message.success(formatMessage('common.optsuccess'));
       onClose();
     });
   };
-  const isUnsTab = tabType === 'uns';
-  const rootStyle = isFullscreen ? { height: '100%' } : isUnsTab ? { height: 600 } : undefined;
-  const unsPanelStyle =
-    isFullscreen || isUnsTab ? { flex: 1, minHeight: 0, display: isUnsTab ? ('inherit' as const) : ('none' as const), overflow: 'hidden' as const } : { display: 'none' as const };
-  const othersPanelStyle =
-    tabType === 'others'
-      ? { flex: isFullscreen ? 1 : undefined, minHeight: isFullscreen ? 0 : undefined, overflow: isFullscreen ? ('hidden' as const) : undefined }
-      : { display: 'none' as const };
+  const rootStyle = { height: isFullscreen ? '100%' : 600 };
 
   return (
     <Flex style={rootStyle} vertical>
       {contextHolder}
-      <div
-        style={{
-          marginBottom: 24,
-          flexShrink: 0,
-        }}
-      >
-        <Tab onChange={handleTabChange} />
-      </div>
-      {/*uns*/}
-      <Flex gap={16} style={unsPanelStyle}>
+      <Flex gap={16} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <Flex vertical style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
           <Flex className={styles['export-label']}>
             <span>{formatMessage('uns.importUnsTab')}</span>
@@ -178,10 +84,6 @@ const Content = ({ isFullscreen, open, onClose }: { isFullscreen?: boolean; open
           <CodeDom />
         </Flex>
       </Flex>
-
-      <div style={othersPanelStyle}>
-        <OtherDom form={form} />
-      </div>
 
       <div style={{ flexShrink: 0 }}>
         <Divider className={styles.exportFooterDivider} />

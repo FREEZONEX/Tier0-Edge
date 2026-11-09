@@ -1,0 +1,52 @@
+.pinnedRecent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 32px;
+
+  .sectionTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    padding: 0;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: normal;
+    letter-spacing: 0.16px;
+    color: var(--ui-text-color);
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+
+  .cardGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--ui-card-bg);
+    border: 1px solid var(--ui-home-border-color);
+    border-radius: 4px;
+
+    :global(.ant-empty-image) {
+      height: 80px;
+    }
+  }
+}
+
+:global(.dark),
+:global(.chartreuseDark) {
+  .pinnedRecent {
+    .emptyState {
+      border-color: var(--ui-control-border);
+    }
+  }
+}

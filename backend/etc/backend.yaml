@@ -5,8 +5,16 @@ Timeout: 20000
 # 全局请求体上限：500 MiB 文件上限 + 1 MiB multipart 开销余量，
 # 与 assetUploadHandler 的 MaxBytesReader 对齐，保证恰好 500 MiB 的包能进入应用层、超限返回明确 413
 MaxBytes: 525336576
+# 顶层 CertFile/KeyFile 保持为空：8080 HTTP listener 永远是 HTTP。
+# HTTPS 由下方 Https 独立配置提供（BACKEND_HTTPS_PORT>0 时启用，默认 0 禁用）。
 CertFile:
 KeyFile:
+# Backend HTTPS listener（纯内部实现，不依赖外部反代）。
+# Port<=0 时不启用；启用时要求证书文件存在且私钥匹配，否则启动失败（fail-fast）。
+Https:
+  Port: ${BACKEND_HTTPS_PORT:-0}
+  CertFile: ${BACKEND_TLS_CERT_FILE:-/app/certs/cert.pem}
+  KeyFile: ${BACKEND_TLS_KEY_FILE:-/app/certs/key.pem}
 Log:
   Mode: file
   Encoding: json
@@ -27,13 +35,47 @@ Security:
   JwtSecret: ${JWT_SECRET}
   InitialAdminPassword: ${ADMIN_INITIAL_PASSWORD}
   PluginAPIKey: ${TIER0_API_KEY}
+ExternalLogin:
+  Enabled: false
+MicrosoftSSO:
+  Enabled: false
+  TenantID: ${MICROSOFT_SSO_TENANT_ID}
+  ClientID: ${MICROSOFT_SSO_CLIENT_ID}
+  ClientSecret: ${MICROSOFT_SSO_CLIENT_SECRET}
+  RedirectURL: ${MICROSOFT_SSO_REDIRECT_URL}
 Gateway:
   WebDir: ${WEB_DIR}
   LocalFrontendDev: false
   FrontendDevUrl: ${FRONTEND_DEV_PROXY_URL}
+  TrustProxyHeaders: false
+  LaunchpadPort: ${LAUNCHPAD_PORT}
+  LaunchpadDomain: ${LAUNCHPAD_DOMAIN}
   SourceFlowUrl: ${SOURCEFLOW_URL}
   EventFlowUrl: ${EVENTFLOW_URL}
+  MarimoUrl: ${MARIMO_URL}
   EmqxUrl: ${EMQX_URL}
+  UnsAgentUrl: ${UNS_AGENT_URL}
+  MqttWsUpstreamUrl: ${MQTT_WS_UPSTREAM_URL}
+Storage:
+  FileRoot: ${FILESTORE_LOCAL_ROOT}
+  MarimoFileRoot: ${MARIMO_FILE_ROOT}
+  Driver: ${FILESTORE_DRIVER}
+  PublicBaseURL: ${FILESTORE_PUBLIC_BASE_URL}
+  S3:
+    Endpoint: ${FILESTORE_S3_ENDPOINT}
+    Region: ${FILESTORE_S3_REGION}
+    Bucket: ${FILESTORE_S3_BUCKET}
+    PublicBucket: ${FILESTORE_S3_PUBLIC_BUCKET}
+    AccessKeyID: ${FILESTORE_S3_ACCESS_KEY_ID}
+    SecretAccessKey: ${FILESTORE_S3_SECRET_ACCESS_KEY}
+    SessionToken: ${FILESTORE_S3_SESSION_TOKEN}
+    PublicEndpoint: ${FILESTORE_S3_PUBLIC_ENDPOINT}
+    UseSSL: true
+    PathStyle: false
+    BootstrapBuckets: false
+License:
+  LicenseDir: ${LICENSE_DIR}
+  MachineIDPath: ${MACHINE_ID_PATH}
 DataIngest:
   Enabled: false
   MqttBrokers: ${DATAINGEST_MQTT_BROKERS}
@@ -44,9 +86,53 @@ DataIngest:
   QueueSize: 0
   BatchSize: 0
   FlushIntervalMs: 0
+DataQuality:
+  Enabled: true
+  ShardCount: 64
+  MaxEnabledNodes: 10000
+  IssueQueueSize: 1024
+  MaxCollectWindowMs: 600000
+Cluster:
+  ExternalHTTPBaseURL: ${CLUSTER_EXTERNAL_HTTP_BASE_URL}
+  ExternalMqttBrokerHost: ${EMQX_EXTERNAL_BROKER_HOST}
+  MountMode: multiRoots
+  SyncMetricEnabled: true
+Video:
+  CredentialKey: ${VIDEO_CREDENTIAL_KEY}
+  ZLMAPIURL: ${ZLM_API_URL}
+  ZLMSecret: ${ZLM_SECRET}
+  ZLMStreamHost: ${ZLM_STREAM_HOST}
+  ZLMRTSPPort: ${ZLM_RTSP_PORT}
+  ZLMStreamPort: ${ZLM_STREAM_PORT}
+  ZLMRTCPort: ${ZLM_RTC_PORT}
+AIGateway:
+  CredentialKey: ${AI_GATEWAY_CREDENTIAL_KEY}
+  NotebookToken: ${AI_GATEWAY_NOTEBOOK_TOKEN}
+  UNSAgentToken: ${AI_GATEWAY_UNS_AGENT_TOKEN}
+  AllowedHosts: ${AI_GATEWAY_ALLOWED_HOSTS}
+  AllowedPrivateHosts: ${AI_GATEWAY_ALLOWED_PRIVATE_HOSTS}
+FleetAgent:
+  LocalURL: ${FLEET_AGENT_LOCAL_URL}
+  LocalToken: ${FLEET_AGENT_LOCAL_TOKEN}
+
+AppGateway:
+  Enabled: true
+  SkipAuth: false
+  CertPath: ${APP_GATEWAY_CERT_PATH}
+  KeyPath: ${APP_GATEWAY_KEY_PATH}
+  DefaultAccessMode: ${APP_GATEWAY_ACCESS_MODE:-port}
+  SubdomainSuffix: ${APP_GATEWAY_DOMAIN_SUFFIX}
+  Scheme: ${APP_GATEWAY_SCHEME}
+  ListenerScheme: ${APP_GATEWAY_LISTENER_SCHEME}
+  PortRangeStart: ${APP_GATEWAY_PORT_RANGE_START:-30000}
+  PortRangeEnd: ${APP_GATEWAY_PORT_RANGE_END:-30099}
+  AppHostPortRangeStart: ${APP_HOST_PORT_RANGE_START:-30100}
+  AppHostPortRangeEnd: ${APP_HOST_PORT_RANGE_END:-30199}
+  LoginURL: ${APP_GATEWAY_LOGIN_URL}
+  ExternalHost: ${APP_GATEWAY_EXTERNAL_HOST}
+  ExternalPort: ${APP_GATEWAY_EXTERNAL_PORT}
+
 Tier0Sdk:
   ApiHost: ${TIER0_SDK_API_HOST}
   MqttHost: ${TIER0_SDK_MQTT_HOST}
   MqttPort: ${TIER0_SDK_MQTT_PORT}
-Storage:
-  FileRoot: ${FILESTORE_LOCAL_ROOT}

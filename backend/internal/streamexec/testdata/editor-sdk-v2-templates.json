@@ -1,0 +1,613 @@
+{
+  "scope": "generated-template-goja-fixture-not-live-device",
+  "cases": [
+    {
+      "name": "zero-source-request",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n  api.stream.onRequest({ id: 'request' }, async function (context) {\n    const input = context.input;\n    api.log.info('request received');\n    return input;\n  });\n};"
+      },
+      "expectedSources": [],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "request",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "topic-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n  const topic = api.uns.use({ topicId: \"9101\" });\n  api.stream.onRequest({ id: 'write' }, async function (context) {\n    const input = context.input;\n    // Canonical resources require { recordId, record, sample?, time?, quality? }.\n    await topic.write(input);\n    return input;\n  });\n};"
+      },
+      "expectedSources": [],
+      "expectedTopics": [
+        {
+          "topicId": "9101"
+        }
+      ],
+      "executions": [
+        {
+          "entryId": "write",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": [
+            {
+              "topicId": "9101",
+              "data": {
+                "value": 7
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opc-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"opcua:temp\"] });\n    api.stream.onRequest({ id: \"read\" }, async function (context) {\n      const input = context.input;\n      return await source.read(\"opcua:temp\");\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "opcua:temp"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "read",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "read",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "read",
+              "sourceId": "8101",
+              "ref": "opcua:temp"
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "mqtt-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8102\", resources: [\"mqtt:plant/+/telemetry\"] });\n    api.stream.onMessage({ id: \"message\", source: source, resourceRefs: [\"mqtt:plant/+/telemetry\"], qos: 2 }, async function (context) {\n      const input = context.input;\n      return input;\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8102",
+          "resources": [
+            "mqtt:plant/+/telemetry"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "message",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "opc-write-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"opcua:setpoint\"] });\n    api.stream.onRequest({ id: \"write\" }, async function (context) {\n      const input = context.input;\n      // Request input: { value: ... }\n      return await source.write(\"opcua:setpoint\", input);\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "opcua:setpoint"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "write",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "write",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "write",
+              "sourceId": "8101",
+              "ref": "opcua:setpoint",
+              "input": {
+                "value": 7
+              }
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "opc-method-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"opcua:reset\"] });\n    api.stream.onRequest({ id: \"invoke\" }, async function (context) {\n      const input = context.input;\n      // Request input: { arguments: [...] } matching the native Method signature.\n      return await source.invoke(\"opcua:reset\", input);\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "opcua:reset"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "invoke",
+          "input": {
+            "arguments": []
+          },
+          "expectedData": {
+            "kind": "invoke",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "invoke",
+              "sourceId": "8101",
+              "ref": "opcua:reset",
+              "input": {
+                "arguments": []
+              }
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "mqtt-publish-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"mqtt:plant/control\"] });\n    api.stream.onRequest({ id: \"publish\" }, async function (context) {\n      const input = context.input;\n      return await source.publish(\"mqtt:plant/control\", input);\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "mqtt:plant/control"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "publish",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "publish",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "publish",
+              "sourceId": "8101",
+              "ref": "mqtt:plant/control",
+              "input": {
+                "value": 7
+              }
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "mqtt-request-reply-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"mqtt-request-reply\"] });\n    api.stream.onRequest({ id: \"invoke\" }, async function (context) {\n      const input = context.input;\n      return await source.invoke(\"mqtt-request-reply\", input);\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "mqtt-request-reply"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "invoke",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "invoke",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "invoke",
+              "sourceId": "8101",
+              "ref": "mqtt-request-reply",
+              "input": {
+                "value": 7
+              }
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "modbus-read-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"modbus:register\"] });\n    api.stream.onRequest({ id: \"read\" }, async function (context) {\n      const input = context.input;\n      return await source.read(\"modbus:register\");\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "modbus:register"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "read",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "read",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "read",
+              "sourceId": "8101",
+              "ref": "modbus:register"
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "modbus-write-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [\"modbus:register\"] });\n    api.stream.onRequest({ id: \"write\" }, async function (context) {\n      const input = context.input;\n      // Request input: { values: [...] } matching the configured range quantity.\n      return await source.write(\"modbus:register\", input);\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "modbus:register"
+          ]
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "write",
+          "input": {
+            "values": [
+              7
+            ]
+          },
+          "expectedData": {
+            "kind": "write",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "write",
+              "sourceId": "8101",
+              "ref": "modbus:register",
+              "input": {
+                "values": [
+                  7
+                ]
+              }
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "reused-source-topic-multiple-entries",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n  api.stream.onRequest({ id: 'request' }, async function (context) {\n    const input = context.input;\n    api.log.info('request received');\n    return input;\n  });\n};\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    const source = api.sources.use({ id: \"8101\", resources: [\"opcua:temp\"] });\n    api.stream.onRequest({ id: \"temperature\" }, async function (context) {\n      const input = context.input;\n      return await source.read(\"opcua:temp\");\n    });\n  };\n})(module.exports);\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    const source = api.sources.use({ id: \"8101\", resources: [\"opcua:pressure\"] });\n    api.stream.onRequest({ id: \"pressure\" }, async function (context) {\n      const input = context.input;\n      return await source.read(\"opcua:pressure\");\n    });\n  };\n})(module.exports);\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    const source = api.sources.use({ id: \"8102\", resources: [\"mqtt:plant/+/telemetry\"] });\n    api.stream.onMessage({ id: \"message\", source: source, resourceRefs: [\"mqtt:plant/+/telemetry\"], qos: 2 }, async function (context) {\n      const input = context.input;\n      return input;\n    });\n  };\n})(module.exports);\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    api.stream.onRequest({ id: \"manual\" }, async function (context) {\n      return context.input;\n    });\n  };\n})(module.exports);\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    api.stream.onTimer({ id: \"timer\", intervalMs: 5000 }, async function (context) {\n      return context.input;\n    });\n  };\n})(module.exports);\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    const topic0 = api.uns.use({ topicId: \"9101\" });\n    api.stream.onEvent({ id: \"topic-event\", topics: [topic0] }, async function (context) {\n      return context.input;\n    });\n  };\n})(module.exports);\n\n(function (previous) {\n  module.exports = function (api) {\n    previous(api);\n    const topic0 = api.uns.use({ topicId: \"9101\" });\n    const topic1 = api.uns.use({ topicId: \"9102\" });\n    api.stream.onRequest({ id: \"topic-write\" }, async function (context) {\n      const input = context.input;\n      await topic0.write(input);\n      await topic1.write(input);\n      return input;\n    });\n  };\n})(module.exports);"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": [
+            "opcua:temp",
+            "opcua:pressure"
+          ]
+        },
+        {
+          "id": "8102",
+          "resources": [
+            "mqtt:plant/+/telemetry"
+          ]
+        }
+      ],
+      "expectedTopics": [
+        {
+          "topicId": "9101"
+        },
+        {
+          "topicId": "9102"
+        }
+      ],
+      "executions": [
+        {
+          "entryId": "request",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "temperature",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "read",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "read",
+              "sourceId": "8101",
+              "ref": "opcua:temp"
+            }
+          ],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "pressure",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "kind": "read",
+            "value": 37
+          },
+          "expectedCalls": [
+            {
+              "kind": "read",
+              "sourceId": "8101",
+              "ref": "opcua:pressure"
+            }
+          ],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "message",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "manual",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "timer",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "topic-event",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        },
+        {
+          "entryId": "topic-write",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "value": 7
+          },
+          "expectedCalls": [],
+          "expectedOutputs": [
+            {
+              "topicId": "9101",
+              "data": {
+                "value": 7
+              }
+            },
+            {
+              "topicId": "9102",
+              "data": {
+                "value": 7
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "http-client-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [] });\n    api.stream.onRequest({ id: \"request\" }, async function (context) {\n      const parameters = await source.parameters();\n      // Relative path only; authentication and connections are managed by Source.\n      const response = await source.request({ method: 'GET', path: String(parameters.path || '/') });\n      return { status: response.status, data: response.data };\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": []
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "request",
+          "input": {
+            "value": 7
+          },
+          "expectedData": {
+            "status": 200,
+            "data": {
+              "value": 37
+            }
+          },
+          "expectedCalls": [
+            {
+              "kind": "parameters",
+              "sourceId": "8101"
+            },
+            {
+              "kind": "request",
+              "sourceId": "8101",
+              "input": {
+                "method": "GET",
+                "path": "/data"
+              }
+            }
+          ],
+          "expectedOutputs": []
+        }
+      ]
+    },
+    {
+      "name": "http-server-default",
+      "document": {
+        "name": "",
+        "description": "",
+        "timeoutMs": 5000,
+        "script": "module.exports = function (api) {\n    const source = api.sources.use({ id: \"8101\", resources: [] });\n    api.stream.onRequest({ id: \"ingress\", source: source, method: 'POST', path: '/ingress' }, async function (context) {\n      return { status: 200, headers: { 'Content-Type': 'application/json' }, body: { received: context.request.body } };\n    });\n};"
+      },
+      "expectedSources": [
+        {
+          "id": "8101",
+          "resources": []
+        }
+      ],
+      "expectedTopics": [],
+      "executions": [
+        {
+          "entryId": "ingress",
+          "input": {
+            "body": {
+              "value": 7
+            }
+          },
+          "expectedData": {
+            "status": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "received": {
+                "value": 7
+              }
+            }
+          },
+          "expectedCalls": [],
+          "expectedOutputs": []
+        }
+      ]
+    }
+  ]
+}

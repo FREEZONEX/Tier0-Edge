@@ -1,0 +1,6 @@
+{
+  "name": "Native Hello",
+  "version": "1.0.0",
+  "description": "Zero-dependency Node.js App with a prefixed page, API and event stream.",
+  "runtime": { "entry": "server.mjs", "healthPath": "/healthz" }
+}

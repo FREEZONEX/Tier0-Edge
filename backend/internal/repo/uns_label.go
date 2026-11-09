@@ -65,3 +65,49 @@ func (r *UnsRepo) DeleteUnsLabel(ctx context.Context, id int64) error {
 	}
 	return nil
 }
+
+// InsertUnsNodeLabels binds labels for newly inserted nodes in the caller's transaction.
+func (r *UnsRepo) InsertUnsNodeLabels(ctx context.Context, bindings map[int64][]int64) error {
+	rows := make([]unsLabelNode, 0)
+	for nodeID, labelIDs := range bindings {
+		seen := make(map[int64]bool, len(labelIDs))
+		for _, labelID := range labelIDs {
+			if labelID <= 0 || seen[labelID] {
+				continue
+			}
+			seen[labelID] = true
+			rows = append(rows, unsLabelNode{LabelID: labelID, NodeID: nodeID})
+		}
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return normalizeDBError(r.db.WithContext(ctx).CreateInBatches(&rows, 500).Error)
+}
+
+// ReplaceImportedUnsNodeLabels resets only imported nodes, in the metadata transaction.
+func (r *UnsRepo) ReplaceImportedUnsNodeLabels(ctx context.Context, bindings map[int64][]int64) error {
+	ids := make([]int64, 0, len(bindings))
+	for id := range bindings {
+		ids = append(ids, id)
+	}
+	for start := 0; start < len(ids); start += 500 {
+		if err := r.db.WithContext(ctx).Where("node_id IN ?", ids[start:min(start+500, len(ids))]).Delete(&unsLabelNode{}).Error; err != nil {
+			return err
+		}
+	}
+	return r.InsertUnsNodeLabels(ctx, bindings)
+}
+
+// ListUnsNodeLabelBindings loads label sets once for import change detection.
+func (r *UnsRepo) ListUnsNodeLabelBindings(ctx context.Context) (map[int64][]int64, error) {
+	var rows []unsLabelNode
+	if err := r.db.WithContext(ctx).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := map[int64][]int64{}
+	for _, row := range rows {
+		result[row.NodeID] = append(result[row.NodeID], row.LabelID)
+	}
+	return result, nil
+}

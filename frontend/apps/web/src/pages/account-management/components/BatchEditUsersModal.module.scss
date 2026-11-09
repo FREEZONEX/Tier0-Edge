@@ -1,0 +1,28 @@
+.selected-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--ui-table-tr-color);
+  background: var(--ui-fill-tertiary);
+
+  span {
+    color: var(--ui-description-card-color);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--ui-text-color);
+    font-size: 20px;
+    font-weight: 500;
+  }
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}

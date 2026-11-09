@@ -18,22 +18,37 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/zeromicro/go-zero/core/logx"
+	"golang.org/x/sync/errgroup"
+)
+
+const (
+	latestPayloadReadConcurrency = 2
+	latestMetricDBBatchSize      = 500
+	latestEventDBBatchSize       = 100
 )
 
 type Service struct {
-	cfg             config.DataIngestConf
-	resolver        *DefinitionResolver
-	writer          *SinkWriter
-	latest          *latestCache
-	queue           chan []Record
-	stop            chan struct{}
-	done            chan struct{}
-	client          mqtt.Client
-	publishOverride func(topic string, qos byte, retain bool, payload []byte) error
-	started         atomic.Bool
-	written         atomic.Int64
-	dropped         atomic.Int64
-	mu              sync.Mutex
+	cfg                     config.DataIngestConf
+	resolver                *DefinitionResolver
+	writer                  *SinkWriter
+	latest                  *latestCache
+	queue                   chan []Record
+	stop                    chan struct{}
+	done                    chan struct{}
+	client                  mqtt.Client
+	publishOverride         func(topic string, qos byte, retain bool, payload []byte) error
+	qualityObserver         QualityObserver
+	connectorHealthObserver ConnectorHealthObserver
+	started                 atomic.Bool
+	mqttReady               atomic.Bool
+	subscriptionRetrying    atomic.Bool
+	resourceEvents          atomic.Bool
+	resourceEventPublisher  repo.ResourceEventPublisher
+	written                 atomic.Int64
+	dropped                 atomic.Int64
+	mu                      sync.Mutex
+	connectorState          string
+	connectorErrorCode      string
 }
 
 type Stats struct {
@@ -85,6 +100,22 @@ func (s *Service) Resolver() *DefinitionResolver {
 		return nil
 	}
 	return s.resolver
+}
+
+func (s *Service) SetQualityObserver(observer QualityObserver) {
+	if s == nil {
+		return
+	}
+	s.qualityObserver = observer
+}
+
+func (s *Service) SetConnectorHealthObserver(observer ConnectorHealthObserver) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.connectorHealthObserver = observer
+	s.mu.Unlock()
 }
 
 func (s *Service) EnsurePhysicalForNode(ctx context.Context, node repo.UnsNode) error {
@@ -139,6 +170,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 	go s.flushLoop()
 	if !s.cfg.Enabled {
+		s.reportMQTTConnector(ConnectorStateDisabled, "dataIngestDisabled")
 		return nil
 	}
 	client, err := s.connectMQTT(ctx)
@@ -182,22 +214,288 @@ func (s *Service) LastPayload(ctx context.Context, node repo.UnsNode) (map[strin
 	if s.latest != nil {
 		payload, ok, err := s.latest.Get(ctx, node.ID)
 		if err == nil && ok {
-			return payload, nil
+			return s.withEffectiveQuality(node.ID, payload), nil
 		}
 		if err != nil {
 			logx.WithContext(ctx).Errorf("dataingest latest cache read failed node=%d err=%v", node.ID, err)
 		}
 	}
 	payload, err := s.lastPayloadFromDB(ctx, node)
-	if err != nil || len(payload) == 0 {
+	if err != nil {
 		return payload, err
+	}
+	if len(payload) == 0 {
+		if s.latest != nil {
+			if err := s.latest.MarkNoData(ctx, []int64{node.ID}); err != nil {
+				logx.WithContext(ctx).Errorf("dataingest latest no-data cache write failed node=%d err=%v", node.ID, err)
+			}
+		}
+		return nil, nil
 	}
 	if s.latest != nil {
 		if err := s.latest.UpsertPayload(ctx, node.ID, payload); err != nil {
 			logx.WithContext(ctx).Errorf("dataingest latest cache backfill failed node=%d err=%v", node.ID, err)
 		}
 	}
-	return payload, nil
+	return s.withEffectiveQuality(node.ID, payload), nil
+}
+
+func (s *Service) LastPayloads(ctx context.Context, nodes []repo.UnsNode) (map[int64]map[string]any, error) {
+	payloads := make(map[int64]map[string]any, len(nodes))
+	if s == nil || len(nodes) == 0 {
+		return payloads, nil
+	}
+	defer s.withEffectiveQualities(payloads)
+	unique := make([]repo.UnsNode, 0, len(nodes))
+	ids := make([]int64, 0, len(nodes))
+	seen := make(map[int64]struct{}, len(nodes))
+	for _, node := range nodes {
+		if node.ID <= 0 || node.Type != 2 {
+			continue
+		}
+		if _, ok := seen[node.ID]; ok {
+			continue
+		}
+		seen[node.ID] = struct{}{}
+		unique = append(unique, node)
+		ids = append(ids, node.ID)
+	}
+	var joinedErr error
+	if s.latest != nil {
+		cached, err := s.latest.GetMany(ctx, ids)
+		if err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			logx.WithContext(ctx).Errorf("dataingest latest cache batch read failed nodes=%d err=%v", len(ids), err)
+		}
+		for nodeID, payload := range cached {
+			payloads[nodeID] = payload
+		}
+	}
+	missing := make([]repo.UnsNode, 0, len(unique))
+	for _, node := range unique {
+		if _, ok := payloads[node.ID]; !ok {
+			missing = append(missing, node)
+		}
+	}
+	if len(missing) == 0 {
+		return payloads, joinedErr
+	}
+	backfill, noData, dbErr := s.lastPayloadsFromDB(ctx, missing)
+	joinedErr = errors.Join(joinedErr, dbErr)
+	for nodeID, payload := range backfill {
+		payloads[nodeID] = payload
+	}
+	if s.latest != nil && len(backfill) > 0 {
+		if err := s.latest.UpsertPayloads(ctx, backfill); err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			logx.WithContext(ctx).Errorf("dataingest latest cache batch backfill failed nodes=%d err=%v", len(backfill), err)
+		}
+	}
+	if s.latest != nil && len(noData) > 0 {
+		if err := s.latest.MarkNoData(ctx, noData); err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			logx.WithContext(ctx).Errorf("dataingest latest no-data cache batch write failed nodes=%d err=%v", len(noData), err)
+		}
+		for _, nodeID := range noData {
+			payloads[nodeID] = nil
+		}
+	}
+	return payloads, joinedErr
+}
+
+func (s *Service) withEffectiveQualities(payloads map[int64]map[string]any) {
+	for unsID, payload := range payloads {
+		payloads[unsID] = s.withEffectiveQuality(unsID, payload)
+	}
+}
+
+func (s *Service) withEffectiveQuality(unsID int64, payload map[string]any) map[string]any {
+	if s == nil || len(payload) == 0 {
+		return payload
+	}
+	provider, ok := s.qualityObserver.(EffectiveQualityProvider)
+	if !ok {
+		return payload
+	}
+	sourceQuality := qualityCode(payload["quality"])
+	payload["quality"] = qualityFromNumber(provider.EffectiveQuality(unsID, sourceQuality))
+	return payload
+}
+
+type latestSinkTarget struct {
+	node  repo.UnsNode
+	alias string
+}
+
+func (s *Service) lastPayloadsFromDB(ctx context.Context, nodes []repo.UnsNode) (map[int64]map[string]any, []int64, error) {
+	payloads := make(map[int64]map[string]any, len(nodes))
+	if s == nil || s.writer == nil || s.writer.pool == nil || len(nodes) == 0 {
+		return payloads, nil, nil
+	}
+	targets := make([]latestSinkTarget, 0, len(nodes))
+	aliases := make([]string, 0, len(nodes))
+	seenAliases := make(map[string]struct{}, len(nodes))
+	noData := make([]int64, 0)
+	for _, node := range nodes {
+		if node.ID <= 0 || node.Type != 2 {
+			continue
+		}
+		def := definitionFromNode(node)
+		alias := strings.Trim(def.Alias, "/")
+		if alias == "" {
+			alias = strings.Trim(def.Namespace, "/")
+		}
+		if alias == "" {
+			noData = append(noData, node.ID)
+			continue
+		}
+		targets = append(targets, latestSinkTarget{node: node, alias: alias})
+		if _, ok := seenAliases[alias]; !ok {
+			seenAliases[alias] = struct{}{}
+			aliases = append(aliases, alias)
+		}
+	}
+	existing, err := s.existingSinkRelations(ctx, aliases)
+	if err != nil {
+		return payloads, noData, err
+	}
+	metricTargets := make([]latestSinkTarget, 0, len(targets))
+	eventTargets := make([]latestSinkTarget, 0, len(targets))
+	for _, target := range targets {
+		if _, ok := existing[target.alias]; !ok {
+			noData = append(noData, target.node.ID)
+			continue
+		}
+		if target.node.TopicType == metricTopicType {
+			metricTargets = append(metricTargets, target)
+		} else {
+			eventTargets = append(eventTargets, target)
+		}
+	}
+
+	type batchTask struct {
+		targets []latestSinkTarget
+	}
+	tasks := make([]batchTask, 0, (len(metricTargets)+latestMetricDBBatchSize-1)/latestMetricDBBatchSize+(len(eventTargets)+latestEventDBBatchSize-1)/latestEventDBBatchSize)
+	appendTasks := func(items []latestSinkTarget, batchSize int) {
+		for start := 0; start < len(items); start += batchSize {
+			end := start + batchSize
+			if end > len(items) {
+				end = len(items)
+			}
+			tasks = append(tasks, batchTask{targets: items[start:end]})
+		}
+	}
+	appendTasks(metricTargets, latestMetricDBBatchSize)
+	appendTasks(eventTargets, latestEventDBBatchSize)
+
+	var mu sync.Mutex
+	var joinedErr error
+	var group errgroup.Group
+	group.SetLimit(latestPayloadReadConcurrency)
+	for _, task := range tasks {
+		task := task
+		group.Go(func() error {
+			batchPayloads, batchNoData, err := s.queryLatestSinkBatch(ctx, task.targets)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				joinedErr = errors.Join(joinedErr, err)
+				return nil
+			}
+			for nodeID, payload := range batchPayloads {
+				payloads[nodeID] = payload
+			}
+			noData = append(noData, batchNoData...)
+			return nil
+		})
+	}
+	_ = group.Wait()
+	return payloads, noData, joinedErr
+}
+
+func (s *Service) existingSinkRelations(ctx context.Context, aliases []string) (map[string]struct{}, error) {
+	out := make(map[string]struct{}, len(aliases))
+	if s == nil || s.writer == nil || s.writer.pool == nil || len(aliases) == 0 {
+		return out, nil
+	}
+	rows, err := s.writer.pool.Query(ctx, `
+SELECT c.relname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = $1
+  AND c.relname = ANY($2::text[])
+  AND c.relkind IN ('r', 'p', 'v', 'm')`, sinkSchema, aliases)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var alias string
+		if err := rows.Scan(&alias); err != nil {
+			return nil, err
+		}
+		out[alias] = struct{}{}
+	}
+	return out, rows.Err()
+}
+
+func (s *Service) queryLatestSinkBatch(ctx context.Context, targets []latestSinkTarget) (map[int64]map[string]any, []int64, error) {
+	payloads := make(map[int64]map[string]any, len(targets))
+	if s == nil || s.writer == nil || s.writer.pool == nil || len(targets) == 0 {
+		return payloads, nil, nil
+	}
+	byID := make(map[int64]repo.UnsNode, len(targets))
+	for _, target := range targets {
+		byID[target.node.ID] = target.node
+	}
+	rows, err := s.writer.pool.Query(ctx, latestSinkBatchSQL(targets))
+	if err != nil {
+		return nil, nil, fmt.Errorf("query latest batch nodes=%d: %w", len(targets), err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var nodeID int64
+		var raw json.RawMessage
+		if err := rows.Scan(&nodeID, &raw); err != nil {
+			return nil, nil, err
+		}
+		row := map[string]any{}
+		if err := json.Unmarshal(raw, &row); err != nil {
+			return nil, nil, fmt.Errorf("decode latest node %d: %w", nodeID, err)
+		}
+		node, ok := byID[nodeID]
+		if !ok {
+			continue
+		}
+		payload := latestPayloadFromSinkRow(node, row)
+		if len(payload) > 0 {
+			payloads[nodeID] = payload
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	noData := make([]int64, 0, len(targets)-len(payloads))
+	for _, target := range targets {
+		if _, ok := payloads[target.node.ID]; !ok {
+			noData = append(noData, target.node.ID)
+		}
+	}
+	return payloads, noData, nil
+}
+
+func latestSinkBatchSQL(targets []latestSinkTarget) string {
+	parts := make([]string, 0, len(targets))
+	for _, target := range targets {
+		parts = append(parts, fmt.Sprintf(`SELECT %d::bigint AS node_id, to_jsonb(latest_row) AS row_data
+FROM (SELECT * FROM %s ORDER BY %s DESC LIMIT 1) AS latest_row`,
+			target.node.ID,
+			sinkQualifiedName(target.alias),
+			quoteIdent(metricTimeColumn),
+		))
+	}
+	return strings.Join(parts, "\nUNION ALL\n")
 }
 
 func (s *Service) lastPayloadFromDB(ctx context.Context, node repo.UnsNode) (map[string]any, error) {
@@ -205,10 +503,6 @@ func (s *Service) lastPayloadFromDB(ctx context.Context, node repo.UnsNode) (map
 		return nil, nil
 	}
 	def := definitionFromNode(node)
-	fields := dataFields(def.Fields, def.TopicType)
-	if len(fields) == 0 {
-		fields = []Field{{Name: "value", Type: "string"}}
-	}
 	alias := strings.Trim(def.Alias, "/")
 	if alias == "" {
 		alias = strings.Trim(def.Namespace, "/")
@@ -238,10 +532,20 @@ func (s *Service) lastPayloadFromDB(ctx context.Context, node repo.UnsNode) (map
 	for i, field := range desc {
 		row[string(field.Name)] = values[i]
 	}
+	return latestPayloadFromSinkRow(node, row), nil
+}
+
+func latestPayloadFromSinkRow(node repo.UnsNode, row map[string]any) map[string]any {
+	def := definitionFromNode(node)
+	fields := dataFields(def.Fields, def.TopicType)
+	if len(fields) == 0 {
+		fields = []Field{{Name: "value", Type: "string"}}
+	}
+	timeColumn := sinkTimeColumn(def)
 	latest := valueTimeFromAny(row[timeColumn])
 	data := payloadFromSinkRow(row, fields, def.TopicType)
 	if len(data) == 0 {
-		return nil, nil
+		return nil
 	}
 	dt := make(map[string]int64, len(data))
 	keys := make([]string, 0, len(data))
@@ -258,7 +562,7 @@ func (s *Service) lastPayloadFromDB(ctx context.Context, node repo.UnsNode) (map
 		"updateTime": latest.UnixMilli(),
 		"fields":     keys,
 		"quality":    qualityFromSinkRow(row, def.TopicType),
-	}, nil
+	}
 }
 
 func (s *Service) ClearLatest(ctx context.Context, nodes []repo.UnsNode) error {
@@ -322,14 +626,33 @@ func (s *Service) WriteOpenAPIValue(
 	if err != nil {
 		return err
 	}
+	if s.resourceEvents.Load() {
+		if err := s.commitNativeWrite(ctx, node, payloadValue, records); err != nil {
+			return err
+		}
+	}
 	if err := s.writeLatestCache(ctx, records); err != nil {
 		logx.WithContext(ctx).Errorf("dataingest openapi latest cache write failed node=%d err=%v", node.ID, err)
 	}
+	var observations []QualityObservation
+	if s.qualityObserver != nil {
+		observations = qualityObservations(records)
+		s.qualityObserver.Observe(ctx, observations)
+	}
 	publishPayloadRecords(records)
-	if s.writer != nil {
+	if s.writer != nil && !s.resourceEvents.Load() {
 		if err := s.writer.WriteRecords(ctx, records); err != nil {
+			if s.qualityObserver != nil {
+				s.qualityObserver.RecordDrop(ctx, "historyWriter", "writeError", observations)
+			}
 			return err
 		}
+		if s.qualityObserver != nil {
+			s.qualityObserver.RecordPersisted(ctx, observations)
+		}
+	}
+	if s.resourceEvents.Load() && definitionFromNode(node).SaveToDB && s.qualityObserver != nil {
+		s.qualityObserver.RecordPersisted(ctx, observations)
 	}
 	// Publish the same logical value to MQTT so the OPC UA server (and other
 	// MQTT consumers) see the update. For a plain string without an explicit
@@ -388,6 +711,11 @@ func (s *Service) Consume(ctx context.Context, topic string, payload []byte) err
 	if err != nil || len(records) == 0 {
 		return err
 	}
+	var observations []QualityObservation
+	if s.qualityObserver != nil {
+		observations = qualityObservations(records)
+		s.qualityObserver.Observe(ctx, observations)
+	}
 	if err := s.writeLatestCache(ctx, records); err != nil {
 		logx.WithContext(ctx).Errorf("dataingest latest cache write failed topic=%s err=%v", topic, err)
 	}
@@ -399,6 +727,9 @@ func (s *Service) Consume(ctx context.Context, topic string, payload []byte) err
 	case s.queue <- records:
 	default:
 		s.dropped.Add(int64(len(records)))
+		if s.qualityObserver != nil {
+			s.qualityObserver.RecordDrop(ctx, "historyQueue", "queueFull", observations)
+		}
 		return errors.New("dataingest queue full")
 	}
 	return nil
@@ -514,12 +845,17 @@ func (s *Service) connectMQTT(ctx context.Context) (mqtt.Client, error) {
 		}
 	}
 	if err != nil {
+		s.reportMQTTConnector(ConnectorStateLost, "mqttConnectFailed")
 		return nil, err
 	}
+	s.mqttReady.Store(true)
 	if err := s.subscribeMQTTTopics(ctx, client, topics); err != nil {
-		client.Disconnect(0)
-		return nil, err
+		s.reportMQTTConnector(ConnectorStateLost, "mqttSubscribeFailed")
+		logx.Errorf("dataingest mqtt initial subscribe failed, retrying after HTTP authorization is ready: %v", err)
+		go s.subscribeMQTTTopicsWithRetry(context.Background(), client, topics)
+		return client, nil
 	}
+	s.reportMQTTConnector(ConnectorStateConnected, "")
 	return client, nil
 }
 
@@ -543,13 +879,16 @@ func (s *Service) newMQTTClient(topics []string) (mqtt.Client, error) {
 	// 旧尝试稍后连上时与同 clientID 的新 client 互相挤占
 	opts.SetConnectTimeout(5 * time.Second)
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		go s.subscribeMQTTTopicsWithRetry(context.Background(), client, topics)
+		if s.mqttReady.Load() {
+			go s.subscribeMQTTTopicsWithRetry(context.Background(), client, topics)
+		}
 	})
 	opts.SetReconnectingHandler(func(_ mqtt.Client, _ *mqtt.ClientOptions) {
 		logx.Infof("dataingest mqtt reconnecting")
 	})
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
 		logx.Errorf("dataingest mqtt connection lost: %v", err)
+		s.reportMQTTConnector(ConnectorStateLost, "mqttConnectionLost")
 	})
 	client := mqtt.NewClient(opts)
 	token := client.Connect()
@@ -575,17 +914,41 @@ func (s *Service) subscribeMQTTTopics(ctx context.Context, client mqtt.Client, t
 		if err := token.Error(); err != nil {
 			return fmt.Errorf("subscribe mqtt %s: %w", topic, err)
 		}
+		subscribeToken, ok := token.(*mqtt.SubscribeToken)
+		if !ok {
+			return fmt.Errorf("subscribe mqtt %s: unexpected token type %T", topic, token)
+		}
+		if err := validateMQTTSubscribeResult(topic, subscribeToken.Result()); err != nil {
+			return err
+		}
 	}
 	_ = ctx
 	return nil
 }
 
+func validateMQTTSubscribeResult(topic string, result map[string]byte) error {
+	grantedQoS, ok := result[topic]
+	if !ok {
+		return fmt.Errorf("subscribe mqtt %s: missing SUBACK result", topic)
+	}
+	if grantedQoS > 2 {
+		return fmt.Errorf("subscribe mqtt %s rejected by broker: code=0x%02x", topic, grantedQoS)
+	}
+	return nil
+}
+
 func (s *Service) subscribeMQTTTopicsWithRetry(ctx context.Context, client mqtt.Client, topics []string) {
+	if !s.subscriptionRetrying.CompareAndSwap(false, true) {
+		return
+	}
+	defer s.subscriptionRetrying.Store(false)
 	for {
 		if err := s.subscribeMQTTTopics(ctx, client, topics); err == nil {
+			s.reportMQTTConnector(ConnectorStateConnected, "")
 			return
 		} else {
 			logx.Errorf("dataingest mqtt subscribe failed, retrying: %v", err)
+			s.reportMQTTConnector(ConnectorStateLost, "mqttSubscribeFailed")
 		}
 		select {
 		case <-s.stop:
@@ -593,6 +956,27 @@ func (s *Service) subscribeMQTTTopicsWithRetry(ctx context.Context, client mqtt.
 		case <-time.After(3 * time.Second):
 		}
 	}
+}
+
+func (s *Service) reportMQTTConnector(state, errorCode string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.connectorState == state && s.connectorErrorCode == errorCode {
+		s.mu.Unlock()
+		return
+	}
+	s.connectorState = state
+	s.connectorErrorCode = errorCode
+	observer := s.connectorHealthObserver
+	s.mu.Unlock()
+	if observer == nil {
+		return
+	}
+	observer.RecordConnectorHealth(context.Background(), ConnectorHealthSignal{
+		Source: ConnectorSourceMQTT, State: state, ObservedAt: time.Now().UTC(), ErrorCode: errorCode,
+	})
 }
 
 func (s *Service) flushLoop() {
@@ -606,11 +990,21 @@ func (s *Service) flushLoop() {
 		}
 		records := batch
 		batch = make([]Record, 0, s.cfg.BatchSize)
+		var observations []QualityObservation
+		if s.qualityObserver != nil {
+			observations = qualityObservations(records)
+		}
 		if err := s.writer.WriteRecords(context.Background(), records); err != nil {
 			s.dropped.Add(int64(len(records)))
+			if s.qualityObserver != nil {
+				s.qualityObserver.RecordDrop(context.Background(), "historyWriter", "writeError", observations)
+			}
 			return
 		}
 		s.written.Add(int64(len(records)))
+		if s.qualityObserver != nil {
+			s.qualityObserver.RecordPersisted(context.Background(), observations)
+		}
 	}
 	for {
 		select {

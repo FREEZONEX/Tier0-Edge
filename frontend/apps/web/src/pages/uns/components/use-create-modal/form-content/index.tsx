@@ -41,11 +41,17 @@ const FormContent: FC<FormContentProps> = ({
 }) => {
   const form = Form.useFormInstance();
   const formatMessage = useTranslate();
-  const {
-    systemInfo: { enableAutoCategorization },
-  } = useBaseStore((state) => ({
+  const { systemInfo, currentUserInfo } = useBaseStore((state) => ({
     systemInfo: state.systemInfo,
+    currentUserInfo: state.currentUserInfo,
   }));
+  const { enableAutoCategorization, dataQualityEnabled, authEnable } = systemInfo;
+  const resourceKeys = (currentUserInfo as (typeof currentUserInfo & { resourceKeys?: string[] }) | undefined)
+    ?.resourceKeys;
+  const canConfigureDataQuality = Boolean(
+    dataQualityEnabled === true &&
+    (authEnable === false || currentUserInfo?.superAdmin === true || resourceKeys?.includes('uns.dataQuality.manage'))
+  );
 
   const [types, setTypes] = useState([]);
 
@@ -558,6 +564,13 @@ const FormContent: FC<FormContentProps> = ({
         });
       }
 
+      if (addModalType === 'addFile' && canConfigureDataQuality) {
+        collapseFormItemList.push({
+          formType: 'dataQualityCreate',
+          formProps: { name: 'dataQualityCreate' },
+        });
+      }
+
       formItemList.push({
         formType: 'collapse',
         formProps: {},
@@ -575,7 +588,7 @@ const FormContent: FC<FormContentProps> = ({
         });
         const rowFormItemList: FormItemType[] = [];
 
-        if ([1, 2].includes(dataType)) {
+        if ([1, 2].includes(dataType) && !window.__TIER0_RUNTIME_CONFIG__?.sourceStreamEnabled) {
           rowFormItemList.push({
             formType: 'checkbox',
             formProps: {

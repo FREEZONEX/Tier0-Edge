@@ -9,6 +9,7 @@ import (
 	"backend/internal/contextx"
 	"backend/internal/domain/audit"
 	authdomain "backend/internal/domain/auth"
+	respx "backend/internal/httpx"
 )
 
 type SessionAuthMiddleware struct {
@@ -24,6 +25,9 @@ func (m *SessionAuthMiddleware) Handle(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		subject, err := m.auth.AuthenticateRequest(r)
 		if err != nil {
+			if respx.WriteStreamRequestAuthError(w, r, "UNAUTHENTICATED") || respx.WriteUnsV2AuthError(w, r, "UNAUTHENTICATED") {
+				return
+			}
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

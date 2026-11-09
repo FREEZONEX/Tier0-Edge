@@ -15,41 +15,43 @@ import (
 
 	domaincommon "backend/internal/domain/common"
 	"backend/internal/domain/dataingest"
-	domainflow "backend/internal/domain/flow"
+	domaindataquality "backend/internal/domain/dataquality"
 	"backend/internal/events"
 	"backend/internal/infra/outbox"
 	"backend/internal/repo"
 
 	"github.com/google/uuid"
 	"github.com/mozillazg/go-pinyin"
+	"gorm.io/gorm"
 )
 
 type Service struct {
-	uns     *repo.UnsRepo
-	jobs    *repo.AsyncJobRepo
-	bus     *events.Bus
-	outbox  *outbox.Service
-	flow    *domainflow.Service
-	payload *dataingest.Service
+	uns                 *repo.UnsRepo
+	jobs                *repo.AsyncJobRepo
+	bus                 *events.Bus
+	outbox              *outbox.Service
+	payload             *dataingest.Service
+	legacyFlowsDisabled bool
 }
 
 type SaveCommand struct {
-	ID               int64
-	ParentID         int64
-	Name             string
-	DisplayName      string
-	Description      string
-	Alias            string
-	Namespace        string
-	NodeType         string
-	TopicType        string
-	Schema           string
-	ExtendProperties string
-	LabelIDs         []int64
-	AssetFileIDs     []int64
-	EnableHistory    *bool
-	AddFlow          bool
-	MockData         bool
+	ID                int64
+	ParentID          int64
+	Name              string
+	DisplayName       string
+	Description       string
+	Alias             string
+	Namespace         string
+	NodeType          string
+	TopicType         string
+	Schema            string
+	ExtendProperties  string
+	DataQualityPolicy *repo.DataQualityPolicy
+	LabelIDs          []int64
+	AssetFileIDs      []int64
+	EnableHistory     *bool
+	AddFlow           bool
+	MockData          bool
 	// MockIntervalSeconds 自定义 mock 数据发送间隔（秒），0 表示默认（10s）
 	MockIntervalSeconds int
 	// MockIntervalMillis 亚秒级间隔（毫秒），优先于 MockIntervalSeconds
@@ -112,25 +114,26 @@ type ImportStatus struct {
 }
 
 type importFileData struct {
-	Type              string           `json:"type"`
-	Name              string           `json:"name"`
-	Alias             string           `json:"alias"`
-	DisplayName       string           `json:"displayName"`
-	Fields            []map[string]any `json:"fields"`
-	LegacySchema      []map[string]any `json:"schema"`
-	DataType          any              `json:"dataType"`
-	Description       string           `json:"description"`
-	Label             string           `json:"label"`
-	Labels            any              `json:"labels"`
-	GenerateDashboard string           `json:"generateDashboard"`
-	EnableHistory     string           `json:"enableHistory"`
-	MockData          string           `json:"mockData"`
-	WriteData         string           `json:"writeData"`
-	TopicType         string           `json:"topicType"`
-	ParentDataType    string           `json:"parentDataType"`
-	Children          []importFileData `json:"children"`
-	ExtendProperties  map[string]any   `json:"extendProperties"`
-	Extend            map[string]any   `json:"extend"`
+	Type              string                  `json:"type"`
+	Name              string                  `json:"name"`
+	Alias             string                  `json:"alias"`
+	DisplayName       string                  `json:"displayName"`
+	Fields            []map[string]any        `json:"fields"`
+	LegacySchema      []map[string]any        `json:"schema"`
+	DataType          any                     `json:"dataType"`
+	Description       string                  `json:"description"`
+	Label             string                  `json:"label"`
+	Labels            any                     `json:"labels"`
+	GenerateDashboard string                  `json:"generateDashboard"`
+	EnableHistory     string                  `json:"enableHistory"`
+	MockData          string                  `json:"mockData"`
+	WriteData         string                  `json:"writeData"`
+	TopicType         string                  `json:"topicType"`
+	ParentDataType    string                  `json:"parentDataType"`
+	Children          []importFileData        `json:"children"`
+	ExtendProperties  map[string]any          `json:"extendProperties"`
+	Extend            map[string]any          `json:"extend"`
+	DataQualityPolicy *repo.DataQualityPolicy `json:"dataQualityPolicy"`
 }
 
 const (
@@ -146,16 +149,19 @@ var reservedCreateFolderNames = map[string]struct{}{
 	"label": {},
 }
 
-func New(ctx context.Context, flowSvc *domainflow.Service, payloadSvc *dataingest.Service) *Service {
+func New(ctx context.Context, payloadSvc *dataingest.Service) *Service {
 	return &Service{
 		uns:     repo.NewUnsRepo(ctx),
 		jobs:    repo.NewAsyncJobRepo(ctx),
 		bus:     events.Default(),
 		outbox:  outbox.New(),
-		flow:    flowSvc,
 		payload: payloadSvc,
 	}
 }
+
+// DisableLegacyFlows keeps existing metadata intact while preventing new
+// Node-RED tasks in deployments using Source/Stream.
+func (s *Service) DisableLegacyFlows() { s.legacyFlowsDisabled = true }
 
 func (s *Service) publishPostCommit(ctx context.Context, event any) {
 	if s == nil || s.bus == nil {
@@ -307,6 +313,9 @@ func (s *Service) NormalizeOpenapiCreateCommand(ctx context.Context, cmd SaveCom
 }
 
 func (s *Service) createSingle(ctx context.Context, cmd SaveCommand) (map[string]any, error) {
+	if cmd.AddFlow || cmd.MockData {
+		return nil, ErrInvalid
+	}
 	if cmd.AddFlow {
 		cmd.MockData = true
 	}
@@ -327,71 +336,25 @@ func (s *Service) createSingle(ctx context.Context, cmd SaveCommand) (map[string
 		return nil, err
 	}
 	node.CreatedBy = cmd.UserID
-	created, err := s.uns.CreateUnsNode(ctx, node, cmd.LabelIDs, cmd.AssetFileIDs)
+	var created repo.UnsNode
+	err = repo.GetCommonConn(ctx).Transaction(func(tx *gorm.DB) error {
+		var createErr error
+		created, createErr = repo.NewUnsRepo(tx).CreateUnsNode(ctx, node, cmd.LabelIDs, cmd.AssetFileIDs)
+		if createErr != nil {
+			return createErr
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
+	s.publishPostCommit(ctx, events.UnsNodeCreated{Node: created})
 	resp := nodeResp(created)
 	if created.Type == 2 && cmd.AddFlow {
-		flowResp, err := s.createSourceFlow(ctx, created, cmd)
-		if err != nil {
-			if rollbackErr := s.rollbackCreatedUnsWithFlow(ctx, created, cmd.UserID); rollbackErr != nil {
-				return nil, errors.Join(err, fmt.Errorf("rollback created UNS after Flow failure: %w", rollbackErr))
-			}
-			return nil, err
-		}
 		resp["withFlow"] = true
 		resp["mockData"] = cmd.MockData
-		resp["flow"] = flowResp
-		resp["flowId"] = flowResp["id"]
-		resp["runtimeFlowId"] = flowResp["runtimeFlowId"]
 	}
-	s.publishPostCommit(ctx, events.UnsNodeCreated{Node: created})
 	return resp, nil
-}
-
-func (s *Service) rollbackCreatedUnsWithFlow(ctx context.Context, node repo.UnsNode, userID int64) error {
-	if s.flow != nil {
-		if _, err := s.flow.DeleteByUnsNodes(ctx, []repo.UnsNode{node}, userID); err != nil {
-			return fmt.Errorf("delete partial Flow bindings: %w", err)
-		}
-	}
-	if _, err := s.uns.DeleteUnsNode(ctx, node.ID, userID); err != nil {
-		return fmt.Errorf("stage created UNS for permanent deletion: %w", err)
-	}
-	if _, err := s.uns.ForceDeleteUnsNode(ctx, node.ID, userID); err != nil {
-		return fmt.Errorf("permanently delete created UNS: %w", err)
-	}
-	return nil
-}
-
-func (s *Service) createSourceFlow(ctx context.Context, node repo.UnsNode, cmd SaveCommand) (map[string]any, error) {
-	if s.flow == nil {
-		return nil, errors.New("flow service unavailable")
-	}
-	flowName := strings.Trim(node.Namespace, "/")
-	if flowName == "" {
-		flowName = node.Name
-	}
-	mockTopic := strings.Trim(node.Namespace, "/")
-	if mockTopic == "" {
-		mockTopic = strings.TrimSpace(node.Name)
-	}
-	return s.flow.Create(ctx, domainflow.SaveCommand{
-		FlowType:            "source",
-		NodeType:            "flow",
-		Name:                flowName,
-		Description:         "auto mock for " + mockTopic,
-		UnsNodeIDs:          []int64{node.ID},
-		UserID:              cmd.UserID,
-		MockData:            cmd.MockData,
-		MockTopic:           mockTopic,
-		MockFields:          flowFieldsFromSchema(node.Schema, node.TopicType),
-		MockIntervalSeconds: cmd.MockIntervalSeconds,
-		MockIntervalMillis:  cmd.MockIntervalMillis,
-		MockFunctionJS:      cmd.MockFunctionJS,
-		AutoDeploy:          cmd.MockData,
-	})
 }
 
 func (s *Service) inferTopicTypeFromParent(ctx context.Context, cmd SaveCommand) SaveCommand {
@@ -614,6 +577,9 @@ func (s *Service) Update(ctx context.Context, cmd SaveCommand) (map[string]any, 
 	}
 	cmd.Alias = current.Alias
 	cmd.PreserveAlias = true
+	if cmd.DataQualityPolicy == nil {
+		cmd.DataQualityPolicy = current.DataQualityPolicy
+	}
 	if current.Type == 1 && current.TopicType != 0 && strings.EqualFold(current.Name, topicTypeName(current.TopicType)) {
 		cmd.SystemTopicFolder = true
 		if strings.TrimSpace(cmd.TopicType) == "" {
@@ -637,38 +603,61 @@ func (s *Service) Update(ctx context.Context, cmd SaveCommand) (map[string]any, 
 	return nodeResp(updated), nil
 }
 
-// UpdateFromConsole applies console-originated UNS updates.
+// UpdateFromConsole shares the ordinary UNS update rules.
 func (s *Service) UpdateFromConsole(ctx context.Context, cmd SaveCommand) (map[string]any, error) {
 	return s.Update(ctx, cmd)
 }
 
 func (s *Service) Delete(ctx context.Context, id, userID int64) (map[string]any, error) {
-	nodes, err := s.uns.ListUnsSubtree(ctx, id)
-	if err != nil {
-		return nil, normalizeNotFound(err)
-	}
-	if s.flow != nil {
-		bound, err := s.flow.HasUnsBindings(ctx, nodes)
-		if err != nil {
-			return nil, err
-		}
-		if bound {
-			return nil, ErrInvalid
-		}
-	}
 	if err := s.publishInTx(ctx, events.UnsNodeDeleting{NodeID: id, UserID: userID}); err != nil {
 		return nil, err
 	}
-	if _, err := s.uns.DeleteUnsNode(ctx, id, userID); err != nil {
-		return nil, normalizeNotFound(err)
-	}
-	deleted, err := s.uns.ForceDeleteUnsNode(ctx, id, userID)
+	nodes, err := s.uns.DeleteUnsNode(ctx, id, userID)
 	if err != nil {
 		return nil, normalizeNotFound(err)
 	}
-	s.publishPostCommit(ctx, events.UnsNodeDeleted{RootID: id, UserID: userID, Nodes: deleted})
-	resp := map[string]any{"deleted": len(deleted), "permanent": true, "nodes": nodesResp(deleted)}
-	addRootNodeResp(resp, id, deleted)
+	s.publishPostCommit(ctx, events.UnsNodeDeleted{RootID: id, UserID: userID, Nodes: nodes})
+	resp := map[string]any{"deleted": len(nodes), "nodes": nodesResp(nodes)}
+	addRootNodeResp(resp, id, nodes)
+	return resp, nil
+}
+
+func (s *Service) Restore(ctx context.Context, id, userID int64, confirm bool) (map[string]any, error) {
+	if err := s.publishInTx(ctx, events.UnsNodeRestoring{NodeID: id, UserID: userID, Confirm: confirm}); err != nil {
+		return nil, err
+	}
+	nodes, err := s.uns.RestoreUnsNode(ctx, id, userID, confirm)
+	if err != nil {
+		if errors.Is(err, repo.ErrUnsRestoreConflict) {
+			return nil, ErrRestoreConflict
+		}
+		return nil, normalizeNotFound(err)
+	}
+	s.publishPostCommit(ctx, events.UnsNodeRestored{RootID: id, UserID: userID, Nodes: nodes})
+	resp := map[string]any{"restored": len(nodes), "nodes": nodesResp(nodes)}
+	addRootNodeResp(resp, id, nodes)
+	return resp, nil
+}
+
+func (s *Service) ForceDelete(ctx context.Context, id, userID int64, deleteFlow bool) (map[string]any, error) {
+	if err := s.publishInTx(ctx, events.UnsNodeForceDeleting{NodeID: id, UserID: userID, DeleteFlow: deleteFlow}); err != nil {
+		return nil, err
+	}
+	nodes, err := s.uns.ForceDeleteUnsNode(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, repo.ErrUnsNotInRecycle) {
+			return nil, ErrNotInRecycle
+		}
+		return nil, normalizeNotFound(err)
+	}
+	var deletedFlows []map[string]any
+	s.publishPostCommit(ctx, events.UnsNodeForceDeleted{RootID: id, UserID: userID, DeleteFlow: deleteFlow, Nodes: nodes})
+	resp := map[string]any{"forceDeleted": len(nodes), "nodes": nodesResp(nodes)}
+	if deleteFlow {
+		resp["deletedFlows"] = len(deletedFlows)
+		resp["flows"] = deletedFlows
+	}
+	addRootNodeResp(resp, id, nodes)
 	return resp, nil
 }
 
@@ -814,12 +803,16 @@ func (s *Service) CreateImportJob(ctx context.Context, dryRun bool, sourceFileID
 	if sourceFileID <= 0 {
 		return nil, ErrInvalid
 	}
-	job, err := s.jobs.CreateAsyncJob(ctx, "uns.import", map[string]any{"dryRun": dryRun, "sourceFileId": sourceFileID}, userID)
+	var job repo.AsyncJob
+	err := repo.GetCommonConn(ctx).WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		job, err = repo.NewAsyncJobRepo(tx).CreateAsyncJob(ctx, "uns.import", map[string]any{"dryRun": dryRun, "sourceFileId": sourceFileID}, userID)
+		if err != nil {
+			return err
+		}
+		return s.outbox.EnqueueOnTx(tx, "uns.import.job", "asyncJob", job.JobKey, job)
+	})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.outbox.Enqueue(ctx, "uns.import.job", "asyncJob", job.JobKey, job); err != nil {
-		_ = s.jobs.MarkAsyncJobFailed(ctx, job.JobKey, err.Error(), map[string]any{"error": err.Error()})
 		return nil, err
 	}
 	return map[string]any{"job": job}, nil
@@ -894,6 +887,15 @@ func (s *Service) ValidateImportData(ctx context.Context, fileName string, raw [
 }
 
 func (s *Service) ImportDataStream(ctx context.Context, fileName string, raw []byte, userID int64, statusConsumer func(ImportStatus)) (map[string]any, error) {
+	return s.importData(ctx, fileName, raw, userID, "", statusConsumer)
+}
+
+// ImportJob commits the result with the nodes so redelivery cannot import twice.
+func (s *Service) ImportJob(ctx context.Context, fileName string, raw []byte, userID int64, jobKey string, statusConsumer func(ImportStatus)) (map[string]any, error) {
+	return s.importData(ctx, fileName, raw, userID, jobKey, statusConsumer)
+}
+
+func (s *Service) importData(ctx context.Context, fileName string, raw []byte, userID int64, jobKey string, statusConsumer func(ImportStatus)) (map[string]any, error) {
 	emit := func(status ImportStatus) {
 		status.Module = "uns"
 		if status.Code == 0 {
@@ -917,34 +919,24 @@ func (s *Service) ImportDataStream(ctx context.Context, fileName string, raw []b
 		emit(ImportStatus{Code: 500, Msg: ErrInvalidImportFormat.Error(), Task: "Parse JSON", Finished: true, Progress: 100})
 		return nil, ErrInvalidImportFormat
 	}
-	imported, skipped, err := s.importLabels(ctx, payload, userID, emit)
+	result, err := s.importBatch(ctx, payload, userID, jobKey, emit)
 	if err != nil {
-		emit(ImportStatus{Code: 500, Msg: err.Error(), Task: "Label Import", Finished: true, Progress: 100, Imported: imported, Skipped: skipped})
+		emit(ImportStatus{Code: 500, Msg: err.Error(), Task: "Namespace Import", Finished: true, Progress: 100})
 		return nil, err
 	}
-	nodeImported, nodeSkipped, err := s.importNamespacePayload(ctx, payload, userID, emit)
-	imported += nodeImported
-	skipped += nodeSkipped
-	if err != nil {
-		emit(ImportStatus{Code: 500, Msg: err.Error(), Task: "Namespace Import", Finished: true, Progress: 100, Imported: imported, Skipped: skipped})
-		return nil, err
-	}
-	emit(ImportStatus{Code: 200, Msg: "ok", Task: "Finish Import", Finished: true, Progress: 100, Imported: imported, Skipped: skipped})
-	return map[string]any{"imported": imported, "skipped": skipped}, nil
+	emit(ImportStatus{Code: 200, Msg: "ok", Task: "Finish Import", Finished: true, Progress: 100, Imported: int(toInt64(result["imported"])), Skipped: int(toInt64(result["skipped"]))})
+	return result, nil
 }
 
-func (s *Service) importNamespacePayload(ctx context.Context, payload map[string]any, userID int64, emit func(ImportStatus)) (int, int, error) {
+func (s *Service) importNamespacePayload(ctx context.Context, payload map[string]any, userID int64, emit func(ImportStatus), batch *importBatchState) (int, int, error) {
 	if len(importTree(payload)) > 0 {
-		return s.importNamespaceTree(ctx, payload, userID, emit)
+		return s.importNamespaceTree(ctx, payload, userID, emit, batch)
 	}
 	rawNodes := extractImportNodes(payload)
 	if len(rawNodes) == 0 {
 		return 0, 0, nil
 	}
-	current, err := s.uns.ListUnsNodes(ctx, repo.UnsNodeFilter{})
-	if err != nil {
-		return 0, 0, err
-	}
+	current := batch.existing
 	byNamespace := map[string]repo.UnsNode{}
 	byAlias := map[string]repo.UnsNode{}
 	for _, node := range current {
@@ -965,15 +957,6 @@ func (s *Service) importNamespacePayload(ctx context.Context, payload map[string
 	for index, node := range rawNodes {
 		namespace := strings.Trim(node.Namespace, "/")
 		if namespace == "" {
-			continue
-		}
-		alias, aliasErr := validateImportAliasCandidate(node.Alias, byAlias)
-		if aliasErr != nil {
-			return imported, skipped, aliasErr
-		}
-		node.Alias = alias
-		if _, exists := byNamespace[namespace]; exists {
-			skipped++
 			continue
 		}
 		parentID := int64(0)
@@ -1042,21 +1025,19 @@ func (s *Service) importNamespacePayload(ctx context.Context, payload map[string
 			TopicType:         topicTypeName(node.TopicType),
 			Schema:            string(node.Schema),
 			ExtendProperties:  string(node.ExtendProperties),
+			DataQualityPolicy: node.DataQualityPolicy,
 			EnableHistory:     boolPtr(node.EnableHistory == 1),
 			MockData:          node.MockData == 1,
 			UserID:            userID,
 			SystemTopicFolder: systemTopicFolder,
 		}
-		createdResp, err := s.Create(ctx, cmd)
+		created, err := batch.prepare(cmd)
 		if err != nil {
 			return imported, skipped, err
 		}
-		created, err := s.uns.GetUnsNode(ctx, toInt64(createdResp["id"]), false)
-		if err != nil {
-			return imported, skipped, err
-		}
-		if err := s.indexImportCreatedNode(ctx, byNamespace, created, parentID); err != nil {
-			return imported, skipped, err
+		indexImportNode(byNamespace, created)
+		if parent, ok := batch.tree.byID[created.ParentID]; ok {
+			indexImportNode(byNamespace, parent)
 		}
 		indexImportAliasNode(byAlias, created)
 		imported++
@@ -1148,17 +1129,19 @@ func extractImportNodes(payload map[string]any) []repo.UnsNode {
 		}
 		schema, _ := json.Marshal(schemaFieldsFromAny(firstNonNil(m["fields"], m["schema"])))
 		extend, _ := json.Marshal(defaultMap(m["extendProperties"]))
+		dataQualityPolicy := importDataQualityPolicy(m["dataQualityPolicy"])
 		nodes = append(nodes, repo.UnsNode{
-			Namespace:        strings.Trim(importString(m, "namespace"), "/"),
-			DisplayName:      importString(m, "displayName"),
-			Description:      importString(m, "description"),
-			Alias:            importString(m, "alias"),
-			Type:             importNodeType(m["type"]),
-			TopicType:        importTopicType(m["topicType"]),
-			Schema:           schema,
-			ExtendProperties: extend,
-			EnableHistory:    yesNoFlag(parseImportBool(importString(m, "enableHistory"))),
-			MockData:         yesNoFlag(parseImportBool(importString(m, "mockData"))),
+			Namespace:         strings.Trim(importString(m, "namespace"), "/"),
+			DisplayName:       importString(m, "displayName"),
+			Description:       importString(m, "description"),
+			Alias:             importString(m, "alias"),
+			Type:              importNodeType(m["type"]),
+			TopicType:         importTopicType(m["topicType"]),
+			Schema:            schema,
+			ExtendProperties:  extend,
+			DataQualityPolicy: dataQualityPolicy,
+			EnableHistory:     yesNoFlag(parseImportBool(importString(m, "enableHistory"))),
+			MockData:          yesNoFlag(parseImportBool(importString(m, "mockData"))),
 		})
 	}
 	return nodes
@@ -1206,24 +1189,22 @@ func (s *Service) importLabels(ctx context.Context, payload map[string]any, user
 	return imported, skipped, nil
 }
 
-func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]any, userID int64, emit func(ImportStatus)) (int, int, error) {
+func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]any, userID int64, emit func(ImportStatus), batch *importBatchState) (int, int, error) {
 	tree := importTree(payload)
 	if len(tree) == 0 {
 		return 0, 0, nil
 	}
-	labelIDs, err := s.importLabelIDs(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-	current, err := s.uns.ListUnsNodes(ctx, repo.UnsNodeFilter{})
-	if err != nil {
-		return 0, 0, err
-	}
+	labelIDs := batch.labelIDs
+	current := batch.existing
 	byNamespace := map[string]repo.UnsNode{}
 	byAlias := map[string]repo.UnsNode{}
 	for _, node := range current {
 		byNamespace[strings.Trim(node.Namespace, "/")] = node
 		indexImportAliasNode(byAlias, node)
+	}
+	// An alias may refer to the same existing node, but cannot occur twice in a file.
+	if err := validateImportTreeAliases(tree); err != nil {
+		return 0, 0, err
 	}
 	total := countImportTree(tree)
 	imported := 0
@@ -1241,7 +1222,6 @@ func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]an
 			nodeType := importNodeTypeNameForParent(item.Type, parentTopicType)
 			topicType := ""
 			systemTopicFolder := false
-			systemTopicType := int16(0)
 			if nodeType == "folder" {
 				nameTopicType := importSystemTopicTypeByName(name)
 				explicitTopicType := importExplicitTopicType(item)
@@ -1261,7 +1241,6 @@ func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]an
 						return ErrInvalid
 					}
 					systemTopicFolder = true
-					systemTopicType = nameTopicType
 					topicType = topicTypeName(nameTopicType)
 				case parentTopicType != 0:
 					return ErrInvalid
@@ -1277,26 +1256,6 @@ func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]an
 				if topicType == "" {
 					return ErrInvalid
 				}
-			}
-			namespace := strings.Trim(name, "/")
-			if parentNamespace != "" {
-				namespace = strings.Trim(parentNamespace+"/"+name, "/")
-			}
-			alias, aliasErr := validateImportAliasCandidate(item.Alias, byAlias)
-			if aliasErr != nil {
-				return aliasErr
-			}
-			item.Alias = alias
-			if existing, ok := byNamespace[namespace]; ok {
-				if err := validateImportExistingNode(existing, nodeType, systemTopicFolder, systemTopicType); err != nil {
-					return err
-				}
-				skipped++
-				nextTopic, nextParentTopicType := importExistingNodeTopicContext(existing, inheritedTopic, topicType, systemTopicFolder, systemTopicType)
-				if err := walk(item.Children, existing.ID, existing.Namespace, nextTopic, nextParentTopicType); err != nil {
-					return err
-				}
-				continue
 			}
 			fields := importItemFields(item)
 			cmdTopicType := ""
@@ -1314,6 +1273,7 @@ func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]an
 				TopicType:         cmdTopicType,
 				Schema:            importSchemaJSON(item, fields, topicType),
 				ExtendProperties:  importExtendJSON(item),
+				DataQualityPolicy: normalizeImportedDataQualityPolicy(item.DataQualityPolicy),
 				LabelIDs:          importNodeLabelIDs(item, labelIDs),
 				EnableHistory:     boolPtr(parseImportBool(item.EnableHistory)),
 				AddFlow:           parseImportBool(item.MockData),
@@ -1321,16 +1281,13 @@ func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]an
 				UserID:            userID,
 				SystemTopicFolder: systemTopicFolder,
 			}
-			createdResp, err := s.Create(ctx, cmd)
+			created, err := batch.prepare(cmd)
 			if err != nil {
 				return err
 			}
-			created, err := s.uns.GetUnsNode(ctx, toInt64(createdResp["id"]), false)
-			if err != nil {
-				return err
-			}
-			if err := s.indexImportCreatedNode(ctx, byNamespace, created, parentID); err != nil {
-				return err
+			indexImportNode(byNamespace, created)
+			if parent, ok := batch.tree.byID[created.ParentID]; ok {
+				indexImportNode(byNamespace, parent)
 			}
 			indexImportAliasNode(byAlias, created)
 			imported++
@@ -1355,6 +1312,30 @@ func (s *Service) importNamespaceTree(ctx context.Context, payload map[string]an
 		return imported, skipped, err
 	}
 	return imported, skipped, nil
+}
+
+func validateImportTreeAliases(items []importFileData) error {
+	seen := make(map[string]struct{})
+	var walk func([]importFileData) error
+	walk = func(nodes []importFileData) error {
+		for _, item := range nodes {
+			alias := normalizeAliasCandidate(item.Alias)
+			if alias != "" {
+				if !isAliasFormatOK(alias) {
+					return fmt.Errorf("invalid alias: alias=%s", alias)
+				}
+				if _, exists := seen[alias]; exists {
+					return fmt.Errorf("alias already exists: alias=%s", alias)
+				}
+				seen[alias] = struct{}{}
+			}
+			if err := walk(item.Children); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(items)
 }
 
 func (s *Service) indexImportCreatedNode(ctx context.Context, byNamespace map[string]repo.UnsNode, created repo.UnsNode, requestedParentID int64) error {
@@ -1771,7 +1752,48 @@ func exportNamespaceNode(node repo.UnsNode) map[string]any {
 	if m, ok := extend.(map[string]any); ok && len(m) > 0 {
 		item["extendProperties"] = m
 	}
+	if node.Type == 2 && node.DataQualityPolicy != nil {
+		item["dataQualityPolicy"] = node.DataQualityPolicy
+	}
 	return item
+}
+
+func importDataQualityPolicy(value any) *repo.DataQualityPolicy {
+	if value == nil {
+		return nil
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	var policy repo.DataQualityPolicy
+	if err := json.Unmarshal(payload, &policy); err != nil {
+		return nil
+	}
+	return normalizeImportedDataQualityPolicy(&policy)
+}
+
+func normalizeImportedDataQualityPolicy(policy *repo.DataQualityPolicy) *repo.DataQualityPolicy {
+	if policy == nil {
+		return nil
+	}
+	cloned := *policy
+	if cloned.MandatoryFields == nil {
+		cloned.MandatoryFields = []string{}
+	}
+	if cloned.FlatFields == nil {
+		cloned.FlatFields = []string{}
+	}
+	if cloned.StaleFields == nil {
+		cloned.StaleFields = []string{}
+	}
+	if cloned.Rules == nil {
+		cloned.Rules = []string{}
+	}
+	if cloned.SeverityOverrides == nil {
+		cloned.SeverityOverrides = map[string]string{}
+	}
+	return &cloned
 }
 
 func boolPtr(value bool) *bool {
@@ -1944,6 +1966,9 @@ func (s *Service) commandToNode(ctx context.Context, cmd SaveCommand) (repo.UnsN
 			return repo.UnsNode{}, ErrInvalid
 		}
 	}
+	if nodeType != 2 && cmd.DataQualityPolicy != nil {
+		return repo.UnsNode{}, ErrInvalid
+	}
 	schema, err := jsonValue(cmd.Schema)
 	if err != nil {
 		return repo.UnsNode{}, err
@@ -1969,19 +1994,44 @@ func (s *Service) commandToNode(ctx context.Context, cmd SaveCommand) (repo.UnsN
 		return repo.UnsNode{}, err
 	}
 	return repo.UnsNode{
-		ParentID:         cmd.ParentID,
-		Name:             name,
-		DisplayName:      displayName,
-		Description:      cmd.Description,
-		Alias:            alias,
-		Namespace:        strings.Trim(cmd.Namespace, "/"),
-		Type:             nodeType,
-		TopicType:        topicType,
-		Schema:           schema,
-		ExtendProperties: extend,
-		EnableHistory:    persistenceFlag(cmd.EnableHistory),
-		MockData:         yesNoFlag(cmd.MockData),
+		ParentID:          cmd.ParentID,
+		Name:              name,
+		DisplayName:       displayName,
+		Description:       cmd.Description,
+		Alias:             alias,
+		Namespace:         strings.Trim(cmd.Namespace, "/"),
+		Type:              nodeType,
+		TopicType:         topicType,
+		Schema:            schema,
+		ExtendProperties:  extend,
+		DataQualityPolicy: normalizeFirstVersionDataQualityPolicy(cmd.DataQualityPolicy, schema),
+		EnableHistory:     persistenceFlag(cmd.EnableHistory),
+		MockData:          yesNoFlag(cmd.MockData),
 	}, nil
+}
+
+func normalizeFirstVersionDataQualityPolicy(policy *repo.DataQualityPolicy, schema json.RawMessage) *repo.DataQualityPolicy {
+	if policy == nil {
+		return nil
+	}
+	normalized := repo.DataQualityPolicy{
+		NotifyOnIssue:             false,
+		ExpectedIntervalMs:        policy.ExpectedIntervalMs,
+		MissingGraceMs:            policy.MissingGraceMs,
+		FrequencyTolerancePercent: 20,
+		MinSamples:                3,
+		MandatoryFields:           []string{},
+		FlatFields:                []string{},
+		StaleFields:               []string{},
+		SeverityOverrides:         map[string]string{},
+		CooldownMs:                60000,
+	}
+	normalized.Rules = domaindataquality.FirstVersionRules(schema, normalized.ExpectedIntervalMs)
+	normalized.Enabled = len(normalized.Rules) > 0
+	if !normalized.Enabled && !normalized.NotifyOnIssue {
+		return nil
+	}
+	return &normalized
 }
 
 func (s *Service) resolveNodeAlias(ctx context.Context, cmd SaveCommand, nodeType int16) (string, error) {
@@ -2128,6 +2178,9 @@ func nodeResp(node repo.UnsNode) map[string]any {
 		"createdTime":      node.CreatedTime,
 		"updatedTime":      node.UpdatedTime,
 		"deletedTime":      node.DeletedTime,
+	}
+	if node.Type == 2 && node.DataQualityPolicy != nil {
+		resp["dataQualityPolicy"] = node.DataQualityPolicy
 	}
 	if dataType == 8 {
 		resp["jsonFields"] = fields
@@ -2537,29 +2590,6 @@ func yesNoFlag(enabled bool) int16 {
 		return 1
 	}
 	return 2
-}
-
-func flowFieldsFromSchema(raw json.RawMessage, topicType int16) []domainflow.MockField {
-	items := schemaFieldsFromRaw(raw)
-	fields := make([]domainflow.MockField, 0, len(items))
-	for _, item := range items {
-		field, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		name := strings.TrimSpace(fmt.Sprint(field["name"]))
-		if name == "" || isSystemFieldName(name, topicType) {
-			continue
-		}
-		fields = append(fields, domainflow.MockField{
-			Name: name,
-			Type: strings.TrimSpace(fmt.Sprint(field["type"])),
-		})
-	}
-	if len(fields) == 0 {
-		return []domainflow.MockField{{Name: "value", Type: "DOUBLE"}}
-	}
-	return fields
 }
 
 func isSystemFieldName(name string, topicType int16) bool {

@@ -23,8 +23,17 @@ type Record struct {
 	// EventPayload keeps the complete JSON object for State/Action messages.
 	// Metric records remain schema-driven through Values.
 	EventPayload map[string]any
-	Time         time.Time
-	Quality      int64
+	// Time keeps the existing receive-time semantics used by latest/history.
+	// SourceTime and IngestedAt are independent quality observations and must
+	// not silently change the history _timestamp contract.
+	Time          time.Time
+	SourceTime    time.Time
+	SourceTimeSet bool
+	IngestedAt    time.Time
+	Quality       int64
+	// Optional source metadata; normal ingest retains its receive-time contract.
+	SourceQuality string
+	Replayed      bool
 }
 
 func NormalizePayload(ctx context.Context, def *Definition, payload []byte) ([]Record, error) {
@@ -46,7 +55,10 @@ func NormalizePayload(ctx context.Context, def *Definition, payload []byte) ([]R
 		if contextDone(ctx) {
 			return records, ctx.Err()
 		}
-		quality := intValue(row[def.QualityField])
+		// Metric payload quality feeds the platform-owned _quality column without
+		// rewriting the original payload field. Explicit _quality wins, followed
+		// by the conventional payload quality field and the legacy _qos alias.
+		quality := intValue(payloadQualityValue(row, def))
 		values := make(map[string]string, len(dataFields))
 		if len(dataFields) == 1 {
 			field := dataFields[0]
@@ -81,20 +93,39 @@ func NormalizePayload(ctx context.Context, def *Definition, payload []byte) ([]R
 		for key, value := range row {
 			rawValues[key] = value
 		}
+		sourceTime, sourceTimeSet := parseTime(row[def.TimestampField])
 		records = append(records, Record{
-			UnsID:        def.ID,
-			Alias:        def.Alias,
-			Namespace:    def.Namespace,
-			TopicType:    def.TopicType,
-			Fields:       dataFields,
-			Values:       values,
-			RawValues:    rawValues,
-			EventPayload: eventPayload,
-			Time:         ingestedAt,
-			Quality:      quality,
+			UnsID:         def.ID,
+			Alias:         def.Alias,
+			Namespace:     def.Namespace,
+			TopicType:     def.TopicType,
+			Fields:        dataFields,
+			Values:        values,
+			RawValues:     rawValues,
+			EventPayload:  eventPayload,
+			Time:          ingestedAt,
+			SourceTime:    sourceTime,
+			SourceTimeSet: sourceTimeSet,
+			IngestedAt:    ingestedAt,
+			Quality:       quality,
 		})
 	}
 	return records, nil
+}
+
+func payloadQualityValue(row map[string]string, def *Definition) string {
+	if def == nil {
+		return ""
+	}
+	if def.TopicType == metricTopicType {
+		for _, key := range []string{metricQualityColumn, "quality", "_qos"} {
+			if value, ok := row[key]; ok {
+				return value
+			}
+		}
+		return ""
+	}
+	return row[def.QualityField]
 }
 
 func ParsePayload(payload []byte) ([]map[string]string, error) {

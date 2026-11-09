@@ -1,4 +1,4 @@
-import { Folder, Star, Time } from '@/components/lucide-icon/carbon';
+import { Folder, Pin, Time } from '@/components/lucide-icon/carbon';
 import { useTranslate } from '@/hooks';
 import type { App } from '@/pages/launchpad/type';
 import { formatTimestamp } from '@/utils/format';
@@ -10,8 +10,8 @@ import styles from './AppCard.module.scss';
 
 interface AppCardProps {
   app: App;
-  isFavorite: boolean;
-  onToggleFavorite: (app: App) => void;
+  isPinned: boolean;
+  onTogglePin: (app: App) => void;
   onAppClick: (app: App) => void | Promise<void>;
   /** 顶部"收藏与最近"区展示所属项目与时间；项目钻取页内无需重复 */
   showProject?: boolean;
@@ -24,8 +24,8 @@ interface AppCardProps {
 
 const AppCard: FC<AppCardProps> = ({
   app,
-  isFavorite,
-  onToggleFavorite,
+  isPinned,
+  onTogglePin,
   onAppClick,
   showProject = false,
   showUpdatedAt = false,
@@ -55,18 +55,19 @@ const AppCard: FC<AppCardProps> = ({
         ) : null}
         <button
           type="button"
-          className={classNames(styles.starButton, isFavorite && styles.starActive)}
-          aria-label={formatMessage(
-            isFavorite ? 'rmFav' : 'addFav',
-            undefined,
-            isFavorite ? 'Remove favorite' : 'Add favorite'
+          className={classNames(
+            styles.pinButton,
+            'ui-pin-button',
+            isPinned && styles.pinActive,
+            isPinned && 'ui-pin-button-active'
           )}
+          aria-label={formatMessage(isPinned ? 'unpin' : 'pin', undefined, isPinned ? 'Unpin' : 'Pin')}
           onClick={(event) => {
             event.stopPropagation();
-            onToggleFavorite(app);
+            onTogglePin(app);
           }}
         >
-          <Star size={12} />
+          <Pin size={12} />
         </button>
       </div>
 

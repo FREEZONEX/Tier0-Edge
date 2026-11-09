@@ -1,6 +1,0 @@
-# One representative editor node type from each managed SourceFlow package.
-modbus-read
-OpcUa-Client
-tier0-opcda-read
-buffer-parser
-postgresql

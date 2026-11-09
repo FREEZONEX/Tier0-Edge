@@ -33,6 +33,7 @@ type HistoryQuery struct {
 	Aggregate  bool
 	IntervalMs int64
 	Fields     []HistoryAggregationField
+	SkipCount  bool
 }
 
 type historyQueryMeta struct {
@@ -43,6 +44,8 @@ type historyQueryMeta struct {
 	RequestedIntervalMs int64
 	ActualIntervalMs    int64
 	Strategy            string
+	TotalExact          bool
+	HasMore             bool
 }
 
 func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query HistoryQuery) (map[string]any, error) {
@@ -52,8 +55,16 @@ func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query His
 		fields = []Field{{Name: "value", Type: "string"}}
 	}
 	respFields := historyFields(fields)
+	countExact := !query.SkipCount
 	empty := func() map[string]any {
-		return historyQueryResponse(respFields, nil, 0, historyQueryMeta{})
+		total := int64(-1)
+		if countExact {
+			total = 0
+		}
+		return historyQueryResponse(respFields, nil, total, historyQueryMeta{
+			RawTotal:   total,
+			TotalExact: countExact,
+		})
 	}
 	if s == nil || s.writer == nil || s.writer.pool == nil || node.Type != 2 || !def.SaveToDB {
 		return empty(), nil
@@ -68,15 +79,19 @@ func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query His
 	startAt, endAt := historyWindow(query.StartMs, query.EndMs)
 	tableName := sinkQualifiedName(alias)
 	timeColumn := sinkTimeColumn(def)
-	rawTotal, err := s.countHistoryRows(ctx, tableName, timeColumn, startAt, endAt)
-	if err != nil {
-		if isMissingHistoryRelation(err) {
-			return empty(), nil
+	rawTotal := int64(-1)
+	if countExact {
+		var err error
+		rawTotal, err = s.countHistoryRows(ctx, tableName, timeColumn, startAt, endAt)
+		if err != nil {
+			if isMissingHistoryRelation(err) {
+				return empty(), nil
+			}
+			return nil, err
 		}
-		return nil, err
-	}
-	if rawTotal == 0 {
-		return historyQueryResponse(respFields, nil, 0, historyQueryMeta{RawTotal: 0}), nil
+		if rawTotal == 0 {
+			return historyQueryResponse(respFields, nil, 0, historyQueryMeta{RawTotal: 0, TotalExact: true}), nil
+		}
 	}
 	if query.Aggregate {
 		selected, err := resolveHistoryAggregationFields(fields, query.Fields)
@@ -85,7 +100,7 @@ func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query His
 		}
 		limit := effectiveHistoryPointLimit(len(selected), query.PointLimit)
 		actualInterval := query.IntervalMs
-		if query.Auto && rawTotal > int64(limit) {
+		if query.Auto && (!countExact || rawTotal > int64(limit)) {
 			actualInterval = effectiveHistoryInterval(startAt.UnixMilli(), endAt.UnixMilli(), query.IntervalMs, int64(limit))
 		}
 		page, size := normalizeHistoryPage(query.Page, query.Size, limit, query.Auto)
@@ -93,12 +108,29 @@ func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query His
 		if query.Auto {
 			anchorMs = startAt.UnixMilli()
 		}
-		list, bucketTotal, err := s.queryAggregatedHistoryRows(ctx, tableName, timeColumn, def.TopicType, startAt, endAt, page, size, actualInterval, anchorMs, selected)
+		querySize := size
+		if !countExact {
+			querySize++
+		}
+		var list []map[string]any
+		bucketTotal := int64(-1)
+		if canUseFullWindowBoundaryQuery(query, startAt, endAt, actualInterval, selected) {
+			list, err = s.queryFullWindowBoundaryHistoryRow(ctx, tableName, timeColumn, def.TopicType, startAt, endAt, anchorMs, selected)
+		} else {
+			list, bucketTotal, err = s.queryAggregatedHistoryRows(ctx, tableName, timeColumn, def.TopicType, startAt, endAt, querySize, (page-1)*size, actualInterval, anchorMs, selected, countExact)
+		}
 		if err != nil {
 			if isMissingHistoryRelation(err) {
 				return empty(), nil
 			}
 			return nil, err
+		}
+		hasMore := !countExact && len(list) > size
+		if hasMore {
+			list = list[:size]
+		}
+		if countExact {
+			hasMore = int64((page-1)*size+len(list)) < bucketTotal
 		}
 		meta := historyQueryMeta{
 			Aggregated:          true,
@@ -107,20 +139,39 @@ func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query His
 			ReturnedTotal:       int64(len(list)),
 			RequestedIntervalMs: query.IntervalMs,
 			ActualIntervalMs:    actualInterval,
+			TotalExact:          countExact,
+			HasMore:             hasMore,
 		}
 		if meta.Sampled {
 			meta.Strategy = "timeBucket"
 		}
-		total := bucketTotal
-		if query.Auto {
-			total = int64(len(list))
+		total := int64(-1)
+		if countExact {
+			total = bucketTotal
+			if query.Auto {
+				// Preserve the legacy auto-mode contract: total is the number of
+				// returned (possibly sampled) points; rawTotal remains in meta.
+				total = int64(len(list))
+			}
 		}
 		return historyQueryResponse(respFields, list, total, meta), nil
 	}
 	if query.Auto {
 		limit := effectiveHistoryPointLimit(len(fields), query.PointLimit)
-		list, intervalMs, sampled, err := s.queryAutoSampledHistoryRows(ctx, tableName, timeColumn, fields, def.TopicType, startAt, endAt, rawTotal, limit)
+		var list []map[string]any
+		var intervalMs int64
+		sampled := true
+		var err error
+		if countExact && rawTotal <= int64(limit) {
+			list, err = s.queryHistoryPage(ctx, tableName, timeColumn, fields, def.TopicType, startAt, endAt, int(rawTotal), 0)
+			sampled = false
+		} else {
+			list, intervalMs, err = s.queryAutoSampledHistoryRows(ctx, tableName, timeColumn, fields, def.TopicType, startAt, endAt, limit)
+		}
 		if err != nil {
+			if isMissingHistoryRelation(err) {
+				return empty(), nil
+			}
 			return nil, err
 		}
 		meta := historyQueryMeta{
@@ -128,23 +179,45 @@ func (s *Service) QueryHistory(ctx context.Context, node repo.UnsNode, query His
 			RawTotal:         rawTotal,
 			ReturnedTotal:    int64(len(list)),
 			ActualIntervalMs: intervalMs,
+			TotalExact:       countExact,
 		}
 		if sampled {
 			meta.Strategy = "lastRow"
 		}
-		return historyQueryResponse(respFields, list, int64(len(list)), meta), nil
+		total := int64(-1)
+		if countExact {
+			// Preserve the legacy auto-mode contract. The exact source-row
+			// count is still available as meta.rawTotal.
+			total = int64(len(list))
+		}
+		return historyQueryResponse(respFields, list, total, meta), nil
 	}
 	page, size := normalizeHistoryPage(query.Page, query.Size, historySamplingPointLimit, false)
-	list, err := s.queryHistoryPage(ctx, tableName, timeColumn, fields, def.TopicType, startAt, endAt, page, size)
+	querySize := size
+	if !countExact {
+		querySize++
+	}
+	list, err := s.queryHistoryPage(ctx, tableName, timeColumn, fields, def.TopicType, startAt, endAt, querySize, (page-1)*size)
 	if err != nil {
 		if isMissingHistoryRelation(err) {
 			return empty(), nil
 		}
 		return nil, err
 	}
-	return historyQueryResponse(respFields, list, rawTotal, historyQueryMeta{
+	hasMore := !countExact && len(list) > size
+	if hasMore {
+		list = list[:size]
+	}
+	total := int64(-1)
+	if countExact {
+		total = rawTotal
+		hasMore = int64((page-1)*size+len(list)) < rawTotal
+	}
+	return historyQueryResponse(respFields, list, total, historyQueryMeta{
 		RawTotal:      rawTotal,
 		ReturnedTotal: int64(len(list)),
+		TotalExact:    countExact,
+		HasMore:       hasMore,
 	}), nil
 }
 
@@ -164,6 +237,8 @@ func historyQueryResponse(fields []map[string]any, list []map[string]any, total 
 			"requestedIntervalMs": meta.RequestedIntervalMs,
 			"actualIntervalMs":    meta.ActualIntervalMs,
 			"strategy":            meta.Strategy,
+			"totalExact":          meta.TotalExact,
+			"hasMore":             meta.HasMore,
 		},
 	}
 }
@@ -230,21 +305,17 @@ func (s *Service) countHistoryRows(ctx context.Context, tableName, timeColumn st
 	return total, nil
 }
 
-func (s *Service) queryHistoryPage(ctx context.Context, tableName, timeColumn string, fields []Field, topicType int16, startAt, endAt time.Time, page, size int) ([]map[string]any, error) {
+func (s *Service) queryHistoryPage(ctx context.Context, tableName, timeColumn string, fields []Field, topicType int16, startAt, endAt time.Time, limit, offset int) ([]map[string]any, error) {
 	query := fmt.Sprintf(`SELECT * FROM %s WHERE %s >= $1 AND %s <= $2 ORDER BY %s ASC LIMIT $3 OFFSET $4`,
 		tableName, quoteIdent(timeColumn), quoteIdent(timeColumn), quoteIdent(timeColumn))
-	rows, err := s.writer.pool.Query(ctx, query, startAt, endAt, size, (page-1)*size)
+	rows, err := s.writer.pool.Query(ctx, query, startAt, endAt, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	return scanHistoryRows(rows, timeColumn, fields, topicType)
 }
 
-func (s *Service) queryAutoSampledHistoryRows(ctx context.Context, tableName, timeColumn string, fields []Field, topicType int16, startAt, endAt time.Time, rawTotal int64, limit int) ([]map[string]any, int64, bool, error) {
-	if rawTotal <= int64(limit) {
-		list, err := s.queryHistoryPage(ctx, tableName, timeColumn, fields, topicType, startAt, endAt, 1, int(rawTotal))
-		return list, 0, false, err
-	}
+func (s *Service) queryAutoSampledHistoryRows(ctx context.Context, tableName, timeColumn string, fields []Field, topicType int16, startAt, endAt time.Time, limit int) ([]map[string]any, int64, error) {
 	intervalMs := historySamplingInterval(startAt.UnixMilli(), endAt.UnixMilli(), int64(limit))
 	query := fmt.Sprintf(`WITH ranked AS (
 	SELECT *, row_number() OVER (
@@ -258,10 +329,10 @@ SELECT * FROM ranked WHERE sample_rank = 1 ORDER BY %s ASC LIMIT $5`,
 		quoteIdent(timeColumn), quoteIdent(timeColumn), tableName, quoteIdent(timeColumn), quoteIdent(timeColumn), quoteIdent(timeColumn))
 	rows, err := s.writer.pool.Query(ctx, query, startAt, endAt, startAt.UnixMilli(), intervalMs, limit)
 	if err != nil {
-		return nil, 0, false, err
+		return nil, 0, err
 	}
 	list, err := scanHistoryRows(rows, timeColumn, fields, topicType)
-	return list, intervalMs, true, err
+	return list, intervalMs, err
 }
 
 func scanHistoryRows(rows pgx.Rows, timeColumn string, fields []Field, topicType int16) ([]map[string]any, error) {
@@ -331,11 +402,11 @@ func resolveHistoryAggregationFields(fields []Field, requested []HistoryAggregat
 	return resolved, nil
 }
 
-func (s *Service) queryAggregatedHistoryRows(ctx context.Context, tableName, timeColumn string, topicType int16, startAt, endAt time.Time, page, size int, intervalMs, anchorMs int64, fields []HistoryAggregationField) ([]map[string]any, int64, error) {
+func (s *Service) queryAggregatedHistoryRows(ctx context.Context, tableName, timeColumn string, topicType int16, startAt, endAt time.Time, limit, offset int, intervalMs, anchorMs int64, fields []HistoryAggregationField, countExact bool) ([]map[string]any, int64, error) {
 	baseColumns := make([]string, 0, len(fields)*2)
 	jsonArgs := make([]string, 0, len(fields)*2)
 	for idx, field := range fields {
-		valueExpr, numericExpr := historyValueExpr(topicType, field)
+		valueExpr, numericExpr := enterpriseHistoryValueExpr(topicType, field)
 		valueAlias := fmt.Sprintf("value_%d", idx)
 		numericAlias := fmt.Sprintf("numeric_%d", idx)
 		baseColumns = append(baseColumns,
@@ -353,12 +424,15 @@ func (s *Service) queryAggregatedHistoryRows(ctx context.Context, tableName, tim
 	WHERE %s >= $3 AND %s <= $4
 	GROUP BY bucket_index
 ) buckets`, bucketExpr, tableName, quoteIdent(timeColumn), quoteIdent(timeColumn))
-	var total int64
-	if err := s.writer.pool.QueryRow(ctx, countSQL, anchorMs, intervalMs, startAt, endAt).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	if total == 0 {
-		return []map[string]any{}, 0, nil
+	total := int64(-1)
+	if countExact {
+		total = 0
+		if err := s.writer.pool.QueryRow(ctx, countSQL, anchorMs, intervalMs, startAt, endAt).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+		if total == 0 {
+			return []map[string]any{}, 0, nil
+		}
 	}
 	query := fmt.Sprintf(`WITH base AS (
 	SELECT %s AS bucket_index, %s AS ts, %s
@@ -375,7 +449,7 @@ ORDER BY bucket_index ASC
 LIMIT $5 OFFSET $6`,
 		bucketExpr, quoteIdent(timeColumn), strings.Join(baseColumns, ", "), tableName,
 		quoteIdent(timeColumn), quoteIdent(timeColumn), historyJSONBuildObjectExpr(jsonArgs))
-	rows, err := s.writer.pool.Query(ctx, query, anchorMs, intervalMs, startAt, endAt, size, (page-1)*size)
+	rows, err := s.writer.pool.Query(ctx, query, anchorMs, intervalMs, startAt, endAt, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -399,6 +473,75 @@ LIMIT $5 OFFSET $6`,
 	return list, total, nil
 }
 
+func canUseFullWindowBoundaryQuery(query HistoryQuery, startAt, endAt time.Time, actualIntervalMs int64, fields []HistoryAggregationField) bool {
+	if !query.Auto || !query.SkipCount || query.IntervalMs <= 0 || actualIntervalMs <= 0 || len(fields) == 0 {
+		return false
+	}
+	if actualIntervalMs < historySamplingInterval(startAt.UnixMilli(), endAt.UnixMilli(), 1) {
+		return false
+	}
+	for _, field := range fields {
+		if field.Function != "first" && field.Function != "last" {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Service) queryFullWindowBoundaryHistoryRow(ctx context.Context, tableName, timeColumn string, topicType int16, startAt, endAt time.Time, anchorMs int64, fields []HistoryAggregationField) ([]map[string]any, error) {
+	query := fullWindowBoundaryHistorySQL(tableName, timeColumn, topicType, fields)
+	rows, err := s.writer.pool.Query(ctx, query, startAt, endAt, anchorMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := make([]map[string]any, 0, 1)
+	if rows.Next() {
+		var timestamp int64
+		var payloadJSON string
+		if err := rows.Scan(&timestamp, &payloadJSON); err != nil {
+			return nil, err
+		}
+		payload := map[string]any{}
+		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+			return nil, err
+		}
+		list = append(list, map[string]any{"timestamp": timestamp, "payload": payload})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func fullWindowBoundaryHistorySQL(tableName, timeColumn string, topicType int16, fields []HistoryAggregationField) string {
+	quotedTime := quoteIdent(timeColumn)
+	jsonArgs := make([]string, 0, len(fields)*2)
+	for _, field := range fields {
+		valueExpr, _ := enterpriseHistoryValueExpr(topicType, field)
+		direction := "ASC"
+		if field.Function == "last" {
+			direction = "DESC"
+		}
+		boundaryValue := fmt.Sprintf(`(
+		SELECT %s
+		FROM %s
+		WHERE %s >= $1 AND %s <= $2 AND %s IS NOT NULL
+		ORDER BY %s %s
+		LIMIT 1
+	)`, valueExpr, tableName, quotedTime, quotedTime, valueExpr, quotedTime, direction)
+		jsonArgs = append(jsonArgs, quoteLiteral(field.Name), boundaryValue)
+	}
+	return fmt.Sprintf(`SELECT $3::bigint AS time_stamp, jsonb_strip_nulls(%s)::text AS payload
+FROM (
+	SELECT 1
+	FROM %s
+	WHERE %s >= $1 AND %s <= $2
+	ORDER BY %s ASC
+	LIMIT 1
+) AS window_row`, historyJSONBuildObjectExpr(jsonArgs), tableName, quotedTime, quotedTime, quotedTime)
+}
+
 func historyJSONBuildObjectExpr(args []string) string {
 	const maxArgsPerCall = 100
 	if len(args) == 0 {
@@ -418,7 +561,7 @@ func historyJSONBuildObjectExpr(args []string) string {
 	return "(" + strings.Join(parts, " || ") + ")"
 }
 
-func historyValueExpr(topicType int16, field HistoryAggregationField) (string, string) {
+func enterpriseHistoryValueExpr(topicType int16, field HistoryAggregationField) (string, string) {
 	if topicType == metricTopicType {
 		column := quoteIdent(field.Name)
 		numericExpr := "NULL::double precision"

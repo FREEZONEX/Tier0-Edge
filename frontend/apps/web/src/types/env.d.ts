@@ -22,5 +22,6 @@ interface Window {
   __TIER0_RUNTIME_CONFIG__?: {
     launchpadPort?: string;
     launchpadStandalone?: boolean;
+    sourceStreamEnabled?: boolean;
   };
 }

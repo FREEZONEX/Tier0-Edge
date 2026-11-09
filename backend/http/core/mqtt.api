@@ -1,0 +1,38 @@
+syntax = "v1"
+
+@server(
+    prefix: /api/core/mqtt
+    group: core/mqtt
+)
+service backend {
+    @handler MqttAuth
+    post /auth (MqttAuthReq) returns (Envelope)
+
+    @handler MqttAcl
+    post /acl (MqttAclReq) returns (Envelope)
+}
+
+@server(
+    prefix: /api/core/mqtt
+    group: core/mqtt
+    middleware: SessionAuth, Permission
+)
+service backend {
+    @handler MqttAuthClientList
+    get /auth-clients (MqttAuthClientListReq) returns (Envelope)
+
+    @handler MqttAuthClientCreate
+    post /auth-clients (MqttAuthClientCreateReq) returns (Envelope)
+
+    @handler MqttAuthClientResetPassword
+    post /auth-clients/:id/reset-password (IdReq) returns (Envelope)
+
+    @handler MqttAuthClientEnable
+    post /auth-clients/:id/enable (IdReq) returns (Envelope)
+
+    @handler MqttAuthClientDisable
+    post /auth-clients/:id/disable (IdReq) returns (Envelope)
+
+    @handler MqttAuthClientDelete
+    delete /auth-clients/:id (IdReq) returns (Envelope)
+}

@@ -12,6 +12,7 @@ import { formatShowName } from '@/utils';
 export interface KeepAliveTab {
   title: ReactNode;
   fullTitle?: string;
+  contextTitle?: string;
   routePath: string;
   key: string;
   tabKey: string;
@@ -92,14 +93,20 @@ export function useTabs() {
             )
           );
         } else {
-          // 如果不存在则需要插入
-          setKeepAliveTabs((prev) => [
-            ...prev,
-            {
+          // 带父级定位的页面紧跟父标签插入，用轻量顺序表达页面归属关系。
+          setKeepAliveTabs((prev) => {
+            const nextTab = {
               ...matchRoute,
               key: getKey(),
-            },
-          ]);
+            };
+            const parentTabPathname = matchRoute.location.state?.tabParentPathname;
+            if (!parentTabPathname) return [...prev, nextTab];
+
+            const parentIndex = prev.findIndex((tab) => tab.pathname === parentTabPathname);
+            if (parentIndex < 0) return [...prev, nextTab];
+
+            return [...prev.slice(0, parentIndex + 1), nextTab, ...prev.slice(parentIndex + 1)];
+          });
         }
       } else if (!existKeepAliveTab.children) {
         // 如果tab相同，但是children为空，说明重缓存中加载的数据，我们只需要刷新当前页签并且把children设置为新的children
@@ -129,9 +136,14 @@ export function useTabs() {
                 tabName:
                   matchRoute.location.state?.tabName ||
                   (shouldKeepExistingTabName ? existingTab.location?.state?.tabName : undefined),
+                tabContextName:
+                  matchRoute.location.state?.tabContextName ||
+                  (shouldKeepExistingTabName ? existingTab.location?.state?.tabContextName : undefined),
+                tabParentPathname:
+                  matchRoute.location.state?.tabParentPathname || existingTab.location?.state?.tabParentPathname,
               },
             };
-            return prev.map((tab, i) =>
+            const updatedTabs = prev.map((tab, i) =>
               i === index
                 ? {
                     ...tab,
@@ -143,6 +155,19 @@ export function useTabs() {
                   }
                 : tab
             );
+            const parentTabPathname = mergedLocation.state.tabParentPathname;
+            if (!parentTabPathname) return updatedTabs;
+
+            const updatedTab = updatedTabs[index];
+            const tabsWithoutUpdated = updatedTabs.filter((_, i) => i !== index);
+            const parentIndex = tabsWithoutUpdated.findIndex((tab) => tab.pathname === parentTabPathname);
+            if (parentIndex < 0) return updatedTabs;
+
+            return [
+              ...tabsWithoutUpdated.slice(0, parentIndex + 1),
+              updatedTab,
+              ...tabsWithoutUpdated.slice(parentIndex + 1),
+            ];
           }
           return [...(prev || [])];
         });
@@ -240,11 +265,15 @@ export function useTabs() {
 
       if (o.dynamicTabName && o.location?.state?.tabName) {
         const tabName = String(o.location.state.tabName);
-        const tabNameFull = String(o.location.state.tabNameFull || tabName);
+        const contextTitle = o.location.state.tabContextName ? String(o.location.state.tabContextName) : undefined;
+        const tabNameFull = String(
+          o.location.state.tabNameFull || (contextTitle ? `${contextTitle} / ${tabName}` : tabName)
+        );
         return {
           ...o,
           title: tabName,
           fullTitle: tabNameFull,
+          contextTitle,
         };
       }
 

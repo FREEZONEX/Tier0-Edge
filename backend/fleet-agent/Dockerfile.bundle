@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1.7
+
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG VERSION=dev
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG FLEET_AGENT_LINUX_ARCH=amd64
+
+WORKDIR /src
+ENV GO111MODULE=on
+ENV GOPROXY=${GOPROXY}
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,id=enterprise-go-mod,target=/go/pkg/mod go mod download
+COPY fleet-agent ./fleet-agent
+COPY internal ./internal
+COPY share ./share
+COPY http ./http
+
+RUN --mount=type=cache,id=enterprise-go-mod,target=/go/pkg/mod \
+    --mount=type=cache,id=enterprise-fleet-go-build,target=/root/.cache/go-build \
+    set -eux; \
+    case "${FLEET_AGENT_LINUX_ARCH}" in amd64|arm64) ;; *) echo "unsupported Fleet Linux architecture" >&2; exit 1 ;; esac; \
+    mkdir -p /out/fleet-agent; \
+    for target in \
+      linux/${FLEET_AGENT_LINUX_ARCH} \
+      windows/amd64 \
+      darwin/arm64; do \
+        os="${target%/*}"; \
+        arch="${target#*/}"; \
+        platform="${os}-${arch}"; \
+        filename="tier0-fleet-agent"; \
+        if [ "${os}" = "windows" ]; then filename="${filename}.exe"; fi; \
+        mkdir -p "/out/fleet-agent/${platform}"; \
+        CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" go build \
+          -trimpath \
+          -ldflags="-s -w -X main.version=${VERSION}" \
+          -o "/out/fleet-agent/${platform}/${filename}" \
+          ./fleet-agent/cmd/fleet-agent; \
+      done; \
+    cd /out; \
+    find fleet-agent -type f -print | LC_ALL=C sort | xargs sha256sum > checksums.sha256
+
+FROM scratch
+
+ARG VERSION=dev
+
+LABEL org.opencontainers.image.title="Tier0 Enterprise Fleet Agent Bundle"
+LABEL org.opencontainers.image.description="Cross-platform Tier0 Fleet Agent binaries"
+LABEL org.opencontainers.image.version="${VERSION}"
+
+COPY --from=builder /out/fleet-agent /fleet-agent
+COPY --from=builder /out/checksums.sha256 /checksums.sha256

@@ -1,3 +1,4 @@
+import { isRemovedFeatureEntry } from '@/utils/removed-feature-pages';
 import { ApiWrapper } from '@/utils/request';
 import type { ResourceProps } from '@/stores/types';
 import { ButtonPermission } from '@/common-types/button-permission';
@@ -31,6 +32,7 @@ export type CoreResource = {
 const resourceNodeId = (resourceKey: string) => `resource:${resourceKey}`;
 
 const routeOverrides: Record<string, string> = {
+  'uns.app.read': '/app',
   'iam.user.view': '/settings/users',
   'iam.role.view': '/settings/users',
   'iam.role.delete': '/settings/users',
@@ -43,6 +45,9 @@ const routeOverrides: Record<string, string> = {
   'cluster.edge.manage': '/edge-connection',
   'home.page': '/home',
   'uns.page': '/uns',
+  'uns.overview.page': '/uns/overview',
+  'uns.collections.page': '/collections',
+  'uns.dataQuality.page': '/uns/data-quality-alarms',
   'uns.read': '/uns',
   'uns.write': '/uns',
   'uns.delete': '/uns',
@@ -58,6 +63,8 @@ const routeOverrides: Record<string, string> = {
   'mqtt.auth.delete': '/edge-connection',
   'system.menu.config': '/settings/menu',
   'system.audit.log': '/settings/audit-log',
+  'notify.manage': '/settings/notifications',
+  'system.login.log': '/settings/login-log',
   'launchpad.view': '/launchpad',
   'project.view': '/project',
   'asset.file.read': '/OpenData',
@@ -68,6 +75,7 @@ const routeOverrides: Record<string, string> = {
 };
 
 const codeOverrides: Record<string, string> = {
+  'uns.app.read': 'nativeApp.title',
   uns: 'menu.uns',
   app: 'sidebar.app',
   analysis: 'sidebar.analysis',
@@ -87,6 +95,9 @@ const codeOverrides: Record<string, string> = {
   'cluster.edge.manage': 'mqttAuth.edgeNode',
   'home.page': 'common.home',
   'uns.page': 'route.uns',
+  'uns.overview.page': 'UnsOverview.title',
+  'uns.collections.page': 'Collections.title',
+  'uns.dataQuality.page': 'dataQuality.alarmWorkbench',
   'uns.read': 'route.uns',
   'uns.write': 'route.uns',
   'uns.delete': 'route.uns',
@@ -115,6 +126,7 @@ const codeOverrides: Record<string, string> = {
   'iam.resource.update': 'resource.iam.resource.update',
   'iam.resource.delete': 'resource.iam.resource.delete',
   'system.audit.log': 'route.auditLog',
+  'system.login.log': 'route.loginLog',
   'launchpad.view': 'Launchpad.title',
   'project.view': 'route.project',
   vision: 'sidebar.vision',
@@ -124,6 +136,7 @@ const codeOverrides: Record<string, string> = {
 };
 
 const iconOverrides: Record<string, string> = {
+  'uns.app.read': 'Project',
   system: 'menu.tag.system',
   app: 'menu.tag.appspace',
   analysis: 'menu.tag.connections',
@@ -148,8 +161,11 @@ const iconOverrides: Record<string, string> = {
   'system.menu.create': 'MenuConfiguration',
   'system.menu.update': 'MenuConfiguration',
   'system.audit.log': 'Logs',
+  'system.login.log': 'Authentication',
   uns: 'menu.tag.uns',
   'uns.page': 'Namespace',
+  'uns.overview.page': 'Namespace',
+  'uns.dataQuality.page': 'Logs',
   'uns.read': 'Namespace',
   'uns.write': 'Namespace',
   'uns.delete': 'Namespace',
@@ -176,10 +192,14 @@ const iconOverrides: Record<string, string> = {
 };
 
 const nameOverrides: Record<string, string> = {
+  'uns.app.read': 'nativeApp.title',
   uns: 'menu.uns',
   app: 'sidebar.app',
   analysis: 'sidebar.analysis',
   'uns.page': 'route.uns',
+  'uns.overview.page': 'UnsOverview.title',
+  'uns.collections.page': 'Collections.title',
+  'uns.dataQuality.page': 'dataQuality.alarmWorkbench',
   'uns.read': 'resource.uns.read',
   'uns.write': 'resource.uns.write',
   'uns.delete': 'resource.uns.delete',
@@ -219,6 +239,7 @@ const nameOverrides: Record<string, string> = {
   'system.menu.update': 'resource.system.menu.update',
   'system.menu.delete': 'resource.system.menu.delete',
   'system.audit.log': 'route.auditLog',
+  'system.login.log': 'route.loginLog',
   'iam.resource.view': 'PermissionManagement.title',
   'iam.resource.create': 'resource.iam.resource.create',
   'iam.resource.update': 'resource.iam.resource.update',
@@ -239,10 +260,12 @@ const nameOverrides: Record<string, string> = {
 };
 
 const menuNameOverrides: Record<string, string> = {
+  'uns.app.read': 'nativeApp.title',
   uns: 'menu.tag.uns',
   app: 'sidebar.app',
   analysis: 'sidebar.analysis',
   'uns.page': 'Namespace',
+  'uns.dataQuality.page': 'dataQuality.alarmWorkbench',
   flow: 'menu.tag.connections',
   'flow.collection.page': 'common.flow',
   'flow.event.page': 'EventFlow',
@@ -258,6 +281,7 @@ const menuNameOverrides: Record<string, string> = {
   'apikey.manage': 'API Key',
   'system.menu.config': 'MenuConfiguration',
   'system.audit.log': 'AuditLog',
+  'system.login.log': 'LoginLog',
   'oauth.client.manage': 'OAuth Client',
   'home.page': 'common.home',
   'mqtt.auth.manage': 'menu.mqttAuth',
@@ -266,10 +290,16 @@ const menuNameOverrides: Record<string, string> = {
 };
 
 const parentOverrides: Record<string, string> = {
+  'uns.app.read': 'app',
+  'uns.app.manage': 'uns.app.read',
+  'uns.app.credentials': 'uns.app.read',
   'uns.page': 'uns',
+  'uns.dataQuality.page': 'uns',
   'uns.read': 'uns.page',
   'uns.write': 'uns.page',
   'uns.delete': 'uns.page',
+  'uns.dataQuality.read': 'uns.dataQuality.page',
+  'uns.dataQuality.manage': 'uns.dataQuality.page',
   'flow.collection.page': 'uns',
   'flow.event.page': 'uns',
   'flow.read': 'flow.collection.page',
@@ -292,6 +322,7 @@ const parentOverrides: Record<string, string> = {
   'apikey.manage': 'system',
   'system.menu.config': 'system',
   'system.audit.log': 'system',
+  'system.login.log': 'system',
   'iam.resource.view': 'system',
   'oauth.client.manage': 'system',
   'cluster.edge.manage': 'mqtt.auth.manage',
@@ -304,14 +335,18 @@ const parentOverrides: Record<string, string> = {
 };
 
 const sortOverrides: Record<string, number> = {
+  'uns.app.read': 10,
   uns: 10,
   app: 20,
   analysis: 30,
   'home.page': 5,
   'uns.page': 10,
+  'uns.dataQuality.page': 20,
   'uns.read': 10,
   'uns.write': 20,
   'uns.delete': 30,
+  'uns.dataQuality.read': 10,
+  'uns.dataQuality.manage': 20,
   flow: 20,
   'flow.collection.page': 10,
   'flow.event.page': 20,
@@ -339,6 +374,7 @@ const sortOverrides: Record<string, number> = {
   'apikey.manage': 30,
   'system.menu.config': 40,
   'system.audit.log': 50,
+  'system.login.log': 51,
   'iam.resource.view': 60,
   'oauth.client.manage': 55,
   'cluster.edge.manage': 30,
@@ -352,11 +388,13 @@ const sortOverrides: Record<string, number> = {
 };
 
 const menuResourceKeys = new Set([
+  'uns.app.read',
   'iam.user.view',
   'gateway.route.manage',
   'apikey.manage',
   'home.page',
   'uns.page',
+  'uns.dataQuality.page',
   'flow.collection.page',
   'flow.event.page',
   'mqtt.auth.manage',
@@ -365,6 +403,7 @@ const menuResourceKeys = new Set([
   'iam.resource.view',
   'system.menu.config',
   'system.audit.log',
+  'system.login.log',
   'launchpad.view',
   'project.view',
   'anchor.model',
@@ -403,6 +442,8 @@ const nonNavigationResourceKeys = new Set([
 ]);
 
 const retiredResourceKeys = new Set([
+  'project.view',
+  'project.manage',
   'flow',
   'vision',
   'app.management',
@@ -437,6 +478,12 @@ const retiredResourceKeys = new Set([
 ]);
 
 const hiddenMenuResourceKeys = new Set([
+  // 对象关系图从 Data topology 切换进入。
+  'uns.overview.page',
+  // 集合管理从 UNS 内进入；保留页面权限与历史链接。
+  'uns.collections.page',
+  // 暂不展示独立告警菜单；保留 UNS 内的数据质量配置和检测权限。
+  'uns.dataQuality.page',
   'flow',
   'vision',
   'flow.event.page',
@@ -448,6 +495,10 @@ const hiddenMenuResourceKeys = new Set([
   'apikey.manage',
   'oauth.client.manage',
   'system.audit.log',
+  'notify',
+  'notify.manage',
+  'notify.message.center',
+  'system.login.log',
 ]);
 
 /** 不应出现在侧边栏 / 顶栏导航的菜单资源（权限仍保留，仅从导航树剔除） */
@@ -510,7 +561,27 @@ const buttonActions = Array.from(
   ])
 );
 
+// 与后端独立资源对齐，不能被下面的 Namespace 旧读权限兼容规则扩大授权。
+const integrationButtonResources: Record<string, string> = {
+  [ButtonPermission['uns.agentView']]: 'unsagent.view',
+  [ButtonPermission['uns.sources']]: 'uns.source',
+  [ButtonPermission['uns.sourceManage']]: 'uns.source.manage',
+  [ButtonPermission['uns.sourceCredentials']]: 'uns.source.credentials',
+  [ButtonPermission['uns.streams']]: 'uns.stream',
+  [ButtonPermission['uns.streamManage']]: 'uns.stream.manage',
+  [ButtonPermission['uns.streamDeploy']]: 'uns.stream.deploy',
+  [ButtonPermission['uns.streamExecute']]: 'uns.stream.execute',
+  [ButtonPermission['uns.appManage']]: 'uns.app.manage',
+  [ButtonPermission['uns.appCredentials']]: 'uns.app.credentials',
+  [ButtonPermission['StreamRequests.manage']]: 'stream.requests.manage',
+};
+
 const buttonParentResourceKey = (code: string) => {
+  if (Object.prototype.hasOwnProperty.call(integrationButtonResources, code)) {
+    return integrationButtonResources[code];
+  }
+  if (code === 'Namespace.metadataWrite') return 'uns.write';
+  if (code === 'Namespace.metadataDelete') return 'uns.delete';
   if (code === 'uns.read' || code === 'uns.delete' || code === 'uns.manage') {
     return code;
   }
@@ -682,18 +753,7 @@ export const toLegacyResource = (
     openType: Number(item.openType || 0),
     enable: options.includeHiddenMenus === true || !hiddenMenuResourceKeys.has(key),
     isFrontend: Boolean(legacyUrl) && legacyUrlType === 1,
-    homeEnable: [
-      '/uns',
-      '/home',
-      '/flow',
-      '/collection-flow',
-      '/event-flow',
-      '/project',
-      '/notebook',
-      '/launchpad',
-      '/edge-connection',
-      '/vision',
-    ].includes(legacyUrl),
+    homeEnable: ['/uns', '/home', '/project', '/launchpad', '/edge-connection', '/vision'].includes(legacyUrl),
     editEnable: hasCoreResourceId && item.systemGenerated !== 1,
   };
 };
@@ -706,6 +766,7 @@ type ToLegacyResourcesOptions = {
 export const toLegacyResources = (resources: CoreResource[] = [], options: ToLegacyResourcesOptions = {}) => {
   const flatResources = withVirtualParentResources(flattenResources(resources)).filter((item) => {
     if (retiredResourceKeys.has(item.resourceKey)) return false;
+    if (isRemovedFeatureEntry({ resourceKey: item.resourceKey, url: routeForResource(item) })) return false;
     if (
       options.includeActionButtons === false &&
       options.includeHiddenMenus !== true &&
@@ -760,7 +821,9 @@ export const toLegacyResources = (resources: CoreResource[] = [], options: ToLeg
   const fallbackButtons = buttonActions
     .filter((uri) => !seenButtons.has(uri))
     .reduce<ResourceProps[]>((items, uri, index) => {
-      const parentId = legacyByResourceKey.get(buttonParentResourceKey(uri.replace(/^button:/, '')))?.parentId;
+      const parent = legacyByResourceKey.get(buttonParentResourceKey(uri.replace(/^button:/, '')));
+      // 独立动作没有导航父项时仍归到自身资源，不能在按钮目录阶段丢弃有效授权。
+      const parentId = parent?.parentId || parent?.id;
       if (!parentId) return items;
       items.push({
         id: uri,
@@ -907,6 +970,7 @@ export const mapFlow = (item: any) => {
   const parentId = item.parentId || item.groupId || 0;
   const flowStatus = item.status ?? item.flowStatus;
   const template = item.template || item.flowTemplate || 'node-red';
+  const flowKind = String(item.flowKind || item.flowType || 'source').toLowerCase() === 'event' ? 'event' : 'source';
   const isPinned = Number(item.isFavorite) === 1 || Number(item.sortKey) > 0 || item.pinned === true;
   return {
     ...item,
@@ -919,6 +983,7 @@ export const mapFlow = (item: any) => {
     parentId: parentId ? String(parentId) : '',
     category: isGroup ? 'group' : item.category || 'file',
     nodeType: isGroup ? 'folder' : 'flow',
+    flowKind,
     flowStatus: isGroup ? '' : normalizeFlowStatus(flowStatus),
     status: isGroup ? '' : normalizeFlowStatus(flowStatus),
     rawFlowStatus: flowStatus,
