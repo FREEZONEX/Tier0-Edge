@@ -8,6 +8,9 @@ import (
 )
 
 func sensitiveSourceRequest(r *http.Request) bool {
+	if r.Method == http.MethodPut && r.URL.Path == "/api/core/fleet/current/connection" {
+		return true
+	}
 	// MCP 的认证头与模型查询参数不进入详细请求日志或 5xx body dump。
 	if r.URL.Path == "/mcp" || strings.HasPrefix(r.URL.Path, "/mcp/oauth/") || strings.HasPrefix(r.URL.Path, "/api/core/mcp/oauth/") {
 		return true

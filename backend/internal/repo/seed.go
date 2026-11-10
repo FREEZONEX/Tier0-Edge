@@ -791,7 +791,7 @@ func legacySeedActions() []ResourceAction {
 		{ResourceID: 172, ActionType: "api", ActionValue: "/api/core/fleet/nodes/:nodeID/accounts", Methods: "PUT"},
 		{ResourceID: 172, ActionType: "ui", ActionValue: "button:FleetNode.accounts"},
 		{ResourceID: 173, ActionType: "api", ActionValue: "/api/core/fleet/current", Methods: "GET"},
-		{ResourceID: 173, ActionType: "api", ActionValue: "/api/core/fleet/current/connection", Methods: "PUT"},
+		{ResourceID: 177, ActionType: "api", ActionValue: "/api/core/fleet/current/connection", Methods: "PUT"},
 		{ResourceID: 173, ActionType: "api", ActionValue: "/api/core/system/runtime-metrics", Methods: "GET"},
 		{ResourceID: 173, ActionType: "api", ActionValue: "/api/core/fleet/nodes/:nodeID/containers", Methods: "GET"},
 		{ResourceID: 173, ActionType: "api", ActionValue: "/api/core/fleet/nodes/:nodeID/containers/:containerID", Methods: "GET"},

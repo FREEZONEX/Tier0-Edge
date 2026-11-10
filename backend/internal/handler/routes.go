@@ -6,6 +6,7 @@ package handler
 import (
 	corecapabilities "backend/internal/handler/core/capabilities"
 	coredataquality "backend/internal/handler/core/dataquality"
+	corefleet "backend/internal/handler/core/fleet"
 	corefleetv2 "backend/internal/handler/core/fleetv2"
 	coreloginlog "backend/internal/handler/core/loginlog"
 	coremcp "backend/internal/handler/core/mcp"
@@ -57,6 +58,22 @@ import (
 )
 
 func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.SessionAuth, serverCtx.Permission},
+			[]rest.Route{
+				{
+					Method:  http.MethodPut,
+					Path:    "/current/connection",
+					Handler: corefleet.FleetCurrentConnectionUpdateHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/core/fleet"),
+		rest.WithTimeout(30000*time.Millisecond),
+		rest.WithMaxBytes(1048576),
+	)
 
 	server.AddRoutes(
 		rest.WithMiddlewares(

@@ -1,0 +1,19 @@
+syntax = "v1"
+
+import "../common.api"
+
+type FleetCurrentConnectionReq {
+    accessToken string `json:"accessToken"`
+}
+
+@server(
+    prefix: /api/core/fleet
+    group: core/fleet
+    middleware: SessionAuth, Permission
+    maxBytes: 1048576
+    timeout: 30s
+)
+service backend {
+    @handler FleetCurrentConnectionUpdate
+    put /current/connection (FleetCurrentConnectionReq) returns (Envelope)
+}

@@ -62,3 +62,13 @@ func TestSourceCredentialRequestsDoNotCaptureAuditPayload(t *testing.T) {
 	}
 	require.False(t, sensitiveSourceRequest(httptest.NewRequest(http.MethodGet, "/api/core/uns/sources/42", nil)))
 }
+
+func TestFleetTokenIsExcludedFromAuditPayload(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPut, "/api/core/fleet/current/connection",
+		strings.NewReader(`{"accessToken":"private-test-token"}`))
+	r.Header.Set("Content-Type", "application/json")
+	require.Nil(t, captureJSONRequestPayload(r))
+	body, err := io.ReadAll(r.Body)
+	require.NoError(t, err)
+	require.Contains(t, string(body), "private-test-token")
+}
